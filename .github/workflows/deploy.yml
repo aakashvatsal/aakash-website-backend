@@ -22,6 +22,8 @@ jobs:
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_APP_PATH: ${{ secrets.EC2_APP_PATH }}
         run: |
+          set -e
+
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
 
@@ -30,26 +32,78 @@ jobs:
 
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-          ssh -i ~/.ssh/deploy_key "$EC2_USER@$EC2_HOST" << EOF
+          ssh \
+            -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=yes \
+            "$EC2_USER@$EC2_HOST" << EOF
+
             set -e
 
             cd "$EC2_APP_PATH"
 
-            echo "Pulling latest code..."
+            echo "========================================"
+            echo "Pulling latest code"
+            echo "========================================"
+
             git fetch origin main
             git reset --hard origin/main
 
-            echo "Installing dependencies..."
+            echo "Current commit:"
+            git rev-parse --short HEAD
+
+            echo "========================================"
+            echo "Installing dependencies"
+            echo "========================================"
+
             npm ci
 
-            echo "Building application..."
+            echo "========================================"
+            echo "Building NestJS application"
+            echo "========================================"
+
             npm run build
 
-            echo "Restarting backend..."
+            echo "========================================"
+            echo "Restarting backend with PM2"
+            echo "========================================"
+
             pm2 restart aakash-backend
 
-            echo "Saving PM2 state..."
+            echo "========================================"
+            echo "Saving PM2 state"
+            echo "========================================"
+
             pm2 save
 
-            echo "Deployment completed."
+            echo "========================================"
+            echo "Waiting for backend to start"
+            echo "========================================"
+
+            sleep 5
+
+            echo "========================================"
+            echo "Checking PM2 status"
+            echo "========================================"
+
+            pm2 status
+
+            echo "========================================"
+            echo "Running production health check"
+            echo "========================================"
+
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --retry 5 \
+              --retry-delay 3 \
+              --retry-connrefused \
+              https://api.aakashvatsal.com/api/v1/companies \
+              > /dev/null
+
+            echo "========================================"
+            echo "Health check passed"
+            echo "Deployment completed successfully"
+            echo "========================================"
+
           EOF
