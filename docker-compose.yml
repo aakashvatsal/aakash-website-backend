@@ -1,0 +1,12 @@
+services:
+  mongodb:
+    image: mongo:8
+    container_name: aakash-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - aakash_mongodb_data:/data/db
+
+volumes:
+  aakash_mongodb_data:
