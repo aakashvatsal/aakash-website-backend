@@ -916,6 +916,9 @@ export class WhoopService {
           this.getConfig(
             'WHOOP_CLIENT_SECRET',
           ),
+
+        scope:
+        'offline',
       });
 
     return this.requestToken(
