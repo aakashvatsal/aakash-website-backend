@@ -25,6 +25,7 @@ import { MeditationModule } from './modules/meditation/meditation.module';
 import { ProductsModule } from './modules/products/products.module';
 import { NowModule } from './modules/now/now.module';
 import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
+import { HsakaaModule } from './hsakaa/hsakaa.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.
     ProductsModule,
     NowModule,
     AdminDashboardModule,
+    HsakaaModule,
   ],
 })
 export class AppModule {}
