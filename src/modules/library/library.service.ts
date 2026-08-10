@@ -284,7 +284,7 @@ export class LibraryService {
     );
 
     const filter: QueryFilter<LibraryItemDocument> = {
-      isActive: true,
+      isPublic: true,
     };
 
     if (query.type) {
