@@ -18,9 +18,7 @@ import {
 } from 'mongoose';
 
 import {
-  createHmac,
   randomBytes,
-  timingSafeEqual,
 } from 'crypto';
 
 import {
@@ -179,6 +177,25 @@ export class WhoopService {
   private readonly apiUrl =
     'https://api.prod.whoop.com/developer/v2';
 
+  /**
+   * WHOOP requires manually-generated OAuth state
+   * values to be exactly 8 characters.
+   *
+   * Store them temporarily so we can validate
+   * the callback and protect against CSRF.
+   *
+   * Key   = state
+   * Value = creation timestamp
+   */
+  private readonly oauthStates =
+    new Map<string, number>();
+
+  /**
+   * OAuth authorization window.
+   */
+  private readonly oauthStateMaxAgeMs =
+    10 * 60 * 1000;
+
   constructor(
     @InjectModel(
       Integration.name,
@@ -203,6 +220,12 @@ export class WhoopService {
       this.getConfig(
         'WHOOP_REDIRECT_URI',
       );
+
+    /**
+     * Remove expired OAuth states before
+     * creating another one.
+     */
+    this.cleanupExpiredStates();
 
     const state =
       this.createState();
@@ -267,6 +290,10 @@ export class WhoopService {
       );
     }
 
+    /**
+     * Validate state BEFORE exchanging the
+     * authorization code.
+     */
     this.verifyState(
       state,
     );
@@ -339,6 +366,10 @@ export class WhoopService {
         true,
     };
 
+    /**
+     * offline scope should make WHOOP
+     * return a refresh token.
+     */
     if (
       token.refresh_token
     ) {
@@ -393,6 +424,9 @@ export class WhoopService {
 
         connectedAt:
           integration.connectedAt,
+
+        accessTokenExpiresAt:
+          integration.accessTokenExpiresAt,
       },
     };
   }
@@ -400,6 +434,7 @@ export class WhoopService {
   async syncHealth(
     options?: {
       startDate?: string;
+
       endDate?: string;
     },
   ) {
@@ -468,13 +503,15 @@ export class WhoopService {
     const integration =
       await this.getWhoopIntegration();
 
+    /**
+     * Reuse the existing access token
+     * while it still has more than
+     * 5 minutes remaining.
+     */
     if (
       integration.accessToken &&
       integration.accessTokenExpiresAt
     ) {
-      /**
-       * Refresh 5 minutes early.
-       */
       const refreshAt =
         Date.now() +
         5 * 60 * 1000;
@@ -504,6 +541,11 @@ export class WhoopService {
       integration.accessToken =
         token.access_token;
 
+      /**
+       * WHOOP rotates refresh tokens.
+       * Always persist the new one when
+       * returned.
+       */
       if (
         token.refresh_token
       ) {
@@ -570,6 +612,7 @@ export class WhoopService {
         })
         .select({
           accessToken: 0,
+
           refreshToken: 0,
         })
         .lean();
@@ -612,6 +655,9 @@ export class WhoopService {
 
       lastSyncError:
         integration.lastSyncError,
+
+      accessTokenExpiresAt:
+        integration.accessTokenExpiresAt,
     };
   }
 
@@ -642,6 +688,7 @@ export class WhoopService {
 
     return this.syncHealth({
       startDate,
+
       endDate,
     });
   }
@@ -669,15 +716,15 @@ export class WhoopService {
       );
     }
 
-    /**
-     * Safety limit.
-     */
     const totalDays =
       this.getDaysBetween(
         startDateKey,
         endDateKey,
       ) + 1;
 
+    /**
+     * Safety limit.
+     */
     if (
       totalDays >
       730
@@ -695,29 +742,38 @@ export class WhoopService {
 
     const chunks: Array<{
       startDate: string;
+
       endDate: string;
 
       cycles: number;
+
       recoveries: number;
+
       sleeps: number;
+
       workouts: number;
 
       dailyEntriesUpdated: number;
 
       workoutsCreated: number;
+
       workoutsUpdated: number;
     }> = [];
 
     const totals = {
       cycles: 0,
+
       recoveries: 0,
+
       sleeps: 0,
+
       workouts: 0,
 
       dailyEntriesUpdated:
         0,
 
       workoutsCreated: 0,
+
       workoutsUpdated: 0,
     };
 
@@ -865,6 +921,11 @@ export class WhoopService {
     );
   }
 
+  /**
+   * Exchanges the authorization code
+   * received from WHOOP for an access
+   * token + refresh token.
+   */
   private async exchangeCode(
     code: string,
   ) {
@@ -896,6 +957,10 @@ export class WhoopService {
     );
   }
 
+  /**
+   * Refresh an expired / nearly expired
+   * WHOOP access token.
+   */
   private async refreshAccessToken(
     refreshToken: string,
   ) {
@@ -918,7 +983,7 @@ export class WhoopService {
           ),
 
         scope:
-        'offline',
+          'offline',
       });
 
     return this.requestToken(
@@ -1040,207 +1105,131 @@ export class WhoopService {
   }
 
   /**
-   * State format:
-   *
-   * base64url(payload).signature
-   *
-   * Payload:
-   * randomNonce.timestamp
+   * WHOOP requires manually generated
+   * OAuth state to be exactly
+   * eight characters.
    */
   private createState() {
-    const nonce =
-      randomBytes(
-        24,
-      ).toString(
-        'hex',
-      );
+    let state: string;
 
-    const timestamp =
-      Date.now().toString();
+    do {
+      /**
+       * Six random bytes produce eight
+       * base64url characters.
+       */
+      state =
+        randomBytes(
+          6,
+        ).toString(
+          'base64url',
+        );
+    } while (
+      this.oauthStates.has(
+        state,
+      )
+    );
 
-    const payload =
-      `${nonce}.${timestamp}`;
+    this.oauthStates.set(
+      state,
+      Date.now(),
+    );
 
-    const encodedPayload =
-      Buffer.from(
-        payload,
-      ).toString(
-        'base64url',
-      );
-
-    const signature =
-      this.signState(
-        encodedPayload,
-      );
-
-    return `${encodedPayload}.${signature}`;
+    return state;
   }
 
+  /**
+   * Validate that:
+   *
+   * 1. WHOOP returned an 8-character state.
+   * 2. We actually generated that state.
+   * 3. The OAuth flow has not expired.
+   *
+   * State is single-use and removed
+   * after validation.
+   */
   private verifyState(
     state: string,
   ) {
-    const parts =
-      state.split(
-        '.',
-      );
-
     if (
-      parts.length !==
-      2
+      state.length !== 8
     ) {
       throw new BadRequestException(
         'Invalid WHOOP OAuth state.',
       );
     }
 
-    const [
-      encodedPayload,
-      signature,
-    ] =
-      parts;
-
-    const expectedSignature =
-      this.signState(
-        encodedPayload,
+    const createdAt =
+      this.oauthStates.get(
+        state,
       );
 
-    const providedBuffer =
-      Buffer.from(
-        signature,
-        'utf8',
-      );
-
-    const expectedBuffer =
-      Buffer.from(
-        expectedSignature,
-        'utf8',
-      );
-
-    if (
-      providedBuffer.length !==
-      expectedBuffer.length
-    ) {
+    if (!createdAt) {
       throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
-      );
-    }
-
-    const valid =
-      timingSafeEqual(
-        providedBuffer,
-        expectedBuffer,
-      );
-
-    if (!valid) {
-      throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
-      );
-    }
-
-    let payload: string;
-
-    try {
-      payload =
-        Buffer.from(
-          encodedPayload,
-          'base64url',
-        ).toString(
-          'utf8',
-        );
-    } catch {
-      throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
-      );
-    }
-
-    const payloadParts =
-      payload.split(
-        '.',
-      );
-
-    if (
-      payloadParts.length !==
-      2
-    ) {
-      throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
-      );
-    }
-
-    const [
-      nonce,
-      timestampValue,
-    ] =
-      payloadParts;
-
-    if (
-      !nonce ||
-      !timestampValue
-    ) {
-      throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
-      );
-    }
-
-    const timestamp =
-      Number(
-        timestampValue,
-      );
-
-    if (
-      !Number.isFinite(
-        timestamp,
-      )
-    ) {
-      throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
+        'Invalid WHOOP OAuth state. Please start the WHOOP connection again.',
       );
     }
 
     /**
-     * OAuth authorization window:
-     * 10 minutes.
+     * Delete immediately to make
+     * the state single-use.
      */
-    const maxAgeMs =
-      10 *
-      60 *
-      1000;
+    this.oauthStates.delete(
+      state,
+    );
+
+    const age =
+      Date.now() -
+      createdAt;
 
     if (
-      Date.now() -
-        timestamp >
-      maxAgeMs
+      age >
+      this.oauthStateMaxAgeMs
     ) {
       throw new BadRequestException(
         'WHOOP OAuth state has expired. Please reconnect.',
       );
     }
+
+    if (
+      age < 0
+    ) {
+      throw new BadRequestException(
+        'Invalid WHOOP OAuth state.',
+      );
+    }
   }
 
-  private signState(
-    value: string,
-  ) {
-    return createHmac(
-      'sha256',
-      this.getConfig(
-        'WHOOP_STATE_SECRET',
-      ),
-    )
-      .update(
-        value,
-      )
-      .digest(
-        'hex',
-      );
+  private cleanupExpiredStates() {
+    const now =
+      Date.now();
+
+    for (
+      const [
+        state,
+        createdAt,
+      ] of this.oauthStates
+    ) {
+      if (
+        now -
+          createdAt >
+        this.oauthStateMaxAgeMs
+      ) {
+        this.oauthStates.delete(
+          state,
+        );
+      }
+    }
   }
 
   private getConfig(
     key: string,
   ) {
     const value =
-      this.configService.get<string>(
-        key,
-      );
+      this.configService
+        .get<string>(
+          key,
+        )
+        ?.trim();
 
     if (!value) {
       throw new BadRequestException(
