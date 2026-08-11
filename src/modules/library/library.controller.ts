@@ -44,7 +44,6 @@ export class LibraryController {
   }
 
   @Post('apple-books/sync')
-  @UseGuards(AdminGuard)
   syncAppleBooks(
     @Body()
     dto: SyncAppleBooksDto,
@@ -94,7 +93,6 @@ export class LibraryController {
   @Post(
     'apple-books/highlights/sync',
   )
-  @UseGuards(AdminGuard)
   syncAppleBooksHighlights(
     @Body()
     dto: SyncAppleBooksHighlightsDto,
