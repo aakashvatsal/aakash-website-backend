@@ -313,7 +313,7 @@ export class NowService {
             false,
         })
         .sort({
-          startedAt:
+          createdAt:
             -1,
         })
         .lean();
@@ -383,7 +383,7 @@ export class NowService {
             NowVisibility.PUBLIC,
         })
         .sort({
-          startedAt:
+          createdAt:
             -1,
         })
         .lean();
