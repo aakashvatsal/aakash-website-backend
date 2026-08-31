@@ -125,14 +125,15 @@ describe('MediaProductionService', () => {
     const generationRunModel = {
       create: jest.fn(),
     } as unknown as Model<MediaGenerationRunDocument>;
+    const generateStructuredResponse = jest.fn().mockResolvedValue({
+      data: generatedPack(),
+      model: 'gpt-test',
+      responseId: 'response-1',
+      usage: zeroUsage,
+    });
     const aiService = {
       getModel: jest.fn().mockReturnValue('gpt-test'),
-      generateStructuredResponse: jest.fn().mockResolvedValue({
-        data: generatedPack(),
-        model: 'gpt-test',
-        responseId: 'response-1',
-        usage: zeroUsage,
-      }),
+      generateStructuredResponse,
     } as unknown as AiService;
 
     return {
@@ -148,6 +149,7 @@ describe('MediaProductionService', () => {
       createAsset,
       generationRunModel,
       aiService,
+      generateStructuredResponse,
     };
   }
 
@@ -176,8 +178,13 @@ describe('MediaProductionService', () => {
   });
 
   it('generates a pack in the same publication and materializes required assets without scheduling or publishing', async () => {
-    const { service, assetModel, createAsset, generationRunModel } =
-      createService();
+    const {
+      service,
+      assetModel,
+      createAsset,
+      generationRunModel,
+      generateStructuredResponse,
+    } = createService();
     const publicationId = new Types.ObjectId();
     const contentId = new Types.ObjectId();
     const savePublication = jest.fn().mockImplementation(function (
@@ -272,6 +279,13 @@ describe('MediaProductionService', () => {
       }),
     );
     expect(run.status).toBe(MediaGenerationRunStatus.ACCEPTED);
+    expect(generateStructuredResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verbosity: 'medium',
+        reasoningEffort: 'low',
+        maxOutputTokens: 12000,
+      }),
+    );
   });
 
   it('updates production asset state and refreshes publication readiness', async () => {

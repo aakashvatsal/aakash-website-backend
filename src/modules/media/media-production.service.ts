@@ -457,6 +457,7 @@ export class MediaProductionService {
         'For carousel formats provide slide-by-slide copy and visual direction. For image formats provide composition and image/design direction. For YouTube long-form include a strong thumbnail concept.',
         'Asset requirement keys must be stable lowercase snake_case identifiers and unique within this publication.',
         'Prefer real/owned production where appropriate; use AI-generated or designed assets only when they materially improve the concept.',
+        'Keep the production pack concise and non-repetitive. Do not restate the same guidance across multiple fields; use each field only for its specific production purpose.',
       ].join('\n'),
       input: JSON.stringify({
         content: {
@@ -483,7 +484,9 @@ export class MediaProductionService {
         },
         additionalInstructions: input.instructions,
       }),
-      verbosity: 'high',
+      verbosity: 'medium',
+      reasoningEffort: 'low',
+      maxOutputTokens: 12000,
       schema: this.productionSchema(),
     });
   }
