@@ -1,0 +1,157 @@
+diff --git a/src/modules/reminders/reminders.service.ts b/src/modules/reminders/reminders.service.ts
+--- a/src/modules/reminders/reminders.service.ts
++++ b/src/modules/reminders/reminders.service.ts
+@@ -1,17 +1,14 @@
+ import {
+-  HaircareFrequency,
+   HaircareProduct,
+   HaircareProductDocument,
+   HaircareProductStatus,
+ } from '../haircare/schemas/haircare-product.schema';
+ import {
+-  IntimateCareFrequency,
+   IntimateCareProduct,
+   IntimateCareProductDocument,
+   IntimateCareProductStatus,
+ } from '../intimate-care/schemas/intimate-care-product.schema';
+ import {
+-  SkincareFrequency,
+   SkincareProduct,
+   SkincareProductDocument,
+   SkincareProductStatus,
+@@ -20,7 +17,6 @@
+   DayOfWeek,
+   Supplement,
+   SupplementDocument,
+-  SupplementFrequency,
+   SupplementStatus,
+   SupplementTimingRelation,
+ } from '../supplements/schemas/supplement.schema';
+@@ -55,8 +51,18 @@
+   metadata: Record<string, unknown>;
+ }
+ 
++type RoutineFrequency =
++  | 'daily'
++  | 'twice_daily'
++  | 'alternate_days'
++  | 'weekly'
++  | 'twice_weekly'
++  | 'three_times_weekly'
++  | 'custom'
++  | 'as_needed';
++
+ type RoutineSchedule = {
+-  frequency?: string;
++  frequency?: RoutineFrequency;
+   daysOfWeek?: Array<string | number>;
+   timesOfDay?: string[];
+   times?: string[];
+@@ -88,29 +94,19 @@
+ // unchanged filler B18
+ // unchanged filler B19
+     switch (frequency) {
+-      case SupplementFrequency.DAILY:
+-      case SkincareFrequency.DAILY:
+-      case HaircareFrequency.DAILY:
+-      case IntimateCareFrequency.DAILY:
++      case 'daily':
+       case 'twice_daily':
+         return true;
+ 
+-      case SupplementFrequency.ALTERNATE_DAYS:
+-      case SkincareFrequency.ALTERNATE_DAYS:
+-      case HaircareFrequency.ALTERNATE_DAYS:
+-      case IntimateCareFrequency.ALTERNATE_DAYS:
++      case 'alternate_days':
+         return dayDifference % Math.max(schedule.intervalDays ?? 2, 2) === 0;
+ 
+-      case SupplementFrequency.WEEKLY:
+-      case SkincareFrequency.WEEKLY:
+-      case HaircareFrequency.WEEKLY:
+-      case IntimateCareFrequency.WEEKLY:
++      case 'weekly':
+         return configuredDays.length > 0
+           ? configuredDays.includes(dayOfWeek)
+           : dayOfWeek === this.getDayOfWeek(anchorKey);
+ 
+-      case HaircareFrequency.TWICE_WEEKLY:
+-      case SkincareFrequency.TWICE_WEEKLY:
++      case 'twice_weekly':
+         return this.matchesWeeklyFrequency(
+           dayOfWeek,
+           configuredDays,
+@@ -118,7 +114,7 @@
+           2,
+         );
+ 
+-      case HaircareFrequency.THREE_TIMES_WEEKLY:
++      case 'three_times_weekly':
+         return this.matchesWeeklyFrequency(
+           dayOfWeek,
+           configuredDays,
+@@ -126,20 +122,14 @@
+           3,
+         );
+ 
+-      case SupplementFrequency.CUSTOM:
+-      case SkincareFrequency.CUSTOM:
+-      case HaircareFrequency.CUSTOM:
+-      case IntimateCareFrequency.CUSTOM:
++      case 'custom':
+         if (configuredDays.length > 0) {
+           return configuredDays.includes(dayOfWeek);
+         }
+ 
+         return dayDifference % Math.max(schedule.intervalDays ?? 1, 1) === 0;
+ 
+-      case SupplementFrequency.AS_NEEDED:
+-      case SkincareFrequency.AS_NEEDED:
+-      case HaircareFrequency.AS_NEEDED:
+-      case IntimateCareFrequency.AS_NEEDED:
++      case 'as_needed':
+         return false;
+ 
+       default:
+diff --git a/src/modules/skincare/schemas/skincare-product.schema.ts b/src/modules/skincare/schemas/skincare-product.schema.ts
+--- a/src/modules/skincare/schemas/skincare-product.schema.ts
++++ b/src/modules/skincare/schemas/skincare-product.schema.ts
+@@ -1,4 +1,4 @@
+ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+-import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
++import { HydratedDocument } from 'mongoose';
+ 
+ export type SkincareProductDocument = HydratedDocument<SkincareProduct>;
+diff --git a/src/modules/tasks/tasks.service.ts b/src/modules/tasks/tasks.service.ts
+--- a/src/modules/tasks/tasks.service.ts
++++ b/src/modules/tasks/tasks.service.ts
+@@ -1,6 +1,6 @@
+ import { InjectModel } from '@nestjs/mongoose';
+ 
+-import { Model, Types } from 'mongoose';
++import { Model, QueryFilter, Types } from 'mongoose';
+ 
+ import { CompaniesService } from '../companies/companies.service';
+ // unchanged filler A0
+@@ -25,7 +25,7 @@
+ // unchanged filler A19
+     const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
+ 
+-    const filter: Record<string, any> = query.isArchived
++    const filter: QueryFilter<TaskDocument> = query.isArchived
+       ? {
+           isArchived: true,
+         }
+diff --git a/src/modules/users/users.service.ts b/src/modules/users/users.service.ts
+--- a/src/modules/users/users.service.ts
++++ b/src/modules/users/users.service.ts
+@@ -3,7 +3,8 @@
+   }
+ 
+   private sanitizeUser(user: Record<string, any>) {
+-    const { password, ...safeUser } = user;
++    const safeUser = { ...user };
++    delete safeUser.password;
+ 
+     return safeUser;
+   }

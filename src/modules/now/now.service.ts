@@ -75,8 +75,8 @@ export class NowService {
       });
 
       return status;
-    } catch (error: any) {
-      if (error?.code === 11000) {
+    } catch (error: unknown) {
+      if (this.isDuplicateKeyError(error)) {
         throw new BadRequestException('Another current status already exists.');
       }
 
@@ -360,7 +360,10 @@ export class NowService {
       status.lastActivityAt = lastActivityAt;
     }
 
-    const { startedAt, expiresAt, lastActivityAt, ...rest } = data;
+    const rest: Partial<UpdateNowStatusDto> = { ...data };
+    delete rest.startedAt;
+    delete rest.expiresAt;
+    delete rest.lastActivityAt;
 
     Object.assign(status, rest);
 
@@ -570,25 +573,23 @@ export class NowService {
     );
   }
 
-  private toPublicStatus(status: any) {
-    const response = {
-      ...status,
-    };
+  private toPublicStatus(status: unknown): Record<string, unknown> {
+    const response = this.toPlainRecord(status);
 
-    if (!status.showLocation) {
+    if (response.showLocation !== true) {
       delete response.locationName;
       delete response.locationType;
     }
 
-    if (!status.showAvailability) {
+    if (response.showAvailability !== true) {
       delete response.availability;
     }
 
-    if (!status.showMood) {
+    if (response.showMood !== true) {
       delete response.mood;
     }
 
-    if (!status.showHealth) {
+    if (response.showHealth !== true) {
       delete response.health;
       delete response.energyScore;
     }
@@ -605,6 +606,31 @@ export class NowService {
     delete response.showHealth;
 
     return response;
+  }
+
+  private toPlainRecord(value: unknown): Record<string, unknown> {
+    if (typeof value !== 'object' || value === null) {
+      return {};
+    }
+
+    if (
+      'toObject' in value &&
+      typeof (value as { toObject?: unknown }).toObject === 'function'
+    ) {
+      const converted = (value as { toObject: () => unknown }).toObject();
+
+      return this.toPlainRecord(converted);
+    }
+
+    return { ...(value as Record<string, unknown>) };
+  }
+
+  private isDuplicateKeyError(error: unknown): error is { code: number } {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return false;
+    }
+
+    return (error as { code?: unknown }).code === 11000;
   }
 
   private toObjectId(id: string) {

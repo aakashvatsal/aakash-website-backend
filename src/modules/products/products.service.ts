@@ -24,7 +24,6 @@ import {
   ProductRecommendation,
   ProductRecommendationDocument,
   RecommendationStatus,
-  RecommendationType,
 } from './schemas/product-recommendation.schema';
 
 @Injectable()

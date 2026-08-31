@@ -7,7 +7,6 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 
 import { Public } from '../../common/decorators/public.decorator';
@@ -32,18 +31,12 @@ export class HealthController {
   ) {}
 
   @Post()
-  create(
-    @Body()
-    dto: CreateHealthEntryDto,
-  ) {
+  create(@Body() dto: CreateHealthEntryDto) {
     return this.healthService.create(dto);
   }
 
   @Get()
-  findAll(
-    @Query()
-    query: HealthQueryDto,
-  ) {
+  findAll(@Query() query: HealthQueryDto) {
     return this.healthService.findAll(query);
   }
 
@@ -61,29 +54,20 @@ export class HealthController {
 
   @Get('public/trends')
   @Public()
-  getPublicTrends(
-    @Query('days')
-    days?: string,
-  ) {
+  getPublicTrends(@Query('days') days?: string) {
     return this.healthDashboardService.getTrends(days ? Number(days) : 30);
   }
 
   @Get('summary')
   getSummary(
-    @Query('startDate')
-    startDate: string,
-
-    @Query('endDate')
-    endDate: string,
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
   ) {
     return this.healthService.getSummary(startDate, endDate);
   }
 
   @Get('date/:date')
-  findByDate(
-    @Param('date')
-    date: string,
-  ) {
+  findByDate(@Param('date') date: string) {
     return this.healthService.findByDate(date);
   }
 
@@ -98,61 +82,41 @@ export class HealthController {
   }
 
   @Get('trends')
-  getTrends(
-    @Query('days')
-    days?: string,
-  ) {
+  getTrends(@Query('days') days?: string) {
     return this.healthDashboardService.getTrends(days ? Number(days) : 30);
   }
 
   @Get('workouts')
-  getWorkouts(
-    @Query('days')
-    days?: string,
-  ) {
+  getWorkouts(@Query('days') days?: string) {
     return this.healthDashboardService.getWorkouts(days ? Number(days) : 30);
   }
 
   @Get(':healthEntryId')
-  findOne(
-    @Param('healthEntryId')
-    healthEntryId: string,
-  ) {
+  findOne(@Param('healthEntryId') healthEntryId: string) {
     return this.healthService.findOne(healthEntryId);
   }
 
   @Patch(':healthEntryId')
   update(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Body()
-    dto: UpdateHealthEntryDto,
+    @Param('healthEntryId') healthEntryId: string,
+    @Body() dto: UpdateHealthEntryDto,
   ) {
     return this.healthService.update(healthEntryId, dto);
   }
 
   @Post(':healthEntryId/workouts')
   addWorkout(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Body()
-    dto: AddWorkoutDto,
+    @Param('healthEntryId') healthEntryId: string,
+    @Body() dto: AddWorkoutDto,
   ) {
     return this.healthService.addWorkout(healthEntryId, dto);
   }
 
   @Patch(':healthEntryId/workouts/:workoutIndex')
   updateWorkout(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Param('workoutIndex')
-    workoutIndex: string,
-
-    @Body()
-    dto: UpdateWorkoutDto,
+    @Param('healthEntryId') healthEntryId: string,
+    @Param('workoutIndex') workoutIndex: string,
+    @Body() dto: UpdateWorkoutDto,
   ) {
     return this.healthService.updateWorkout(
       healthEntryId,
@@ -163,11 +127,8 @@ export class HealthController {
 
   @Patch(':healthEntryId/workouts/:workoutIndex/complete')
   completeWorkout(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Param('workoutIndex')
-    workoutIndex: string,
+    @Param('healthEntryId') healthEntryId: string,
+    @Param('workoutIndex') workoutIndex: string,
   ) {
     return this.healthService.completeWorkout(
       healthEntryId,
@@ -177,11 +138,8 @@ export class HealthController {
 
   @Delete(':healthEntryId/workouts/:workoutIndex')
   removeWorkout(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Param('workoutIndex')
-    workoutIndex: string,
+    @Param('healthEntryId') healthEntryId: string,
+    @Param('workoutIndex') workoutIndex: string,
   ) {
     return this.healthService.removeWorkout(
       healthEntryId,
@@ -191,25 +149,17 @@ export class HealthController {
 
   @Post(':healthEntryId/pain')
   addPainEntry(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Body()
-    dto: AddPainEntryDto,
+    @Param('healthEntryId') healthEntryId: string,
+    @Body() dto: AddPainEntryDto,
   ) {
     return this.healthService.addPainEntry(healthEntryId, dto);
   }
 
   @Patch(':healthEntryId/pain/:painIndex')
   updatePainEntry(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Param('painIndex')
-    painIndex: string,
-
-    @Body()
-    dto: UpdatePainEntryDto,
+    @Param('healthEntryId') healthEntryId: string,
+    @Param('painIndex') painIndex: string,
+    @Body() dto: UpdatePainEntryDto,
   ) {
     return this.healthService.updatePainEntry(
       healthEntryId,
@@ -220,11 +170,8 @@ export class HealthController {
 
   @Patch(':healthEntryId/pain/:painIndex/resolve')
   resolvePainEntry(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Param('painIndex')
-    painIndex: string,
+    @Param('healthEntryId') healthEntryId: string,
+    @Param('painIndex') painIndex: string,
   ) {
     return this.healthService.resolvePainEntry(
       healthEntryId,
@@ -234,47 +181,32 @@ export class HealthController {
 
   @Delete(':healthEntryId/pain/:painIndex')
   removePainEntry(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Param('painIndex')
-    painIndex: string,
+    @Param('healthEntryId') healthEntryId: string,
+    @Param('painIndex') painIndex: string,
   ) {
     return this.healthService.removePainEntry(healthEntryId, Number(painIndex));
   }
 
   @Patch(':healthEntryId/habits')
   updateHabits(
-    @Param('healthEntryId')
-    healthEntryId: string,
-
-    @Body()
-    dto: UpdateHealthHabitsDto,
+    @Param('healthEntryId') healthEntryId: string,
+    @Body() dto: UpdateHealthHabitsDto,
   ) {
     return this.healthService.updateHabits(healthEntryId, dto);
   }
 
   @Patch(':healthEntryId/archive')
-  archive(
-    @Param('healthEntryId')
-    healthEntryId: string,
-  ) {
+  archive(@Param('healthEntryId') healthEntryId: string) {
     return this.healthService.archive(healthEntryId);
   }
 
   @Patch(':healthEntryId/restore')
-  restore(
-    @Param('healthEntryId')
-    healthEntryId: string,
-  ) {
+  restore(@Param('healthEntryId') healthEntryId: string) {
     return this.healthService.restore(healthEntryId);
   }
 
   @Delete(':healthEntryId')
-  remove(
-    @Param('healthEntryId')
-    healthEntryId: string,
-  ) {
+  remove(@Param('healthEntryId') healthEntryId: string) {
     return this.healthService.remove(healthEntryId);
   }
 }

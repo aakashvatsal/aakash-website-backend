@@ -11,17 +11,23 @@ import { CreateDietEntryDto } from './dto/create-diet-entry.dto';
 import { UpdateDietEntryDto } from './dto/update-diet-entry.dto';
 import {
   DietEntry,
-  DietEntryDocument,
   Meal,
   MealStatus,
   NutritionValues,
 } from './schemas/diet-entry.schema';
 
+type MealInput = NonNullable<CreateDietEntryDto['meals']>[number];
+
+type DietAdherenceValues = {
+  nutrition?: Partial<NutritionValues>;
+  waterLitres?: number;
+};
+
 @Injectable()
 export class DietService {
   constructor(
     @InjectModel(DietEntry.name)
-    private readonly dietEntryModel: Model<DietEntryDocument>,
+    private readonly dietEntryModel: Model<DietEntry>,
   ) {}
 
   async create(dto: CreateDietEntryDto) {
@@ -35,7 +41,7 @@ export class DietService {
       throw new ConflictException('Diet entry already exists for this date.');
     }
 
-    const meals = this.prepareMeals(dto.meals || []);
+    const meals = this.prepareMeals(dto.meals ?? []);
 
     const totals = this.calculateTotals(meals);
 
@@ -109,7 +115,7 @@ export class DietService {
 
     const totals = this.calculateTotals(meals);
 
-    const targets = dto.targets || existing.targets;
+    const targets = dto.targets ?? existing.targets;
 
     const updated = await this.dietEntryModel
       .findByIdAndUpdate(
@@ -191,7 +197,7 @@ export class DietService {
     );
 
     entry.meals[mealIndex].actualNutrition = this.sumFoodItems(
-      entry.meals[mealIndex].consumedItems || [],
+      entry.meals[mealIndex].consumedItems ?? [],
     );
 
     const totals = this.calculateTotals(entry.meals);
@@ -236,16 +242,19 @@ export class DietService {
     };
   }
 
-  private prepareMeals(meals: any[]): Meal[] {
+  private prepareMeals(meals: MealInput[]): Meal[] {
     return meals.map((meal) => ({
       ...meal,
+      status: meal.status ?? MealStatus.PLANNED,
+      plannedItems: meal.plannedItems ?? [],
+      consumedItems: meal.consumedItems ?? [],
       plannedAt: meal.plannedAt ? new Date(meal.plannedAt) : undefined,
       consumedAt: meal.consumedAt ? new Date(meal.consumedAt) : undefined,
-      plannedNutrition: this.sumFoodItems(meal.plannedItems || []),
-      actualNutrition: this.sumFoodItems(meal.consumedItems || []),
+      plannedNutrition: this.sumFoodItems(meal.plannedItems ?? []),
+      actualNutrition: this.sumFoodItems(meal.consumedItems ?? []),
       completionPercentage:
         meal.completionPercentage ??
-        this.getCompletionPercentage(meal.status || MealStatus.PLANNED),
+        this.getCompletionPercentage(meal.status ?? MealStatus.PLANNED),
     })) as Meal[];
   }
 
@@ -257,7 +266,7 @@ export class DietService {
 
     for (const meal of meals) {
       const values =
-        meal.actualNutrition || this.sumFoodItems(meal.consumedItems || []);
+        meal.actualNutrition || this.sumFoodItems(meal.consumedItems ?? []);
 
       this.addNutrition(nutrition, values);
 
@@ -286,13 +295,12 @@ export class DietService {
   }
 
   private calculateAdherence(params: {
-    targets: any;
-    actuals: any;
+    targets?: DietAdherenceValues;
+    actuals?: DietAdherenceValues;
     meals: Meal[];
   }) {
-    const targetNutrition = params.targets?.nutrition || {};
-
-    const actualNutrition = params.actuals?.nutrition || {};
+    const targetNutrition = params.targets?.nutrition ?? {};
+    const actualNutrition = params.actuals?.nutrition ?? {};
 
     const calorieTargetPercentage = this.percentage(
       actualNutrition.calories,
@@ -354,7 +362,7 @@ export class DietService {
     const total = this.emptyNutrition();
 
     for (const item of items) {
-      this.addNutrition(total, item.nutrition || {});
+      this.addNutrition(total, item.nutrition ?? {});
     }
 
     return total;

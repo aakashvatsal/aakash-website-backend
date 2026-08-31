@@ -209,8 +209,6 @@ export class WhoopHealthService {
       this.fetchAll<WhoopWorkout>('/activity/workout', accessToken, start, end),
     ]);
 
-    const cycleMap = new Map(cycles.map((cycle) => [cycle.id, cycle]));
-
     const sleepsByCycle = new Map<number, WhoopSleep[]>();
 
     for (const sleep of sleeps) {

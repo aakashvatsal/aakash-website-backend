@@ -1,11 +1,11 @@
 import { ConflictException } from '@nestjs/common';
 import { Types } from 'mongoose';
 
-import { MemoryPeopleService } from './memory-people.service';
+import { MemoryPeopleService } from '../memory-people.service';
 import {
   PersonIdentityStatus,
   PersonRelationshipType,
-} from './schemas/memory-person.schema';
+} from '../schemas/memory-person.schema';
 
 describe('MemoryPeopleService directory identity', () => {
   const memoryPersonModel = {

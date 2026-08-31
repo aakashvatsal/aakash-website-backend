@@ -17,7 +17,6 @@ import {
 import {
   SkincareFrequency,
   SkincareProduct,
-  SkincareProductDocument,
   SkincareProductStatus,
 } from './schemas/skincare-product.schema';
 
@@ -25,10 +24,10 @@ import {
 export class SkincareService {
   constructor(
     @InjectModel(SkincareProduct.name)
-    private readonly skincareProductModel: Model<SkincareProductDocument>,
+    private readonly skincareProductModel: Model<SkincareProduct>,
 
     @InjectModel(DailySkincareLog.name)
-    private readonly dailySkincareLogModel: Model<DailySkincareLogDocument>,
+    private readonly dailySkincareLogModel: Model<DailySkincareLog>,
   ) {}
 
   async createProduct(dto: CreateSkincareProductDto) {
@@ -307,10 +306,7 @@ export class SkincareService {
     return updated;
   }
 
-  private shouldUseOnDate(
-    product: SkincareProductDocument | any,
-    date: Date,
-  ): boolean {
+  private shouldUseOnDate(product: SkincareProduct, date: Date): boolean {
     const schedule = product.schedule;
 
     if (schedule.startDate && date < new Date(schedule.startDate)) {
@@ -334,7 +330,7 @@ export class SkincareService {
       schedule.frequency === SkincareFrequency.WEEKLY ||
       schedule.frequency === SkincareFrequency.TWICE_WEEKLY
     ) {
-      return schedule.daysOfWeek?.includes(dayOfWeek);
+      return schedule.daysOfWeek?.includes(dayOfWeek) ?? false;
     }
 
     if (schedule.frequency === SkincareFrequency.ALTERNATE_DAYS) {

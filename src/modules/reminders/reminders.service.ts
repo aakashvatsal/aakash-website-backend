@@ -7,19 +7,16 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
 import {
-  HaircareFrequency,
   HaircareProduct,
   HaircareProductDocument,
   HaircareProductStatus,
 } from '../haircare/schemas/haircare-product.schema';
 import {
-  IntimateCareFrequency,
   IntimateCareProduct,
   IntimateCareProductDocument,
   IntimateCareProductStatus,
 } from '../intimate-care/schemas/intimate-care-product.schema';
 import {
-  SkincareFrequency,
   SkincareProduct,
   SkincareProductDocument,
   SkincareProductStatus,
@@ -28,7 +25,6 @@ import {
   DayOfWeek,
   Supplement,
   SupplementDocument,
-  SupplementFrequency,
   SupplementStatus,
   SupplementTimingRelation,
 } from '../supplements/schemas/supplement.schema';
@@ -56,8 +52,32 @@ interface ReminderOccurrence {
   metadata: Record<string, unknown>;
 }
 
+type RoutineFrequency =
+  | 'daily'
+  | 'twice_daily'
+  | 'alternate_days'
+  | 'weekly'
+  | 'twice_weekly'
+  | 'three_times_weekly'
+  | 'custom'
+  | 'as_needed';
+
+export interface ReminderSyncResult {
+  from: Date;
+  to: Date;
+  generated: number;
+  deactivated: number;
+  bySource: {
+    tasks: number;
+    supplements: number;
+    skincare: number;
+    haircare: number;
+    intimateCare: number;
+  };
+}
+
 type RoutineSchedule = {
-  frequency?: string;
+  frequency?: RoutineFrequency;
   daysOfWeek?: Array<string | number>;
   timesOfDay?: string[];
   times?: string[];
@@ -78,7 +98,7 @@ type RoutineDocument = {
 
 @Injectable()
 export class RemindersService {
-  private syncInFlight: Promise<any> | null = null;
+  private syncInFlight: Promise<ReminderSyncResult> | null = null;
 
   constructor(
     @InjectModel(Reminder.name)
@@ -917,29 +937,19 @@ export class RemindersService {
     const configuredDays = this.normalizeDaysOfWeek(schedule.daysOfWeek);
 
     switch (frequency) {
-      case SupplementFrequency.DAILY:
-      case SkincareFrequency.DAILY:
-      case HaircareFrequency.DAILY:
-      case IntimateCareFrequency.DAILY:
+      case 'daily':
       case 'twice_daily':
         return true;
 
-      case SupplementFrequency.ALTERNATE_DAYS:
-      case SkincareFrequency.ALTERNATE_DAYS:
-      case HaircareFrequency.ALTERNATE_DAYS:
-      case IntimateCareFrequency.ALTERNATE_DAYS:
+      case 'alternate_days':
         return dayDifference % Math.max(schedule.intervalDays ?? 2, 2) === 0;
 
-      case SupplementFrequency.WEEKLY:
-      case SkincareFrequency.WEEKLY:
-      case HaircareFrequency.WEEKLY:
-      case IntimateCareFrequency.WEEKLY:
+      case 'weekly':
         return configuredDays.length > 0
           ? configuredDays.includes(dayOfWeek)
           : dayOfWeek === this.getDayOfWeek(anchorKey);
 
-      case HaircareFrequency.TWICE_WEEKLY:
-      case SkincareFrequency.TWICE_WEEKLY:
+      case 'twice_weekly':
         return this.matchesWeeklyFrequency(
           dayOfWeek,
           configuredDays,
@@ -947,7 +957,7 @@ export class RemindersService {
           2,
         );
 
-      case HaircareFrequency.THREE_TIMES_WEEKLY:
+      case 'three_times_weekly':
         return this.matchesWeeklyFrequency(
           dayOfWeek,
           configuredDays,
@@ -955,20 +965,14 @@ export class RemindersService {
           3,
         );
 
-      case SupplementFrequency.CUSTOM:
-      case SkincareFrequency.CUSTOM:
-      case HaircareFrequency.CUSTOM:
-      case IntimateCareFrequency.CUSTOM:
+      case 'custom':
         if (configuredDays.length > 0) {
           return configuredDays.includes(dayOfWeek);
         }
 
         return dayDifference % Math.max(schedule.intervalDays ?? 1, 1) === 0;
 
-      case SupplementFrequency.AS_NEEDED:
-      case SkincareFrequency.AS_NEEDED:
-      case HaircareFrequency.AS_NEEDED:
-      case IntimateCareFrequency.AS_NEEDED:
+      case 'as_needed':
         return false;
 
       default:

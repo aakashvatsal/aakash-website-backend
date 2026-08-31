@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 
 import { JournalService } from '../journal/journal.service';
 import {
@@ -38,11 +38,16 @@ import {
   BrainDumpTarget,
 } from './schemas/brain-dump.schema';
 
+type BrainDumpRecord = BrainDump & {
+  createdAt?: Date;
+  updatedAt?: Date;
+};
+
 @Injectable()
 export class BrainDumpService {
   constructor(
     @InjectModel(BrainDump.name)
-    private readonly brainDumpModel: Model<BrainDumpDocument>,
+    private readonly brainDumpModel: Model<BrainDumpRecord>,
     private readonly tasksService: TasksService,
     private readonly journalService: JournalService,
     private readonly memoryService: MemoryService,
@@ -72,7 +77,7 @@ export class BrainDumpService {
     const page = Math.max(query.page ?? 1, 1);
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
 
-    const filter: Record<string, any> = query.isArchived
+    const filter: QueryFilter<BrainDumpRecord> = query.isArchived
       ? { isArchived: true }
       : { isActive: true, isArchived: false };
 
@@ -95,9 +100,10 @@ export class BrainDumpService {
     }
 
     if (query.from || query.to) {
-      filter.createdAt = {};
-      if (query.from) filter.createdAt.$gte = new Date(query.from);
-      if (query.to) filter.createdAt.$lte = new Date(query.to);
+      const createdAt: { $gte?: Date; $lte?: Date } = {};
+      if (query.from) createdAt.$gte = new Date(query.from);
+      if (query.to) createdAt.$lte = new Date(query.to);
+      filter.createdAt = createdAt;
     }
 
     const sortBy = query.sortBy ?? BrainDumpSortBy.CREATED_AT;
@@ -250,11 +256,7 @@ export class BrainDumpService {
         isActive: true,
         isArchived: false,
       },
-      {
-        $set: {
-          status: BrainDumpStatus.PROCESSING,
-        },
-      },
+      { $set: { status: BrainDumpStatus.PROCESSING } },
       { new: true },
     );
 
@@ -286,19 +288,11 @@ export class BrainDumpService {
         { new: true },
       );
 
-      return {
-        brainDump: processed,
-        created,
-      };
+      return { brainDump: processed, created };
     } catch (error) {
       await this.brainDumpModel.updateOne(
-        {
-          _id: objectId,
-          status: BrainDumpStatus.PROCESSING,
-        },
-        {
-          $set: { status: BrainDumpStatus.INBOX },
-        },
+        { _id: objectId, status: BrainDumpStatus.PROCESSING },
+        { $set: { status: BrainDumpStatus.INBOX } },
       );
       throw error;
     }
@@ -306,41 +300,33 @@ export class BrainDumpService {
 
   async discard(brainDumpId: string) {
     const item = await this.findOne(brainDumpId);
-
     if (item.status === BrainDumpStatus.PROCESSED) {
       throw new ConflictException(
         'Processed brain dump items cannot be discarded. Archive them instead.',
       );
     }
-
     item.status = BrainDumpStatus.DISCARDED;
     item.discardedAt = new Date();
-
     return item.save();
   }
 
   async reopen(brainDumpId: string) {
     const item = await this.findOne(brainDumpId);
-
     if (item.status !== BrainDumpStatus.DISCARDED) {
       throw new ConflictException(
         'Only discarded brain dump items can be reopened.',
       );
     }
-
     item.status = BrainDumpStatus.INBOX;
     item.discardedAt = undefined;
-
     return item.save();
   }
 
   async archive(brainDumpId: string) {
     const item = await this.findOne(brainDumpId);
-
     item.isArchived = true;
     item.isActive = false;
     item.archivedAt = new Date();
-
     return item.save();
   }
 
@@ -350,26 +336,21 @@ export class BrainDumpService {
       _id: objectId,
       isArchived: true,
     });
-
     if (!item) {
       throw new NotFoundException('Archived brain dump item not found.');
     }
-
     item.isArchived = false;
     item.isActive = true;
     item.archivedAt = undefined;
-
     return item.save();
   }
 
   async remove(brainDumpId: string) {
     const objectId = this.toObjectId(brainDumpId);
     const result = await this.brainDumpModel.deleteOne({ _id: objectId });
-
     if (result.deletedCount === 0) {
       throw new NotFoundException('Brain dump item not found.');
     }
-
     return { deleted: true, brainDumpId };
   }
 
@@ -404,7 +385,6 @@ export class BrainDumpService {
           sourceExternalId: brainDumpId,
           metadata,
         });
-
       case BrainDumpTarget.JOURNAL:
         return this.journalService.create({
           date: (item.createdAt ?? new Date()).toISOString(),
@@ -417,7 +397,6 @@ export class BrainDumpService {
           sourceExternalId: brainDumpId,
           metadata,
         });
-
       case BrainDumpTarget.MEMORY:
         return this.memoryService.create({
           content: item.content,
@@ -432,7 +411,6 @@ export class BrainDumpService {
           accessLevel: dto.memoryAccessLevel ?? MemoryAccessLevel.OWNER_ONLY,
           sensitivity: dto.memorySensitivity,
         });
-
       default:
         throw new BadRequestException(
           'Unsupported brain dump processing target.',
@@ -440,22 +418,34 @@ export class BrainDumpService {
     }
   }
 
-  private extractEntityId(entity: any) {
-    const rawId = entity?._id ?? entity?.id;
-
-    if (!rawId || !Types.ObjectId.isValid(String(rawId))) {
+  private extractEntityId(entity: unknown) {
+    if (typeof entity !== 'object' || entity === null) {
       throw new BadRequestException(
         'Processed entity did not return a valid ID.',
       );
     }
 
-    return new Types.ObjectId(String(rawId));
+    const record = entity as { _id?: unknown; id?: unknown };
+    const rawId = record._id ?? record.id;
+    const id =
+      rawId instanceof Types.ObjectId
+        ? rawId.toHexString()
+        : typeof rawId === 'string'
+          ? rawId
+          : null;
+
+    if (!id || !Types.ObjectId.isValid(id)) {
+      throw new BadRequestException(
+        'Processed entity did not return a valid ID.',
+      );
+    }
+
+    return new Types.ObjectId(id);
   }
 
   private makeTitle(content: string) {
     const firstLine = content.split(/\r?\n/)[0]?.trim() || content.trim();
     const compact = firstLine.replace(/\s+/g, ' ');
-
     return compact.length <= 120
       ? compact
       : `${compact.slice(0, 117).trim()}...`;
@@ -473,7 +463,6 @@ export class BrainDumpService {
     if (!Types.ObjectId.isValid(value)) {
       throw new BadRequestException('Invalid brain dump ID.');
     }
-
     return new Types.ObjectId(value);
   }
 
@@ -491,7 +480,6 @@ export class BrainDumpService {
     );
     const start = new Date(shiftedStart - offsetMs);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-
     return { start, end };
   }
 }

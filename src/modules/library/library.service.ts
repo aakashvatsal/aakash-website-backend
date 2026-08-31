@@ -1997,7 +1997,7 @@ export class LibraryService {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  private isNumber(value: unknown): value is number {
+  private isNumber(this: void, value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
   }
 

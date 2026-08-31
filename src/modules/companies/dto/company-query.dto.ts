@@ -38,7 +38,7 @@ export class CompanyQueryDto {
   search?: string;
 
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }): unknown => {
     if (value === 'true' || value === true) {
       return true;
     }

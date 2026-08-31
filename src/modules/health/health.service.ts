@@ -1109,7 +1109,7 @@ export class HealthService {
     return [...values].reverse().find(this.isNumber) ?? null;
   }
 
-  private isNumber(value: unknown): value is number {
+  private isNumber(this: void, value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
   }
 

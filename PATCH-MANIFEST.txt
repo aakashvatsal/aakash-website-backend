@@ -1,0 +1,33 @@
+Aakash Personal OS — Production Cutover Hardening
+Backend PATCH-ONLY
+
+Modified files:
+- .env.example
+- .github/workflows/deploy.yml
+- package.json
+
+New files:
+- PRODUCTION_CUTOVER.md
+- scripts/production-smoke.mjs
+- scripts/validate-production-env.mjs
+
+What changed:
+- Replaces the old /companies deploy probe with the public system health/readiness contract.
+- Adds automatic rollback to the previously deployed Git SHA when deployment-stage validation or readiness fails.
+- Adds strict no-fix ESLint pre-deploy gate.
+- Adds production environment validation without printing secret values.
+- Adds local + public production smoke checks with retry behavior.
+- Injects GIT_SHA and APP_VERSION into the PM2 process for Operations release identity.
+- Expands .env.example to match the current Personal OS runtime/configuration surface.
+- Adds a concrete backend/frontend production cutover + rollback runbook.
+
+Validation performed:
+- npm run lint: PASS
+- npm run lint:check: PASS
+- npm run build: PASS
+- validate-production-env.mjs syntax: PASS
+- validate-production-env.mjs synthetic production config: PASS
+- production-smoke.mjs syntax: PASS
+- production-smoke.mjs mock health/readiness test: PASS
+- deploy.yml YAML parse: PASS
+- deploy workflow shell syntax (bash -n): PASS

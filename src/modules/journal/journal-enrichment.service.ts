@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { InjectModel } from '@nestjs/mongoose';
 
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import { HealthService } from '../health/health.service';
 
@@ -16,6 +16,41 @@ import {
   JournalEntryType,
   JournalSource,
 } from './schemas/journal-entry.schema';
+
+interface JournalHealthSnapshot {
+  steps?: unknown;
+  sleep?: {
+    durationHours?: unknown;
+    sleepPerformancePercentage?: unknown;
+  };
+  recovery?: {
+    recoveryScore?: unknown;
+  };
+  workouts?: JournalWorkoutSnapshot[];
+  energyScore?: unknown;
+}
+
+interface JournalWorkoutSnapshot {
+  completed?: boolean;
+  type?: string;
+  title?: string;
+  durationMinutes?: unknown;
+  strainScore?: unknown;
+  completedAt?: string | Date;
+  startedAt?: string | Date;
+}
+
+interface JournalLibraryReadingSnapshot {
+  id?: Types.ObjectId;
+  title?: string;
+  author?: string;
+  progressPercentage?: number;
+  lastReadAt?: string | Date;
+}
+
+interface JournalLibrarySummarySnapshot {
+  currentlyReading?: JournalLibraryReadingSnapshot[];
+}
 
 @Injectable()
 export class JournalEnrichmentService {
@@ -411,7 +446,9 @@ export class JournalEnrichmentService {
     return journalEntry;
   }
 
-  private async getHealthSafely(dateKey: string) {
+  private async getHealthSafely(
+    dateKey: string,
+  ): Promise<JournalHealthSnapshot | null> {
     try {
       return await this.healthService.findByDate(dateKey);
     } catch (error) {
@@ -423,7 +460,7 @@ export class JournalEnrichmentService {
     }
   }
 
-  private async getLibrarySafely() {
+  private async getLibrarySafely(): Promise<JournalLibrarySummarySnapshot | null> {
     try {
       return await this.libraryService.getSummary();
     } catch {
@@ -443,7 +480,7 @@ export class JournalEnrichmentService {
     }
   }
 
-  private getBestWorkout(workouts: Array<Record<string, any>>) {
+  private getBestWorkout(workouts: JournalWorkoutSnapshot[]) {
     if (!workouts.length) {
       return null;
     }
@@ -461,7 +498,7 @@ export class JournalEnrichmentService {
     })[0];
   }
 
-  private getWorkoutTime(workout: Record<string, any>) {
+  private getWorkoutTime(workout: JournalWorkoutSnapshot) {
     const value = workout.completedAt ?? workout.startedAt;
 
     if (!value) {
@@ -473,14 +510,13 @@ export class JournalEnrichmentService {
     return Number.isNaN(date.getTime()) ? 0 : date.getTime();
   }
 
-  private getTodayReading(librarySummary: any, dateKey: string) {
-    const currentlyReading = librarySummary?.currentlyReading;
+  private getTodayReading(
+    librarySummary: JournalLibrarySummarySnapshot | null,
+    dateKey: string,
+  ): JournalLibraryReadingSnapshot | null {
+    const currentlyReading = librarySummary?.currentlyReading ?? [];
 
-    if (!Array.isArray(currentlyReading)) {
-      return null;
-    }
-
-    const readToday = currentlyReading.filter((item: any) => {
+    const readToday = currentlyReading.filter((item) => {
       if (!item.lastReadAt) {
         return false;
       }
@@ -498,7 +534,7 @@ export class JournalEnrichmentService {
       return null;
     }
 
-    return [...readToday].sort((first: any, second: any) => {
+    return [...readToday].sort((first, second) => {
       const firstTime = first.lastReadAt
         ? new Date(first.lastReadAt).getTime()
         : 0;

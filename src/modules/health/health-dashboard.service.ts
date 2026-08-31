@@ -4,16 +4,13 @@ import { InjectModel } from '@nestjs/mongoose';
 
 import { Model } from 'mongoose';
 
-import {
-  HealthEntry,
-  HealthEntryDocument,
-} from './schemas/health-entry.schema';
+import { HealthEntry } from './schemas/health-entry.schema';
 
 @Injectable()
 export class HealthDashboardService {
   constructor(
     @InjectModel(HealthEntry.name)
-    private readonly healthEntryModel: Model<HealthEntryDocument>,
+    private readonly healthEntryModel: Model<HealthEntry>,
   ) {}
 
   async getDashboard() {
@@ -490,7 +487,7 @@ export class HealthDashboardService {
     };
   }
 
-  private mapToday(entry: any) {
+  private mapToday(entry: HealthEntry) {
     return {
       dateKey: entry.dateKey,
 
@@ -527,14 +524,14 @@ export class HealthDashboardService {
     };
   }
 
-  private countWorkouts(entries: any[]) {
+  private countWorkouts(entries: HealthEntry[]) {
     return entries.reduce(
       (total, entry) => total + (entry.workouts ?? []).length,
       0,
     );
   }
 
-  private averageWorkoutStrain(entries: any[]) {
+  private averageWorkoutStrain(entries: HealthEntry[]) {
     const values = entries.flatMap((entry) =>
       (entry.workouts ?? [])
         .map((workout) => workout.strainScore)
@@ -554,7 +551,7 @@ export class HealthDashboardService {
     return Number((total / values.length).toFixed(2));
   }
 
-  private isNumber(value: unknown): value is number {
+  private isNumber(this: void, value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
   }
 

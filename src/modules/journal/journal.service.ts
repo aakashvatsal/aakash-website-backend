@@ -6,7 +6,7 @@ import {
 
 import { InjectModel } from '@nestjs/mongoose';
 
-import { Model, Types } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 
 import { CreateJournalEntryDto } from './dto/create-journal-entry.dto';
 
@@ -18,19 +18,17 @@ import {
   JournalEntry,
   JournalEntryDocument,
   JournalReading,
-  JournalSleep,
   JournalSource,
   JournalVisibility,
-  JournalWorkout,
 } from './schemas/journal-entry.schema';
 
-type JournalFilter = Record<string, any>;
+type JournalFilter = QueryFilter<JournalEntry>;
 
 @Injectable()
 export class JournalService {
   constructor(
     @InjectModel(JournalEntry.name)
-    private readonly journalModel: Model<JournalEntryDocument>,
+    private readonly journalModel: Model<JournalEntry>,
   ) {}
 
   async create(dto: CreateJournalEntryDto) {
@@ -962,24 +960,32 @@ export class JournalService {
     return metadata.approvalStatus;
   }
 
-  private toPublicEntry(entry: any) {
-    const plainEntry =
-      entry && typeof entry.toObject === 'function' ? entry.toObject() : entry;
+  private toPublicEntry(entry: unknown): Record<string, unknown> {
+    const publicEntry = this.toPlainRecord(entry);
 
-    const {
-      metadata: _metadata,
-
-      sourceExternalId: _sourceExternalId,
-
-      memoryIds: _memoryIds,
-
-      isActive: _isActive,
-
-      isArchived: _isArchived,
-
-      ...publicEntry
-    } = plainEntry;
+    delete publicEntry.metadata;
+    delete publicEntry.sourceExternalId;
+    delete publicEntry.memoryIds;
+    delete publicEntry.isActive;
+    delete publicEntry.isArchived;
 
     return publicEntry;
+  }
+
+  private toPlainRecord(value: unknown): Record<string, unknown> {
+    if (typeof value !== 'object' || value === null) {
+      return {};
+    }
+
+    if (
+      'toObject' in value &&
+      typeof (value as { toObject?: unknown }).toObject === 'function'
+    ) {
+      const converted = (value as { toObject: () => unknown }).toObject();
+
+      return this.toPlainRecord(converted);
+    }
+
+    return { ...(value as Record<string, unknown>) };
   }
 }

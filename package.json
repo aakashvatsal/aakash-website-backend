@@ -18,7 +18,10 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "test:smoke": "node scripts/backend-smoke.mjs"
+    "test:smoke": "node scripts/backend-smoke.mjs",
+    "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "prod:env:check": "node --env-file=.env scripts/validate-production-env.mjs",
+    "test:smoke:prod": "node scripts/production-smoke.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.28",

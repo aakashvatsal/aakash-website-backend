@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,19 +17,22 @@ import {
 import {
   DayOfWeek,
   Supplement,
-  SupplementDocument,
   SupplementFrequency,
   SupplementStatus,
 } from './schemas/supplement.schema';
+
+type SupplementWithTimestamps = Supplement & {
+  createdAt?: Date;
+};
 
 @Injectable()
 export class SupplementsService {
   constructor(
     @InjectModel(Supplement.name)
-    private readonly supplementModel: Model<SupplementDocument>,
+    private readonly supplementModel: Model<Supplement>,
 
     @InjectModel(DailySupplementLog.name)
-    private readonly dailySupplementLogModel: Model<DailySupplementLogDocument>,
+    private readonly dailySupplementLogModel: Model<DailySupplementLog>,
   ) {}
 
   async create(dto: CreateSupplementDto) {
@@ -346,7 +348,7 @@ export class SupplementsService {
   }
 
   private shouldTakeOnDate(
-    supplement: SupplementDocument | any,
+    supplement: SupplementWithTimestamps,
     date: Date,
   ): boolean {
     const frequency = supplement.schedule.frequency;
@@ -386,8 +388,6 @@ export class SupplementsService {
         return supplement.schedule.daysOfWeek.includes(dayName);
       }
 
-      // If no weekday was explicitly selected, keep the supplement on a
-      // stable seven-day cadence anchored to its start/creation date.
       return differenceInDays % 7 === 0;
     }
 

@@ -462,7 +462,10 @@ export class HsakaaContextService {
     return latest.data;
   }
 
-  private async getJournalData(message: string, limit: number) {
+  private async getJournalData(
+    message: string,
+    limit: number,
+  ): Promise<unknown[]> {
     const search = this.getSearchTerms(message, 1);
 
     if (search) {

@@ -484,7 +484,8 @@ export class UsersService {
   }
 
   private sanitizeUser(user: Record<string, any>) {
-    const { password, ...safeUser } = user;
+    const safeUser = { ...user };
+    delete safeUser.password;
 
     return safeUser;
   }

@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 
 import { CreateMeditationEntryDto } from './dto/create-meditation-entry.dto';
 import { MeditationQueryDto } from './dto/meditation-query.dto';
@@ -51,20 +51,22 @@ export class MeditationService {
     const page = Math.max(query.page ?? 1, 1);
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
 
-    const filter: Record<string, any> = {
+    const filter: QueryFilter<MeditationEntry> = {
       isActive: true,
     };
 
     if (query.startDate || query.endDate) {
-      filter.date = {};
+      const dateFilter: { $gte?: Date; $lte?: Date } = {};
 
       if (query.startDate) {
-        filter.date.$gte = this.normalizeDate(query.startDate);
+        dateFilter.$gte = this.normalizeDate(query.startDate);
       }
 
       if (query.endDate) {
-        filter.date.$lte = this.normalizeEndDate(query.endDate);
+        dateFilter.$lte = this.normalizeEndDate(query.endDate);
       }
+
+      filter.date = dateFilter;
     }
 
     if (query.type) {
@@ -828,7 +830,7 @@ export class MeditationService {
     return date;
   }
 
-  private isNumber(value: unknown): value is number {
+  private isNumber(this: void, value: unknown): value is number {
     return typeof value === 'number' && Number.isFinite(value);
   }
 

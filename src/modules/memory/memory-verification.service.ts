@@ -143,7 +143,7 @@ export class MemoryVerificationService {
 
     await person.save();
 
-    await this.sendOtp(destination, channel, otp);
+    this.sendOtp(destination, channel, otp);
 
     return {
       ...genericResponse,
@@ -377,7 +377,7 @@ export class MemoryVerificationService {
     };
   }
 
-  private async sendOtp(
+  private sendOtp(
     destination: string,
     channel: VerificationChannel,
     otp: string,

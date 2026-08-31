@@ -25,7 +25,7 @@ export class MediaEngagementListQueryDto {
   priority?: MediaEngagementPriority;
   @IsOptional() @IsEnum(MediaEngagementIntent) intent?: MediaEngagementIntent;
   @IsOptional()
-  @Transform(({ value }) =>
+  @Transform(({ value }: { value: unknown }): unknown =>
     value === 'true' ? true : value === 'false' ? false : value,
   )
   @IsBoolean()

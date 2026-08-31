@@ -18,7 +18,6 @@ import {
 import {
   HaircareFrequency,
   HaircareProduct,
-  HaircareProductDocument,
   HaircareProductStatus,
   HaircareTimeOfDay,
 } from './schemas/haircare-product.schema';
@@ -27,10 +26,10 @@ import {
 export class HaircareService {
   constructor(
     @InjectModel(HaircareProduct.name)
-    private readonly haircareProductModel: Model<HaircareProductDocument>,
+    private readonly haircareProductModel: Model<HaircareProduct>,
 
     @InjectModel(DailyHaircareLog.name)
-    private readonly dailyHaircareLogModel: Model<DailyHaircareLogDocument>,
+    private readonly dailyHaircareLogModel: Model<DailyHaircareLog>,
   ) {}
 
   async createProduct(dto: CreateHaircareProductDto) {
@@ -438,7 +437,6 @@ export class HaircareService {
     for (const item of log.routineItems) {
       if (item.status === HaircareLogStatus.PENDING) {
         item.status = HaircareLogStatus.MISSED;
-
         item.completionPercentage = 0;
       }
     }
@@ -450,10 +448,7 @@ export class HaircareService {
     return log;
   }
 
-  private shouldUseOnDate(
-    product: HaircareProductDocument | Record<string, any>,
-    date: Date,
-  ): boolean {
+  private shouldUseOnDate(product: HaircareProduct, date: Date): boolean {
     const schedule = product.schedule;
 
     if (schedule.frequency === HaircareFrequency.AS_NEEDED) {
@@ -544,10 +539,8 @@ export class HaircareService {
     switch (status) {
       case HaircareLogStatus.APPLIED:
         return 100;
-
       case HaircareLogStatus.PARTIAL:
         return 50;
-
       case HaircareLogStatus.PENDING:
       case HaircareLogStatus.MISSED:
       case HaircareLogStatus.SKIPPED:

@@ -17,7 +17,6 @@ import {
 import {
   IntimateCareFrequency,
   IntimateCareProduct,
-  IntimateCareProductDocument,
   IntimateCareProductStatus,
   IntimateCareTimeOfDay,
 } from './schemas/intimate-care-product.schema';
@@ -26,10 +25,10 @@ import {
 export class IntimateCareService {
   constructor(
     @InjectModel(IntimateCareProduct.name)
-    private readonly productModel: Model<IntimateCareProductDocument>,
+    private readonly productModel: Model<IntimateCareProduct>,
 
     @InjectModel(DailyIntimateCareLog.name)
-    private readonly dailyLogModel: Model<DailyIntimateCareLogDocument>,
+    private readonly dailyLogModel: Model<DailyIntimateCareLog>,
   ) {}
 
   async createProduct(dto: CreateIntimateCareProductDto) {
@@ -279,10 +278,7 @@ export class IntimateCareService {
     return updated;
   }
 
-  private shouldUseOnDate(
-    product: IntimateCareProductDocument | any,
-    date: Date,
-  ): boolean {
+  private shouldUseOnDate(product: IntimateCareProduct, date: Date): boolean {
     const schedule = product.schedule;
 
     if (schedule.frequency === IntimateCareFrequency.AS_NEEDED) {
@@ -297,7 +293,7 @@ export class IntimateCareService {
     }
 
     if (schedule.frequency === IntimateCareFrequency.WEEKLY) {
-      return schedule.daysOfWeek?.includes(date.getDay());
+      return schedule.daysOfWeek?.includes(date.getDay()) ?? false;
     }
 
     const start = schedule.startDate ? new Date(schedule.startDate) : date;

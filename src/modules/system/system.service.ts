@@ -20,9 +20,9 @@ export class SystemService {
   }
 
   getReadiness() {
-    const databaseState = this.getDatabaseState(this.connection.readyState);
-
-    const ready = this.connection.readyState === 1;
+    const readyState = Number(this.connection.readyState);
+    const databaseState = this.getDatabaseState(readyState);
+    const ready = readyState === 1;
 
     const response = {
       status: ready ? 'ready' : 'not_ready',

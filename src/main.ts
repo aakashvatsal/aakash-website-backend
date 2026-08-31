@@ -5,6 +5,8 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 
+type CorsCallback = (error: Error | null, allow?: boolean) => void;
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
@@ -31,9 +33,7 @@ async function bootstrap() {
     frontendUrls.length > 0 ? frontendUrls : ['http://localhost:3000'];
 
   app.enableCors({
-    origin: (origin, callback) => {
-      // Requests such as curl, server-to-server
-      // calls and some webhooks may not send Origin.
+    origin: (origin: string | undefined, callback: CorsCallback) => {
       if (!origin) {
         callback(null, true);
         return;
@@ -73,4 +73,4 @@ async function bootstrap() {
   console.log(`Aakash Backend API running on port ${port} with prefix /api/v1`);
 }
 
-bootstrap();
+void bootstrap();

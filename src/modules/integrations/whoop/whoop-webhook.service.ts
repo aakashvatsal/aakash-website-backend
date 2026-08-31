@@ -102,8 +102,8 @@ export class WhoopWebhookService {
 
         duplicate: false,
       };
-    } catch (error: any) {
-      if (error?.code === 11000) {
+    } catch (error: unknown) {
+      if (this.isDuplicateKeyError(error)) {
         return {
           accepted: true,
 
@@ -113,6 +113,14 @@ export class WhoopWebhookService {
 
       throw error;
     }
+  }
+
+  private isDuplicateKeyError(error: unknown): error is { code: number } {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return false;
+    }
+
+    return (error as { code?: unknown }).code === 11000;
   }
 
   async processWebhook(eventId: string) {

@@ -6,7 +6,7 @@ import {
 
 import { InjectModel } from '@nestjs/mongoose';
 
-import { Model, Types } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 
 import { CompaniesService } from '../companies/companies.service';
 import { RemindersService } from '../reminders/reminders.service';
@@ -117,7 +117,7 @@ export class TasksService {
 
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
 
-    const filter: Record<string, any> = query.isArchived
+    const filter: QueryFilter<Task> = query.isArchived
       ? {
           isArchived: true,
         }
@@ -188,8 +188,13 @@ export class TasksService {
     this.applyDueDateFilter(filter, query);
 
     if (query.overdue) {
+      const existingDueAt =
+        typeof filter.dueAt === 'object' && filter.dueAt !== null
+          ? filter.dueAt
+          : {};
+
       filter.dueAt = {
-        ...(filter.dueAt ?? {}),
+        ...existingDueAt,
         $lt: new Date(),
       };
 
@@ -776,7 +781,7 @@ export class TasksService {
     return new Date(value.getTime() + delta);
   }
 
-  private applyDueDateFilter(filter: Record<string, any>, query: TaskQueryDto) {
+  private applyDueDateFilter(filter: QueryFilter<Task>, query: TaskQueryDto) {
     if (query.dueToday) {
       const { start, end } = this.getTodayRange();
 
