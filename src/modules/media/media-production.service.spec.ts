@@ -32,6 +32,36 @@ const zeroUsage = {
   reasoningTokens: 0,
 };
 
+function expectStrictRequiredSchema(node: unknown, path = 'root'): void {
+  if (!node || typeof node !== 'object') return;
+
+  const schema = node as {
+    type?: unknown;
+    properties?: Record<string, unknown>;
+    required?: unknown;
+    items?: unknown;
+  };
+
+  if (schema.type === 'object' && schema.properties) {
+    const propertyKeys = Object.keys(schema.properties).sort();
+    const required = Array.isArray(schema.required)
+      ? schema.required
+          .filter((value): value is string => typeof value === 'string')
+          .sort()
+      : [];
+
+    expect(required).toEqual(propertyKeys);
+
+    for (const [key, value] of Object.entries(schema.properties)) {
+      expectStrictRequiredSchema(value, `${path}.properties.${key}`);
+    }
+  }
+
+  if (schema.items) {
+    expectStrictRequiredSchema(schema.items, `${path}.items`);
+  }
+}
+
 function generatedPack() {
   return {
     finalScript: 'Final script',
@@ -327,6 +357,15 @@ describe('MediaProductionService', () => {
     expect(result).toMatchObject({
       readiness: { ready: true },
     });
+  });
+
+  it('uses an OpenAI strict JSON schema where every object property is required', () => {
+    const { service } = createService();
+    const schema = (
+      service as unknown as { productionSchema(): unknown }
+    ).productionSchema();
+
+    expectStrictRequiredSchema(schema);
   });
 
   it('refuses to mark production complete until all required assets are ready', async () => {
