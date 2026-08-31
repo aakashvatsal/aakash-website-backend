@@ -91,9 +91,9 @@ describe('MediaContentDirectorService', () => {
         .mockReturnValue({ lean: jest.fn().mockResolvedValue([]) }),
     } as unknown as Model<MediaPublicationDocument>;
 
-    const aiService = {
-      getModel: jest.fn().mockReturnValue('gpt-test'),
-      generateStructuredResponse: jest.fn().mockImplementation(({ name }) => {
+    const generateStructuredResponse = jest
+      .fn()
+      .mockImplementation(({ name }) => {
         if (name === 'hsakaa_media_director_candidates') {
           return Promise.resolve({
             data: {
@@ -137,7 +137,10 @@ describe('MediaContentDirectorService', () => {
           responseId: 'critic-1',
           usage: zeroUsage,
         });
-      }),
+      });
+    const aiService = {
+      getModel: jest.fn().mockReturnValue('gpt-test'),
+      generateStructuredResponse,
     } as unknown as AiService;
 
     const createContent = jest.fn();
@@ -210,6 +213,7 @@ describe('MediaContentDirectorService', () => {
 
     return {
       service,
+      generateStructuredResponse,
       coreService,
       intelligenceService,
       createContent,
@@ -222,7 +226,8 @@ describe('MediaContentDirectorService', () => {
   }
 
   it('generates, anti-repetition checks, critiques and ranks a draft batch without creating canonical content', async () => {
-    const { service, createContent, getRun } = createService();
+    const { service, generateStructuredResponse, createContent, getRun } =
+      createService();
 
     const result = await service.generate({
       brief: 'Turn current builder lessons into distinct authority content.',
@@ -236,6 +241,14 @@ describe('MediaContentDirectorService', () => {
       rankedCandidateKeys: string[];
     };
     expect(result).toBeDefined();
+    expect(generateStructuredResponse).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'hsakaa_media_director_candidates',
+        verbosity: 'medium',
+        reasoningEffort: 'low',
+        maxOutputTokens: 12000,
+      }),
+    );
     expect(run.status).toBe(MediaGenerationRunStatus.GENERATED);
     expect(run.candidates).toHaveLength(2);
     expect(run.candidates[0]).toMatchObject({

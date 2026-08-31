@@ -53,7 +53,7 @@ export interface AiStructuredResponse<T> {
   usage: AiGenerationUsage;
 }
 
-type ReasoningEffort =
+export type ReasoningEffort =
   'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
 @Injectable()
@@ -174,7 +174,18 @@ export class AiService {
     instructions: string;
     input: string;
     verbosity?: 'low' | 'medium' | 'high';
+    reasoningEffort?: ReasoningEffort;
+    maxOutputTokens?: number;
   }): Promise<AiStructuredResponse<T>> {
+    const maxOutputTokens = this.parsePositiveInteger(
+      params.maxOutputTokens === undefined
+        ? undefined
+        : String(params.maxOutputTokens),
+      this.maxOutputTokens,
+      256,
+      12000,
+    );
+
     const response = await this.openai.responses.create({
       model: this.model,
       instructions: params.instructions,
@@ -189,19 +200,50 @@ export class AiService {
         verbosity: params.verbosity ?? 'low',
       },
       reasoning: {
-        effort: this.reasoningEffort,
+        effort: params.reasoningEffort ?? this.reasoningEffort,
       },
-      max_output_tokens: this.maxOutputTokens,
+      max_output_tokens: maxOutputTokens,
       store: false,
     });
 
+    if (response.status && response.status !== 'completed') {
+      const reason =
+        response.incomplete_details?.reason ??
+        response.error?.message ??
+        response.status;
+      const usage = this.normalizeUsage(response.usage ?? null);
+
+      throw new Error(
+        [
+          `AI structured response did not complete: ${reason}.`,
+          `responseId=${response.id}`,
+          `maxOutputTokens=${maxOutputTokens}`,
+          `outputTokens=${usage.outputTokens}`,
+          `reasoningTokens=${usage.reasoningTokens}`,
+        ].join(' '),
+      );
+    }
+
     const raw = response.output_text.trim();
     if (!raw) {
-      throw new Error('AI structured response was empty.');
+      throw new Error(
+        `AI structured response was empty. responseId=${response.id}`,
+      );
+    }
+
+    let data: T;
+
+    try {
+      data = JSON.parse(raw) as T;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : 'invalid JSON';
+      throw new Error(
+        `AI structured response was not valid JSON: ${detail}. responseId=${response.id}`,
+      );
     }
 
     return {
-      data: JSON.parse(raw) as T,
+      data,
       model: response.model || this.model,
       responseId: response.id,
       usage: this.normalizeUsage(response.usage ?? null),

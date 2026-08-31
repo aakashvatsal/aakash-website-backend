@@ -600,6 +600,7 @@ export class MediaContentDirectorService {
         'LinkedIn should favor founder authority, useful stories and clear thinking; Instagram should favor personality, visual storytelling and discovery; YouTube should favor depth/searchability or strong Shorts; X should favor concise ideas, sharp observations and conversations; WhatsApp should favor close-audience distribution and direct usefulness.',
         'Platform variants must feel native to that platform rather than copy-paste adaptations.',
         'A canonical content candidate is still a draft. Do not imply it is approved, scheduled or published.',
+        'Keep this ideation response compact. The Production Studio can expand accepted ideas later: canonicalBody <= 220 words, story <= 160 words, each caption/description <= 120 words, each script <= 220 words, hashtags <= 8, and slides <= 8 concise strings.',
         'The strategy snapshot may include growthLearnings derived from measured historical performance. Treat high-confidence learnings as evidence, not rigid rules. Preserve novelty by rotating topics, examples, hooks and structures instead of mechanically repeating a winning pattern.',
       ].join('\n'),
       input: JSON.stringify({
@@ -616,7 +617,13 @@ export class MediaContentDirectorService {
         strategySnapshot: input.strategySnapshot,
         contextSummary: input.contextSummary,
       }),
-      verbosity: 'high',
+      // This response can contain candidateCount × requestedPlatforms native
+      // executions. The shared 2.4k default is intentionally too small for that
+      // payload and can truncate otherwise-valid JSON. Keep reasoning low and
+      // reserve the full structured-output budget for the draft content itself.
+      verbosity: 'medium',
+      reasoningEffort: 'low',
+      maxOutputTokens: 12000,
       schema: {
         type: 'object',
         properties: {
