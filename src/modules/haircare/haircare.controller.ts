@@ -19,111 +19,65 @@ import { HaircareService } from './haircare.service';
 
 @Controller('haircare')
 export class HaircareController {
-  constructor(
-    private readonly haircareService:
-      HaircareService,
-  ) {}
+  constructor(private readonly haircareService: HaircareService) {}
 
   @Post('products')
-  createProduct(
-    @Body() dto: CreateHaircareProductDto,
-  ) {
-    return this.haircareService.createProduct(
-      dto,
-    );
+  createProduct(@Body() dto: CreateHaircareProductDto) {
+    return this.haircareService.createProduct(dto);
   }
 
   @Get('products')
   findProducts(
-    @Query('userId') userId: string,
     @Query('status')
     status?: HaircareProductStatus,
   ) {
-    return this.haircareService.findProducts(
-      userId,
-      status,
-    );
+    return this.haircareService.findProducts(status);
   }
 
   @Get('products/:productId')
-  findProduct(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.haircareService.findProduct(
-      productId,
-      userId,
-    );
+  findProduct(@Param('productId') productId: string) {
+    return this.haircareService.findProduct(productId);
   }
 
   @Patch('products/:productId')
   updateProduct(
     @Param('productId') productId: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateHaircareProductDto,
   ) {
-    return this.haircareService.updateProduct(
-      productId,
-      userId,
-      dto,
-    );
+    return this.haircareService.updateProduct(productId, dto);
   }
 
   @Delete('products/:productId')
-  removeProduct(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.haircareService.removeProduct(
-      productId,
-      userId,
-    );
+  removeProduct(@Param('productId') productId: string) {
+    return this.haircareService.removeProduct(productId);
   }
 
   @Post('logs/generate')
-  generateDailyLog(
-    @Body() dto: GenerateDailyHaircareLogDto,
-  ) {
-    return this.haircareService.generateDailyLog(
-      dto.userId,
-      dto.date,
-    );
+  generateDailyLog(@Body() dto: GenerateDailyHaircareLogDto) {
+    return this.haircareService.generateDailyLog(dto.date);
   }
 
   @Get('logs')
   getLogs(
-    @Query('userId') userId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    return this.haircareService.getLogs(
-      userId,
-      startDate,
-      endDate,
-    );
+    return this.haircareService.getLogs(startDate, endDate);
   }
 
   @Get('logs/daily')
-  getDailyLog(
-    @Query('userId') userId: string,
-    @Query('date') date: string,
-  ) {
-    return this.haircareService.getDailyLog(
-      userId,
-      date,
-    );
+  getDailyLog(@Query('date') date: string) {
+    return this.haircareService.getDailyLog(date);
   }
 
   @Patch('logs/:logId/items/:itemIndex')
   updateRoutineItem(
     @Param('logId') logId: string,
     @Param('itemIndex') itemIndex: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateHaircareLogItemDto,
   ) {
     return this.haircareService.updateRoutineItem(
       logId,
-      userId,
       Number(itemIndex),
       dto,
     );
@@ -132,24 +86,13 @@ export class HaircareController {
   @Patch('logs/:logId/observation')
   updateObservation(
     @Param('logId') logId: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateHairObservationDto,
   ) {
-    return this.haircareService.updateObservation(
-      logId,
-      userId,
-      dto,
-    );
+    return this.haircareService.updateObservation(logId, dto);
   }
 
   @Patch('logs/mark-missed')
-  markPendingAsMissed(
-    @Query('userId') userId: string,
-    @Query('date') date: string,
-  ) {
-    return this.haircareService.markPendingAsMissed(
-      userId,
-      date,
-    );
+  markPendingAsMissed(@Query('date') date: string) {
+    return this.haircareService.markPendingAsMissed(date);
   }
 }

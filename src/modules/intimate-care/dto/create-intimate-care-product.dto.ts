@@ -54,9 +54,6 @@ class IntimateCareScheduleDto {
 
 export class CreateIntimateCareProductDto {
   @IsString()
-  userId: string;
-
-  @IsString()
   name: string;
 
   @IsOptional()

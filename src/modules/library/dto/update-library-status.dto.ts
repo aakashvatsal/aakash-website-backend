@@ -1,8 +1,4 @@
-import {
-  IsDateString,
-  IsEnum,
-  IsOptional,
-} from 'class-validator';
+import { IsDateString, IsEnum, IsOptional } from 'class-validator';
 
 import { LibraryItemStatus } from '../schemas/library-item.schema';
 

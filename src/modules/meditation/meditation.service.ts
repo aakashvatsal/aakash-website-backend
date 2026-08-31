@@ -4,10 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import {
-  Model,
-  Types,
-} from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import { CreateMeditationEntryDto } from './dto/create-meditation-entry.dto';
 import { MeditationQueryDto } from './dto/meditation-query.dto';
@@ -24,64 +21,37 @@ import {
 export class MeditationService {
   constructor(
     @InjectModel(MeditationEntry.name)
-    private readonly meditationEntryModel:
-      Model<MeditationEntryDocument>,
+    private readonly meditationEntryModel: Model<MeditationEntryDocument>,
   ) {}
 
   async create(dto: CreateMeditationEntryDto) {
-    this.validateObjectId(dto.userId, 'user ID');
-
     const date = this.normalizeDate(dto.date);
-    const status =
-      dto.status ?? MeditationStatus.PLANNED;
+    const status = dto.status ?? MeditationStatus.PLANNED;
 
-    const statusDates = this.prepareInitialStatusDates(
-      status,
-      dto,
-    );
+    const statusDates = this.prepareInitialStatusDates(status, dto);
 
     return this.meditationEntryModel.create({
       ...dto,
-      userId: new Types.ObjectId(dto.userId),
       date,
       status,
       scheduledAt: dto.scheduledAt
-        ? this.parseDate(
-            dto.scheduledAt,
-            'scheduledAt',
-          )
+        ? this.parseDate(dto.scheduledAt, 'scheduledAt')
         : undefined,
       ...statusDates,
-      memoryIds: (dto.memoryIds ?? []).map(
-        (id) => new Types.ObjectId(id),
-      ),
+      memoryIds: (dto.memoryIds ?? []).map((id) => new Types.ObjectId(id)),
       tags: this.normalizeTags(dto.tags),
-      distractions: this.cleanStringArray(
-        dto.distractions,
-      ),
-      insights: this.cleanStringArray(
-        dto.insights,
-      ),
-      intentions: this.cleanStringArray(
-        dto.intentions,
-      ),
-      benefits: this.cleanStringArray(
-        dto.benefits,
-      ),
+      distractions: this.cleanStringArray(dto.distractions),
+      insights: this.cleanStringArray(dto.insights),
+      intentions: this.cleanStringArray(dto.intentions),
+      benefits: this.cleanStringArray(dto.benefits),
     });
   }
 
   async findAll(query: MeditationQueryDto) {
-    this.validateObjectId(query.userId, 'user ID');
-
     const page = Math.max(query.page ?? 1, 1);
-    const limit = Math.min(
-      Math.max(query.limit ?? 20, 1),
-      100,
-    );
+    const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
 
     const filter: Record<string, any> = {
-      userId: new Types.ObjectId(query.userId),
       isActive: true,
     };
 
@@ -89,15 +59,11 @@ export class MeditationService {
       filter.date = {};
 
       if (query.startDate) {
-        filter.date.$gte = this.normalizeDate(
-          query.startDate,
-        );
+        filter.date.$gte = this.normalizeDate(query.startDate);
       }
 
       if (query.endDate) {
-        filter.date.$lte = this.normalizeEndDate(
-          query.endDate,
-        );
+        filter.date.$lte = this.normalizeEndDate(query.endDate);
       }
     }
 
@@ -141,9 +107,7 @@ export class MeditationService {
         .limit(limit)
         .lean(),
 
-      this.meditationEntryModel.countDocuments(
-        filter,
-      ),
+      this.meditationEntryModel.countDocuments(filter),
     ]);
 
     return {
@@ -157,38 +121,21 @@ export class MeditationService {
     };
   }
 
-  async findOne(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+  async findOne(meditationEntryId: string) {
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     return entry.toObject();
   }
 
-  async update(
-    meditationEntryId: string,
-    userId: string,
-    dto: UpdateMeditationEntryDto,
-  ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+  async update(meditationEntryId: string, dto: UpdateMeditationEntryDto) {
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     const updateData: Record<string, unknown> = {
       ...dto,
     };
 
-    delete updateData.userId;
-
     if (dto.date !== undefined) {
-      updateData.date = this.normalizeDate(
-        dto.date,
-      );
+      updateData.date = this.normalizeDate(dto.date);
     }
 
     const dateFields = [
@@ -205,42 +152,32 @@ export class MeditationService {
       const value = dto[field];
 
       if (value !== undefined) {
-        updateData[field] = value
-          ? this.parseDate(value, field)
-          : null;
+        updateData[field] = value ? this.parseDate(value, field) : null;
       }
     }
 
     if (dto.memoryIds !== undefined) {
-      updateData.memoryIds = dto.memoryIds.map(
-        (id) => new Types.ObjectId(id),
-      );
+      updateData.memoryIds = dto.memoryIds.map((id) => new Types.ObjectId(id));
     }
 
     if (dto.tags !== undefined) {
-      updateData.tags = this.normalizeTags(
-        dto.tags,
-      );
+      updateData.tags = this.normalizeTags(dto.tags);
     }
 
     if (dto.distractions !== undefined) {
-      updateData.distractions =
-        this.cleanStringArray(dto.distractions);
+      updateData.distractions = this.cleanStringArray(dto.distractions);
     }
 
     if (dto.insights !== undefined) {
-      updateData.insights =
-        this.cleanStringArray(dto.insights);
+      updateData.insights = this.cleanStringArray(dto.insights);
     }
 
     if (dto.intentions !== undefined) {
-      updateData.intentions =
-        this.cleanStringArray(dto.intentions);
+      updateData.intentions = this.cleanStringArray(dto.intentions);
     }
 
     if (dto.benefits !== undefined) {
-      updateData.benefits =
-        this.cleanStringArray(dto.benefits);
+      updateData.benefits = this.cleanStringArray(dto.benefits);
     }
 
     return this.meditationEntryModel
@@ -259,18 +196,11 @@ export class MeditationService {
 
   async updateStatus(
     meditationEntryId: string,
-    userId: string,
     dto: UpdateMeditationStatusDto,
   ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+    const entry = await this.getEntryDocument(meditationEntryId);
 
-    this.validateStatusTransition(
-      entry.status,
-      dto.status,
-    );
+    this.validateStatusTransition(entry.status, dto.status);
 
     const statusAt = dto.statusAt
       ? this.parseDate(dto.statusAt, 'statusAt')
@@ -309,18 +239,13 @@ export class MeditationService {
         }
 
         if (dto.actualDurationMinutes !== undefined) {
-          entry.actualDurationMinutes =
-            dto.actualDurationMinutes;
-        } else if (
-          entry.startedAt &&
-          entry.completedAt
-        ) {
-          entry.actualDurationMinutes =
-            this.calculateDurationMinutes(
-              entry.startedAt,
-              entry.completedAt,
-              entry.totalPausedMinutes,
-            );
+          entry.actualDurationMinutes = dto.actualDurationMinutes;
+        } else if (entry.startedAt && entry.completedAt) {
+          entry.actualDurationMinutes = this.calculateDurationMinutes(
+            entry.startedAt,
+            entry.completedAt,
+            entry.totalPausedMinutes,
+          );
         }
 
         break;
@@ -328,8 +253,7 @@ export class MeditationService {
       case MeditationStatus.SKIPPED:
         entry.skippedAt = statusAt;
         entry.skippedReason =
-          dto.reason?.trim() ||
-          'Meditation session skipped.';
+          dto.reason?.trim() || 'Meditation session skipped.';
         entry.actualDurationMinutes = 0;
         entry.startedAt = undefined;
         entry.pausedAt = undefined;
@@ -342,23 +266,20 @@ export class MeditationService {
       case MeditationStatus.ABANDONED:
         entry.abandonedAt = statusAt;
         entry.abandonedReason =
-          dto.reason?.trim() ||
-          'Meditation session abandoned.';
+          dto.reason?.trim() || 'Meditation session abandoned.';
         entry.pausedAt = undefined;
         entry.completedAt = undefined;
         entry.skippedAt = undefined;
         entry.skippedReason = undefined;
 
         if (dto.actualDurationMinutes !== undefined) {
-          entry.actualDurationMinutes =
-            dto.actualDurationMinutes;
+          entry.actualDurationMinutes = dto.actualDurationMinutes;
         } else if (entry.startedAt) {
-          entry.actualDurationMinutes =
-            this.calculateDurationMinutes(
-              entry.startedAt,
-              statusAt,
-              entry.totalPausedMinutes,
-            );
+          entry.actualDurationMinutes = this.calculateDurationMinutes(
+            entry.startedAt,
+            statusAt,
+            entry.totalPausedMinutes,
+          );
         }
 
         break;
@@ -369,56 +290,30 @@ export class MeditationService {
     return entry;
   }
 
-  async start(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    return this.updateStatus(
-      meditationEntryId,
-      userId,
-      {
-        status: MeditationStatus.IN_PROGRESS,
-      },
-    );
+  async start(meditationEntryId: string) {
+    return this.updateStatus(meditationEntryId, {
+      status: MeditationStatus.IN_PROGRESS,
+    });
   }
 
-  async pause(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    return this.updateStatus(
-      meditationEntryId,
-      userId,
-      {
-        status: MeditationStatus.PAUSED,
-      },
-    );
+  async pause(meditationEntryId: string) {
+    return this.updateStatus(meditationEntryId, {
+      status: MeditationStatus.PAUSED,
+    });
   }
 
-  async resume(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+  async resume(meditationEntryId: string) {
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     if (entry.status !== MeditationStatus.PAUSED) {
-      throw new BadRequestException(
-        'Only a paused meditation can be resumed.',
-      );
+      throw new BadRequestException('Only a paused meditation can be resumed.');
     }
 
     const now = new Date();
 
     if (entry.pausedAt) {
       const pausedMinutes = Math.max(
-        Math.floor(
-          (now.getTime() -
-            entry.pausedAt.getTime()) /
-            60000,
-        ),
+        Math.floor((now.getTime() - entry.pausedAt.getTime()) / 60000),
         0,
       );
 
@@ -434,73 +329,43 @@ export class MeditationService {
     return entry;
   }
 
-  async complete(
-    meditationEntryId: string,
-    userId: string,
-    actualDurationMinutes?: number,
-  ) {
-    return this.updateStatus(
-      meditationEntryId,
-      userId,
-      {
-        status: MeditationStatus.COMPLETED,
-        actualDurationMinutes,
-      },
-    );
+  async complete(meditationEntryId: string, actualDurationMinutes?: number) {
+    return this.updateStatus(meditationEntryId, {
+      status: MeditationStatus.COMPLETED,
+      actualDurationMinutes,
+    });
   }
 
-  async skip(
-    meditationEntryId: string,
-    userId: string,
-    reason?: string,
-  ) {
-    return this.updateStatus(
-      meditationEntryId,
-      userId,
-      {
-        status: MeditationStatus.SKIPPED,
-        reason,
-      },
-    );
+  async skip(meditationEntryId: string, reason?: string) {
+    return this.updateStatus(meditationEntryId, {
+      status: MeditationStatus.SKIPPED,
+      reason,
+    });
   }
 
-  async abandon(
-    meditationEntryId: string,
-    userId: string,
-    reason?: string,
-  ) {
-    return this.updateStatus(
-      meditationEntryId,
-      userId,
-      {
-        status: MeditationStatus.ABANDONED,
-        reason,
-      },
-    );
+  async abandon(meditationEntryId: string, reason?: string) {
+    return this.updateStatus(meditationEntryId, {
+      status: MeditationStatus.ABANDONED,
+      reason,
+    });
   }
 
   async updateReflection(
     meditationEntryId: string,
-    userId: string,
     dto: UpdateMeditationReflectionDto,
   ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     if (dto.focusScore !== undefined) {
       entry.focusScore = dto.focusScore;
     }
 
     if (dto.calmnessBefore !== undefined) {
-      entry.calmnessBefore =
-        dto.calmnessBefore;
+      entry.calmnessBefore = dto.calmnessBefore;
     }
 
     if (dto.calmnessAfter !== undefined) {
-      entry.calmnessAfter =
-        dto.calmnessAfter;
+      entry.calmnessAfter = dto.calmnessAfter;
     }
 
     if (dto.stressBefore !== undefined) {
@@ -520,8 +385,7 @@ export class MeditationService {
     }
 
     if (dto.satisfactionScore !== undefined) {
-      entry.satisfactionScore =
-        dto.satisfactionScore;
+      entry.satisfactionScore = dto.satisfactionScore;
     }
 
     if (dto.moodBefore !== undefined) {
@@ -533,23 +397,19 @@ export class MeditationService {
     }
 
     if (dto.distractionsCount !== undefined) {
-      entry.distractionsCount =
-        dto.distractionsCount;
+      entry.distractionsCount = dto.distractionsCount;
     }
 
     if (dto.distractions !== undefined) {
-      entry.distractions =
-        this.cleanStringArray(dto.distractions);
+      entry.distractions = this.cleanStringArray(dto.distractions);
     }
 
     if (dto.insights !== undefined) {
-      entry.insights =
-        this.cleanStringArray(dto.insights);
+      entry.insights = this.cleanStringArray(dto.insights);
     }
 
     if (dto.benefits !== undefined) {
-      entry.benefits =
-        this.cleanStringArray(dto.benefits);
+      entry.benefits = this.cleanStringArray(dto.benefits);
     }
 
     if (dto.notes !== undefined) {
@@ -561,14 +421,8 @@ export class MeditationService {
     return entry;
   }
 
-  async toggleFavourite(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+  async toggleFavourite(meditationEntryId: string) {
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     entry.isFavourite = !entry.isFavourite;
 
@@ -577,14 +431,8 @@ export class MeditationService {
     return entry;
   }
 
-  async archive(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+  async archive(meditationEntryId: string) {
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     entry.isArchived = true;
 
@@ -593,14 +441,8 @@ export class MeditationService {
     return entry;
   }
 
-  async restore(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+  async restore(meditationEntryId: string) {
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     entry.isArchived = false;
 
@@ -609,79 +451,58 @@ export class MeditationService {
     return entry;
   }
 
-  async getSummary(
-    userId: string,
-    startDate: string,
-    endDate: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async getSummary(startDate: string, endDate: string) {
     const start = this.normalizeDate(startDate);
     const end = this.normalizeEndDate(endDate);
 
     if (start > end) {
-      throw new BadRequestException(
-        'Start date must be before end date.',
-      );
+      throw new BadRequestException('Start date must be before end date.');
     }
 
-    const entries =
-      await this.meditationEntryModel
-        .find({
-          userId: new Types.ObjectId(userId),
-          date: {
-            $gte: start,
-            $lte: end,
-          },
-          isActive: true,
-          isArchived: false,
-        })
-        .sort({
-          date: 1,
-        })
-        .lean();
+    const entries = await this.meditationEntryModel
+      .find({
+        date: {
+          $gte: start,
+          $lte: end,
+        },
+        isActive: true,
+        isArchived: false,
+      })
+      .sort({
+        date: 1,
+      })
+      .lean();
 
-    const statusCounts = Object.values(
-      MeditationStatus,
-    ).reduce<Record<string, number>>(
-      (result, status) => {
-        result[status] = 0;
-        return result;
-      },
-      {},
-    );
+    const statusCounts = Object.values(MeditationStatus).reduce<
+      Record<string, number>
+    >((result, status) => {
+      result[status] = 0;
+      return result;
+    }, {});
 
     for (const entry of entries) {
-      statusCounts[entry.status] =
-        (statusCounts[entry.status] ?? 0) + 1;
+      statusCounts[entry.status] = (statusCounts[entry.status] ?? 0) + 1;
     }
 
     const completedEntries = entries.filter(
-      (entry) =>
-        entry.status ===
-        MeditationStatus.COMPLETED,
+      (entry) => entry.status === MeditationStatus.COMPLETED,
     );
 
     const skippedEntries = entries.filter(
-      (entry) =>
-        entry.status ===
-        MeditationStatus.SKIPPED,
+      (entry) => entry.status === MeditationStatus.SKIPPED,
     );
 
     const abandonedEntries = entries.filter(
-      (entry) =>
-        entry.status ===
-        MeditationStatus.ABANDONED,
+      (entry) => entry.status === MeditationStatus.ABANDONED,
     );
 
-    const plannedOrFinishedEntries =
-      entries.filter((entry) =>
-        [
-          MeditationStatus.COMPLETED,
-          MeditationStatus.SKIPPED,
-          MeditationStatus.ABANDONED,
-        ].includes(entry.status),
-      );
+    const plannedOrFinishedEntries = entries.filter((entry) =>
+      [
+        MeditationStatus.COMPLETED,
+        MeditationStatus.SKIPPED,
+        MeditationStatus.ABANDONED,
+      ].includes(entry.status),
+    );
 
     return {
       period: {
@@ -693,99 +514,73 @@ export class MeditationService {
 
       statusCounts,
 
-      completedSessions:
-        completedEntries.length,
+      completedSessions: completedEntries.length,
 
       skippedSessions: skippedEntries.length,
 
-      abandonedSessions:
-        abandonedEntries.length,
+      abandonedSessions: abandonedEntries.length,
 
       completionRate:
         plannedOrFinishedEntries.length > 0
           ? Number(
               (
-                (completedEntries.length /
-                  plannedOrFinishedEntries.length) *
+                (completedEntries.length / plannedOrFinishedEntries.length) *
                 100
               ).toFixed(2),
             )
           : 0,
 
-      totalMeditationMinutes:
-        completedEntries.reduce(
-          (total, entry) =>
-            total +
-            (entry.actualDurationMinutes ?? 0),
-          0,
-        ),
+      totalMeditationMinutes: completedEntries.reduce(
+        (total, entry) => total + (entry.actualDurationMinutes ?? 0),
+        0,
+      ),
 
       averageDurationMinutes: this.average(
-        completedEntries.map(
-          (entry) =>
-            entry.actualDurationMinutes ?? 0,
-        ),
+        completedEntries.map((entry) => entry.actualDurationMinutes ?? 0),
       ),
 
       averageFocusScore: this.average(
-        completedEntries
-          .map((entry) => entry.focusScore)
-          .filter(this.isNumber),
+        completedEntries.map((entry) => entry.focusScore).filter(this.isNumber),
       ),
 
       averageSatisfactionScore: this.average(
         completedEntries
-          .map(
-            (entry) =>
-              entry.satisfactionScore,
-          )
+          .map((entry) => entry.satisfactionScore)
           .filter(this.isNumber),
       ),
 
-      calmnessImprovement:
-        this.averageImprovement(
-          completedEntries,
-          'calmnessBefore',
-          'calmnessAfter',
-        ),
+      calmnessImprovement: this.averageImprovement(
+        completedEntries,
+        'calmnessBefore',
+        'calmnessAfter',
+      ),
 
-      stressReduction:
-        this.averageReduction(
-          completedEntries,
-          'stressBefore',
-          'stressAfter',
-        ),
+      stressReduction: this.averageReduction(
+        completedEntries,
+        'stressBefore',
+        'stressAfter',
+      ),
 
-      energyImprovement:
-        this.averageImprovement(
-          completedEntries,
-          'energyBefore',
-          'energyAfter',
-        ),
+      energyImprovement: this.averageImprovement(
+        completedEntries,
+        'energyBefore',
+        'energyAfter',
+      ),
 
       totalInsights: entries.reduce(
-        (total, entry) =>
-          total + (entry.insights?.length ?? 0),
+        (total, entry) => total + (entry.insights?.length ?? 0),
         0,
       ),
 
       totalDistractions: entries.reduce(
-        (total, entry) =>
-          total +
-          (entry.distractionsCount ?? 0),
+        (total, entry) => total + (entry.distractionsCount ?? 0),
         0,
       ),
     };
   }
 
-  async remove(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    const entry = await this.getEntryDocument(
-      meditationEntryId,
-      userId,
-    );
+  async remove(meditationEntryId: string) {
+    const entry = await this.getEntryDocument(meditationEntryId);
 
     entry.isActive = false;
     entry.isArchived = true;
@@ -793,35 +588,20 @@ export class MeditationService {
     await entry.save();
 
     return {
-      message:
-        'Meditation entry deleted successfully.',
+      message: 'Meditation entry deleted successfully.',
     };
   }
 
-  private async getEntryDocument(
-    meditationEntryId: string,
-    userId: string,
-  ) {
-    this.validateObjectId(
-      meditationEntryId,
-      'meditation entry ID',
-    );
+  private async getEntryDocument(meditationEntryId: string) {
+    this.validateObjectId(meditationEntryId, 'meditation entry ID');
 
-    this.validateObjectId(userId, 'user ID');
-
-    const entry =
-      await this.meditationEntryModel.findOne({
-        _id: new Types.ObjectId(
-          meditationEntryId,
-        ),
-        userId: new Types.ObjectId(userId),
-        isActive: true,
-      });
+    const entry = await this.meditationEntryModel.findOne({
+      _id: new Types.ObjectId(meditationEntryId),
+      isActive: true,
+    });
 
     if (!entry) {
-      throw new NotFoundException(
-        'Meditation entry not found.',
-      );
+      throw new NotFoundException('Meditation entry not found.');
     }
 
     return entry;
@@ -835,10 +615,7 @@ export class MeditationService {
       return;
     }
 
-    const allowedTransitions: Record<
-      MeditationStatus,
-      MeditationStatus[]
-    > = {
+    const allowedTransitions: Record<MeditationStatus, MeditationStatus[]> = {
       [MeditationStatus.PLANNED]: [
         MeditationStatus.IN_PROGRESS,
         MeditationStatus.COMPLETED,
@@ -858,9 +635,7 @@ export class MeditationService {
         MeditationStatus.ABANDONED,
       ],
 
-      [MeditationStatus.COMPLETED]: [
-        MeditationStatus.PLANNED,
-      ],
+      [MeditationStatus.COMPLETED]: [MeditationStatus.PLANNED],
 
       [MeditationStatus.SKIPPED]: [
         MeditationStatus.PLANNED,
@@ -873,11 +648,7 @@ export class MeditationService {
       ],
     };
 
-    if (
-      !allowedTransitions[currentStatus].includes(
-        nextStatus,
-      )
-    ) {
+    if (!allowedTransitions[currentStatus].includes(nextStatus)) {
       throw new BadRequestException(
         `Meditation status cannot move from "${currentStatus}" to "${nextStatus}".`,
       );
@@ -894,68 +665,44 @@ export class MeditationService {
       case MeditationStatus.IN_PROGRESS:
         return {
           startedAt: dto.startedAt
-            ? this.parseDate(
-                dto.startedAt,
-                'startedAt',
-              )
+            ? this.parseDate(dto.startedAt, 'startedAt')
             : now,
         };
 
       case MeditationStatus.PAUSED:
         return {
           startedAt: dto.startedAt
-            ? this.parseDate(
-                dto.startedAt,
-                'startedAt',
-              )
+            ? this.parseDate(dto.startedAt, 'startedAt')
             : now,
           pausedAt: dto.pausedAt
-            ? this.parseDate(
-                dto.pausedAt,
-                'pausedAt',
-              )
+            ? this.parseDate(dto.pausedAt, 'pausedAt')
             : now,
         };
 
       case MeditationStatus.COMPLETED:
         return {
           startedAt: dto.startedAt
-            ? this.parseDate(
-                dto.startedAt,
-                'startedAt',
-              )
+            ? this.parseDate(dto.startedAt, 'startedAt')
             : now,
           completedAt: dto.completedAt
-            ? this.parseDate(
-                dto.completedAt,
-                'completedAt',
-              )
+            ? this.parseDate(dto.completedAt, 'completedAt')
             : now,
         };
 
       case MeditationStatus.SKIPPED:
         return {
           skippedAt: dto.skippedAt
-            ? this.parseDate(
-                dto.skippedAt,
-                'skippedAt',
-              )
+            ? this.parseDate(dto.skippedAt, 'skippedAt')
             : now,
         };
 
       case MeditationStatus.ABANDONED:
         return {
           startedAt: dto.startedAt
-            ? this.parseDate(
-                dto.startedAt,
-                'startedAt',
-              )
+            ? this.parseDate(dto.startedAt, 'startedAt')
             : now,
           abandonedAt: dto.abandonedAt
-            ? this.parseDate(
-                dto.abandonedAt,
-                'abandonedAt',
-              )
+            ? this.parseDate(dto.abandonedAt, 'abandonedAt')
             : now,
         };
 
@@ -964,9 +711,7 @@ export class MeditationService {
     }
   }
 
-  private resetExecutionFields(
-    entry: MeditationEntryDocument,
-  ) {
+  private resetExecutionFields(entry: MeditationEntryDocument) {
     entry.actualDurationMinutes = 0;
     entry.totalPausedMinutes = 0;
     entry.startedAt = undefined;
@@ -985,36 +730,25 @@ export class MeditationService {
     pausedMinutes = 0,
   ) {
     const totalMinutes = Math.floor(
-      (endedAt.getTime() -
-        startedAt.getTime()) /
-        60000,
+      (endedAt.getTime() - startedAt.getTime()) / 60000,
     );
 
-    return Math.max(
-      totalMinutes - pausedMinutes,
-      0,
-    );
+    return Math.max(totalMinutes - pausedMinutes, 0);
   }
 
   private averageImprovement(
     entries: MeditationEntry[],
-    beforeField:
-      | 'calmnessBefore'
-      | 'energyBefore',
-    afterField:
-      | 'calmnessAfter'
-      | 'energyAfter',
+    beforeField: 'calmnessBefore' | 'energyBefore',
+    afterField: 'calmnessAfter' | 'energyAfter',
   ) {
     const differences = entries
       .filter(
         (entry) =>
-          this.isNumber(entry[beforeField]) &&
-          this.isNumber(entry[afterField]),
+          this.isNumber(entry[beforeField]) && this.isNumber(entry[afterField]),
       )
       .map(
         (entry) =>
-          (entry[afterField] as number) -
-          (entry[beforeField] as number),
+          (entry[afterField] as number) - (entry[beforeField] as number),
       );
 
     return this.average(differences);
@@ -1028,13 +762,11 @@ export class MeditationService {
     const differences = entries
       .filter(
         (entry) =>
-          this.isNumber(entry[beforeField]) &&
-          this.isNumber(entry[afterField]),
+          this.isNumber(entry[beforeField]) && this.isNumber(entry[afterField]),
       )
       .map(
         (entry) =>
-          (entry[beforeField] as number) -
-          (entry[afterField] as number),
+          (entry[beforeField] as number) - (entry[afterField] as number),
       );
 
     return this.average(differences);
@@ -1047,41 +779,27 @@ export class MeditationService {
 
     return Number(
       (
-        values.reduce(
-          (total, value) => total + value,
-          0,
-        ) / values.length
+        values.reduce((total, value) => total + value, 0) / values.length
       ).toFixed(2),
     );
   }
 
   private cleanStringArray(values?: string[]) {
     return [
-      ...new Set(
-        (values ?? [])
-          .map((value) => value.trim())
-          .filter(Boolean),
-      ),
+      ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
     ];
   }
 
   private normalizeTags(tags?: string[]) {
     return [
       ...new Set(
-        (tags ?? [])
-          .map((tag) =>
-            this.normalizeTag(tag),
-          )
-          .filter(Boolean),
+        (tags ?? []).map((tag) => this.normalizeTag(tag)).filter(Boolean),
       ),
     ];
   }
 
   private normalizeTag(tag: string) {
-    return tag
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '-');
+    return tag.trim().toLowerCase().replace(/\s+/g, '-');
   }
 
   private normalizeDate(value: string) {
@@ -1100,38 +818,23 @@ export class MeditationService {
     return date;
   }
 
-  private parseDate(
-    value: string,
-    fieldName: string,
-  ) {
+  private parseDate(value: string, fieldName: string) {
     const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
 
     return date;
   }
 
-  private isNumber(
-    value: unknown,
-  ): value is number {
-    return (
-      typeof value === 'number' &&
-      Number.isFinite(value)
-    );
+  private isNumber(value: unknown): value is number {
+    return typeof value === 'number' && Number.isFinite(value);
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ) {
+  private validateObjectId(value: string, fieldName: string) {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
   }
 }

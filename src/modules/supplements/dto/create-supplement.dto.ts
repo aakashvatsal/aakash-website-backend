@@ -71,9 +71,6 @@ class SupplementScheduleDto {
 
 export class CreateSupplementDto {
   @IsString()
-  userId: string;
-
-  @IsString()
   name: string;
 
   @IsOptional()

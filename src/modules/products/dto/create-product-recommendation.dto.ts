@@ -18,9 +18,6 @@ import {
 } from '../schemas/product-recommendation.schema';
 
 export class CreateProductRecommendationDto {
-  @IsMongoId()
-  userId: string;
-
   @IsOptional()
   @IsMongoId()
   currentProductId?: string;

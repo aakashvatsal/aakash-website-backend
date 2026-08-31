@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type HealthReportDocument =
-  HydratedDocument<HealthReport>;
+export type HealthReportDocument = HydratedDocument<HealthReport>;
 
 export enum HealthReportType {
   WEEKLY = 'weekly',
@@ -234,14 +229,6 @@ export const HealthReportSourcesSchema =
 })
 export class HealthReport {
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
     type: String,
     enum: HealthReportType,
     required: true,
@@ -368,12 +355,10 @@ export class HealthReport {
   isActive: boolean;
 }
 
-export const HealthReportSchema =
-  SchemaFactory.createForClass(HealthReport);
+export const HealthReportSchema = SchemaFactory.createForClass(HealthReport);
 
 HealthReportSchema.index(
   {
-    userId: 1,
     reportType: 1,
     periodStart: 1,
     periodEnd: 1,
@@ -384,7 +369,6 @@ HealthReportSchema.index(
 );
 
 HealthReportSchema.index({
-  userId: 1,
   periodEnd: -1,
   status: 1,
 });

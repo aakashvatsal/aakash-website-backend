@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes } from 'mongoose';
 
 export type CompanyDocument = HydratedDocument<Company>;
 
@@ -44,8 +40,7 @@ export class CompanyLink {
   url: string;
 }
 
-export const CompanyLinkSchema =
-  SchemaFactory.createForClass(CompanyLink);
+export const CompanyLinkSchema = SchemaFactory.createForClass(CompanyLink);
 
 @Schema({ _id: false })
 export class CompanyMetric {
@@ -65,8 +60,7 @@ export class CompanyMetric {
   measuredAt?: Date;
 }
 
-export const CompanyMetricSchema =
-  SchemaFactory.createForClass(CompanyMetric);
+export const CompanyMetricSchema = SchemaFactory.createForClass(CompanyMetric);
 
 @Schema({ _id: false })
 export class CompanyGoal {
@@ -86,8 +80,7 @@ export class CompanyGoal {
   completed: boolean;
 }
 
-export const CompanyGoalSchema =
-  SchemaFactory.createForClass(CompanyGoal);
+export const CompanyGoalSchema = SchemaFactory.createForClass(CompanyGoal);
 
 @Schema({ _id: false })
 export class CompanyFounder {
@@ -112,14 +105,6 @@ export const CompanyFounderSchema =
   collection: 'companies',
 })
 export class Company {
-  // @Prop({
-  //   type: SchemaTypes.ObjectId,
-  //   ref: 'User',
-  //   required: true,
-  //   index: true,
-  // })
-  // userId: Types.ObjectId;
-
   @Prop({
     required: true,
     trim: true,
@@ -294,12 +279,10 @@ export class Company {
   isActive: boolean;
 }
 
-export const CompanySchema =
-  SchemaFactory.createForClass(Company);
+export const CompanySchema = SchemaFactory.createForClass(Company);
 
 CompanySchema.index(
   {
-    userId: 1,
     slug: 1,
   },
   {
@@ -308,7 +291,6 @@ CompanySchema.index(
 );
 
 CompanySchema.index({
-  userId: 1,
   status: 1,
   isActive: 1,
 });

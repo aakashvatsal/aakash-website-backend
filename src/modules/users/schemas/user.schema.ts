@@ -70,8 +70,7 @@ export class User {
   isArchived: boolean;
 }
 
-export const UserSchema =
-  SchemaFactory.createForClass(User);
+export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.index({
   email: 1,

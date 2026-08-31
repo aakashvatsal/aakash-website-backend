@@ -1,11 +1,7 @@
-import {
-  Transform,
-  Type,
-} from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
-  IsMongoId,
   IsNumber,
   IsOptional,
   IsString,
@@ -18,11 +14,7 @@ import {
   LibraryItemType,
 } from '../schemas/library-item.schema';
 
-const transformBoolean = ({
-  value,
-}: {
-  value: unknown;
-}) => {
+const transformBoolean = ({ value }: { value: unknown }) => {
   if (value === true || value === 'true') {
     return true;
   }
@@ -35,9 +27,6 @@ const transformBoolean = ({
 };
 
 export class LibraryQueryDto {
-//   @IsMongoId()
-//   userId: string;
-
   @IsOptional()
   @IsEnum(LibraryItemType)
   type?: LibraryItemType;

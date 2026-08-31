@@ -10,9 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import {
-  AdminGuard,
-} from '../../common/guards/admin.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 import { AddPainEntryDto } from './dto/add-pain-entry.dto';
 import { AddWorkoutDto } from './dto/add-workout.dto';
@@ -28,22 +26,17 @@ import { HealthService } from './health.service';
 @Controller('health')
 export class HealthController {
   constructor(
-    private readonly healthService:
-      HealthService,
+    private readonly healthService: HealthService,
 
-    private readonly healthDashboardService:
-      HealthDashboardService,
+    private readonly healthDashboardService: HealthDashboardService,
   ) {}
 
   @Post()
-  @UseGuards(AdminGuard)
   create(
     @Body()
     dto: CreateHealthEntryDto,
   ) {
-    return this.healthService.create(
-      dto,
-    );
+    return this.healthService.create(dto);
   }
 
   @Get()
@@ -51,14 +44,28 @@ export class HealthController {
     @Query()
     query: HealthQueryDto,
   ) {
-    return this.healthService.findAll(
-      query,
-    );
+    return this.healthService.findAll(query);
   }
 
   @Get('public/latest')
+  @Public()
   findLatestForPublic() {
     return this.healthService.findLatestForPublic();
+  }
+
+  @Get('public/dashboard')
+  @Public()
+  getPublicDashboard() {
+    return this.healthDashboardService.getDashboard();
+  }
+
+  @Get('public/trends')
+  @Public()
+  getPublicTrends(
+    @Query('days')
+    days?: string,
+  ) {
+    return this.healthDashboardService.getTrends(days ? Number(days) : 30);
   }
 
   @Get('summary')
@@ -69,10 +76,7 @@ export class HealthController {
     @Query('endDate')
     endDate: string,
   ) {
-    return this.healthService.getSummary(
-      startDate,
-      endDate,
-    );
+    return this.healthService.getSummary(startDate, endDate);
   }
 
   @Get('date/:date')
@@ -80,9 +84,7 @@ export class HealthController {
     @Param('date')
     date: string,
   ) {
-    return this.healthService.findByDate(
-      date,
-    );
+    return this.healthService.findByDate(date);
   }
 
   @Get('dashboard')
@@ -100,11 +102,7 @@ export class HealthController {
     @Query('days')
     days?: string,
   ) {
-    return this.healthDashboardService.getTrends(
-      days
-        ? Number(days)
-        : 30,
-    );
+    return this.healthDashboardService.getTrends(days ? Number(days) : 30);
   }
 
   @Get('workouts')
@@ -112,11 +110,7 @@ export class HealthController {
     @Query('days')
     days?: string,
   ) {
-    return this.healthDashboardService.getWorkouts(
-      days
-        ? Number(days)
-        : 30,
-    );
+    return this.healthDashboardService.getWorkouts(days ? Number(days) : 30);
   }
 
   @Get(':healthEntryId')
@@ -124,13 +118,10 @@ export class HealthController {
     @Param('healthEntryId')
     healthEntryId: string,
   ) {
-    return this.healthService.findOne(
-      healthEntryId,
-    );
+    return this.healthService.findOne(healthEntryId);
   }
 
   @Patch(':healthEntryId')
-  @UseGuards(AdminGuard)
   update(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -138,14 +129,10 @@ export class HealthController {
     @Body()
     dto: UpdateHealthEntryDto,
   ) {
-    return this.healthService.update(
-      healthEntryId,
-      dto,
-    );
+    return this.healthService.update(healthEntryId, dto);
   }
 
   @Post(':healthEntryId/workouts')
-  @UseGuards(AdminGuard)
   addWorkout(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -153,16 +140,10 @@ export class HealthController {
     @Body()
     dto: AddWorkoutDto,
   ) {
-    return this.healthService.addWorkout(
-      healthEntryId,
-      dto,
-    );
+    return this.healthService.addWorkout(healthEntryId, dto);
   }
 
-  @Patch(
-    ':healthEntryId/workouts/:workoutIndex',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':healthEntryId/workouts/:workoutIndex')
   updateWorkout(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -175,17 +156,12 @@ export class HealthController {
   ) {
     return this.healthService.updateWorkout(
       healthEntryId,
-      Number(
-        workoutIndex,
-      ),
+      Number(workoutIndex),
       dto,
     );
   }
 
-  @Patch(
-    ':healthEntryId/workouts/:workoutIndex/complete',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':healthEntryId/workouts/:workoutIndex/complete')
   completeWorkout(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -195,16 +171,11 @@ export class HealthController {
   ) {
     return this.healthService.completeWorkout(
       healthEntryId,
-      Number(
-        workoutIndex,
-      ),
+      Number(workoutIndex),
     );
   }
 
-  @Delete(
-    ':healthEntryId/workouts/:workoutIndex',
-  )
-  @UseGuards(AdminGuard)
+  @Delete(':healthEntryId/workouts/:workoutIndex')
   removeWorkout(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -214,14 +185,11 @@ export class HealthController {
   ) {
     return this.healthService.removeWorkout(
       healthEntryId,
-      Number(
-        workoutIndex,
-      ),
+      Number(workoutIndex),
     );
   }
 
   @Post(':healthEntryId/pain')
-  @UseGuards(AdminGuard)
   addPainEntry(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -229,16 +197,10 @@ export class HealthController {
     @Body()
     dto: AddPainEntryDto,
   ) {
-    return this.healthService.addPainEntry(
-      healthEntryId,
-      dto,
-    );
+    return this.healthService.addPainEntry(healthEntryId, dto);
   }
 
-  @Patch(
-    ':healthEntryId/pain/:painIndex',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':healthEntryId/pain/:painIndex')
   updatePainEntry(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -251,17 +213,12 @@ export class HealthController {
   ) {
     return this.healthService.updatePainEntry(
       healthEntryId,
-      Number(
-        painIndex,
-      ),
+      Number(painIndex),
       dto,
     );
   }
 
-  @Patch(
-    ':healthEntryId/pain/:painIndex/resolve',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':healthEntryId/pain/:painIndex/resolve')
   resolvePainEntry(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -271,16 +228,11 @@ export class HealthController {
   ) {
     return this.healthService.resolvePainEntry(
       healthEntryId,
-      Number(
-        painIndex,
-      ),
+      Number(painIndex),
     );
   }
 
-  @Delete(
-    ':healthEntryId/pain/:painIndex',
-  )
-  @UseGuards(AdminGuard)
+  @Delete(':healthEntryId/pain/:painIndex')
   removePainEntry(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -288,18 +240,10 @@ export class HealthController {
     @Param('painIndex')
     painIndex: string,
   ) {
-    return this.healthService.removePainEntry(
-      healthEntryId,
-      Number(
-        painIndex,
-      ),
-    );
+    return this.healthService.removePainEntry(healthEntryId, Number(painIndex));
   }
 
-  @Patch(
-    ':healthEntryId/habits',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':healthEntryId/habits')
   updateHabits(
     @Param('healthEntryId')
     healthEntryId: string,
@@ -307,46 +251,30 @@ export class HealthController {
     @Body()
     dto: UpdateHealthHabitsDto,
   ) {
-    return this.healthService.updateHabits(
-      healthEntryId,
-      dto,
-    );
+    return this.healthService.updateHabits(healthEntryId, dto);
   }
 
-  @Patch(
-    ':healthEntryId/archive',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':healthEntryId/archive')
   archive(
     @Param('healthEntryId')
     healthEntryId: string,
   ) {
-    return this.healthService.archive(
-      healthEntryId,
-    );
+    return this.healthService.archive(healthEntryId);
   }
 
-  @Patch(
-    ':healthEntryId/restore',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':healthEntryId/restore')
   restore(
     @Param('healthEntryId')
     healthEntryId: string,
   ) {
-    return this.healthService.restore(
-      healthEntryId,
-    );
+    return this.healthService.restore(healthEntryId);
   }
 
   @Delete(':healthEntryId')
-  @UseGuards(AdminGuard)
   remove(
     @Param('healthEntryId')
     healthEntryId: string,
   ) {
-    return this.healthService.remove(
-      healthEntryId,
-    );
+    return this.healthService.remove(healthEntryId);
   }
 }

@@ -7,7 +7,9 @@ describe('HaircareService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [HaircareService],
-    }).compile();
+    })
+      .useMocker(() => ({ get: jest.fn() }))
+      .compile();
 
     service = module.get<HaircareService>(HaircareService);
   });

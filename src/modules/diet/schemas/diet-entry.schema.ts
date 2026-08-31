@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type DietEntryDocument = HydratedDocument<DietEntry>;
 
@@ -134,8 +130,7 @@ export class FoodItem {
   notes?: string;
 }
 
-export const FoodItemSchema =
-  SchemaFactory.createForClass(FoodItem);
+export const FoodItemSchema = SchemaFactory.createForClass(FoodItem);
 
 @Schema({ _id: false })
 export class Meal {
@@ -211,8 +206,7 @@ export class Meal {
   notes?: string;
 }
 
-export const MealSchema =
-  SchemaFactory.createForClass(Meal);
+export const MealSchema = SchemaFactory.createForClass(Meal);
 
 @Schema({ _id: false })
 export class DietTargets {
@@ -254,8 +248,7 @@ export class DietTargets {
   vegetableServings: number;
 }
 
-export const DietTargetsSchema =
-  SchemaFactory.createForClass(DietTargets);
+export const DietTargetsSchema = SchemaFactory.createForClass(DietTargets);
 
 @Schema({ _id: false })
 export class DietActuals {
@@ -311,8 +304,7 @@ export class DietActuals {
   smoked: boolean;
 }
 
-export const DietActualsSchema =
-  SchemaFactory.createForClass(DietActuals);
+export const DietActualsSchema = SchemaFactory.createForClass(DietActuals);
 
 @Schema({ _id: false })
 export class SupplementEntry {
@@ -448,8 +440,7 @@ export class DietAdherence {
   followedMealPlan: boolean;
 }
 
-export const DietAdherenceSchema =
-  SchemaFactory.createForClass(DietAdherence);
+export const DietAdherenceSchema = SchemaFactory.createForClass(DietAdherence);
 
 @Schema({ _id: false })
 export class DietOutcome {
@@ -520,8 +511,7 @@ export class DietOutcome {
   evaluatedAt?: Date;
 }
 
-export const DietOutcomeSchema =
-  SchemaFactory.createForClass(DietOutcome);
+export const DietOutcomeSchema = SchemaFactory.createForClass(DietOutcome);
 
 @Schema({
   timestamps: true,
@@ -529,16 +519,7 @@ export const DietOutcomeSchema =
 })
 export class DietEntry {
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
     required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
-    required: true,
-    index: true,
   })
   date: Date;
 
@@ -638,12 +619,10 @@ export class DietEntry {
   isActive: boolean;
 }
 
-export const DietEntrySchema =
-  SchemaFactory.createForClass(DietEntry);
+export const DietEntrySchema = SchemaFactory.createForClass(DietEntry);
 
 DietEntrySchema.index(
   {
-    userId: 1,
     date: 1,
   },
   {
@@ -652,19 +631,16 @@ DietEntrySchema.index(
 );
 
 DietEntrySchema.index({
-  userId: 1,
   isActive: 1,
   date: -1,
 });
 
 DietEntrySchema.index({
-  userId: 1,
   'targets.goal': 1,
   date: -1,
 });
 
 DietEntrySchema.index({
-  userId: 1,
   'meals.status': 1,
   date: -1,
 });

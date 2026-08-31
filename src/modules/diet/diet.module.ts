@@ -3,10 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 
 import { DietController } from './diet.controller';
 import { DietService } from './diet.service';
-import {
-  DietEntry,
-  DietEntrySchema,
-} from './schemas/diet-entry.schema';
+import { DietEntry, DietEntrySchema } from './schemas/diet-entry.schema';
 
 @Module({
   imports: [

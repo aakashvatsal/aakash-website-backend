@@ -103,9 +103,6 @@ export class ProductPurchaseDto {
 }
 
 export class CreateProductDto {
-  @IsMongoId()
-  userId: string;
-
   @IsString()
   name: string;
 
@@ -259,5 +256,4 @@ export class CreateProductDto {
   @IsOptional()
   @IsBoolean()
   isArchived?: boolean;
-
 }

@@ -15,11 +15,40 @@ import {
 
 import {
   MemoryAccessLevel,
+  MemoryCaptureOrigin,
+  MemoryDurability,
+  MemoryEntityType,
+  MemoryPersonRelation,
+  MemoryScope,
   MemorySensitivity,
   MemorySource,
   MemoryType,
   MemoryVerificationStatus,
 } from '../schemas/memory.schema';
+
+export class MemoryEntityReferenceDto {
+  @IsEnum(MemoryEntityType)
+  type: MemoryEntityType;
+
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  @IsMongoId()
+  entityId?: string;
+
+  @IsOptional()
+  @IsString()
+  externalId?: string;
+}
+
+export class MemoryPersonLinkDto {
+  @IsMongoId()
+  personId: string;
+
+  @IsEnum(MemoryPersonRelation)
+  relation: MemoryPersonRelation;
+}
 
 export class MemorySourceReferenceDto {
   @IsOptional()
@@ -53,6 +82,16 @@ export class CreateMemoryDto {
   @IsMongoId()
   personId?: string;
 
+  @IsOptional()
+  @IsEnum(MemoryScope)
+  scope?: MemoryScope;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MemoryPersonLinkDto)
+  personLinks?: MemoryPersonLinkDto[];
+
   @IsString()
   content: string;
 
@@ -73,6 +112,17 @@ export class CreateMemoryDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  categories?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MemoryEntityReferenceDto)
+  entities?: MemoryEntityReferenceDto[];
 
   @IsOptional()
   @IsNumber()
@@ -97,6 +147,26 @@ export class CreateMemoryDto {
   @IsOptional()
   @IsEnum(MemorySensitivity)
   sensitivity?: MemorySensitivity;
+
+  @IsOptional()
+  @IsEnum(MemoryDurability)
+  durability?: MemoryDurability;
+
+  @IsOptional()
+  @IsEnum(MemoryCaptureOrigin)
+  captureOrigin?: MemoryCaptureOrigin;
+
+  @IsOptional()
+  @IsDateString()
+  capturedAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  happenedAt?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  inboxItemId?: string;
 
   @IsOptional()
   @IsDateString()

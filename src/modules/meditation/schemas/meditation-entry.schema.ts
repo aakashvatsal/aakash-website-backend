@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type MeditationEntryDocument =
-  HydratedDocument<MeditationEntry>;
+export type MeditationEntryDocument = HydratedDocument<MeditationEntry>;
 
 export enum MeditationType {
   MINDFULNESS = 'mindfulness',
@@ -65,14 +60,6 @@ export enum MeditationEnvironment {
   collection: 'meditation_entries',
 })
 export class MeditationEntry {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   /**
    * Calendar day this session belongs to.
    * Multiple sessions are allowed on the same date.
@@ -315,25 +302,21 @@ export const MeditationEntrySchema =
   SchemaFactory.createForClass(MeditationEntry);
 
 MeditationEntrySchema.index({
-  userId: 1,
   date: -1,
   isActive: 1,
 });
 
 MeditationEntrySchema.index({
-  userId: 1,
   status: 1,
   date: -1,
 });
 
 MeditationEntrySchema.index({
-  userId: 1,
   type: 1,
   date: -1,
 });
 
 MeditationEntrySchema.index({
-  userId: 1,
   isFavourite: 1,
   isArchived: 1,
 });

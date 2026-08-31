@@ -1,10 +1,4 @@
-import {
-  IsDateString,
-  IsNumber,
-  IsOptional,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsDateString, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
 export class UpdateLibraryProgressDto {
   @IsOptional()

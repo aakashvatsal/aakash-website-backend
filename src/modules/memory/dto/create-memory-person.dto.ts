@@ -2,27 +2,28 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEmail,
   IsEnum,
   IsMongoId,
   IsObject,
   IsOptional,
   IsString,
+  IsInt,
+  IsUrl,
+  Max,
+  Min,
   ValidateNested,
 } from 'class-validator';
 
 import {
-  PersonIdentityStatus,
+  PersonContactReferenceSource,
   PersonRelationshipType,
 } from '../schemas/memory-person.schema';
 
 export class PersonEmailIdentityDto {
   @IsEmail()
   email: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isVerified?: boolean;
 
   @IsOptional()
   @IsBoolean()
@@ -39,22 +40,27 @@ export class PersonPhoneIdentityDto {
 
   @IsOptional()
   @IsBoolean()
-  isVerified?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
   isPrimary?: boolean;
 }
 
-export class CreateMemoryPersonDto {
-  /**
-   * Optional for now because this application currently
-   * operates for a single HSAKAA owner.
-   */
-  @IsOptional()
-  @IsMongoId()
-  ownerUserId?: string;
+export class PersonContactReferenceDto {
+  @IsEnum(PersonContactReferenceSource)
+  source: PersonContactReferenceSource;
 
+  @IsOptional()
+  @IsString()
+  externalId?: string;
+
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @IsOptional()
+  @IsUrl({ require_protocol: true })
+  url?: string;
+}
+
+export class CreateMemoryPersonDto {
   @IsOptional()
   @IsMongoId()
   linkedUserId?: string | null;
@@ -91,10 +97,6 @@ export class CreateMemoryPersonDto {
   phoneNumbers?: PersonPhoneIdentityDto[];
 
   @IsOptional()
-  @IsEnum(PersonIdentityStatus)
-  identityStatus?: PersonIdentityStatus;
-
-  @IsOptional()
   @IsArray()
   @IsString({
     each: true,
@@ -110,29 +112,45 @@ export class CreateMemoryPersonDto {
 
   @IsOptional()
   @IsString()
-  notes?: string;
+  organizationName?: string;
 
   @IsOptional()
-  @IsBoolean()
-  memoryAccessConsentGranted?: boolean;
+  @IsString()
+  roleTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  importance?: number;
+
+  @IsOptional()
+  @IsDateString()
+  firstMetAt?: string;
+
+  @IsOptional()
+  @IsDateString()
+  lastInteractionAt?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PersonContactReferenceDto)
+  contactReferences?: PersonContactReferenceDto[];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 
   @IsOptional()
   @IsObject()
   metadata?: Record<string, unknown>;
-
-  @IsOptional()
-  @IsBoolean()
-  isBlocked?: boolean;
-
-  @IsOptional()
-  @IsString()
-  blockedReason?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isArchived?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
 }

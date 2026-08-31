@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type HealthEntryDocument = HydratedDocument<HealthEntry>;
 
@@ -148,8 +144,7 @@ export class SleepData {
   napMinutes?: number;
 }
 
-export const SleepDataSchema =
-  SchemaFactory.createForClass(SleepData);
+export const SleepDataSchema = SchemaFactory.createForClass(SleepData);
 
 @Schema({ _id: false })
 export class RecoveryData {
@@ -187,8 +182,7 @@ export class RecoveryData {
   stressScore?: number;
 }
 
-export const RecoveryDataSchema =
-  SchemaFactory.createForClass(RecoveryData);
+export const RecoveryDataSchema = SchemaFactory.createForClass(RecoveryData);
 
 @Schema({ _id: false })
 export class CardioData {
@@ -217,8 +211,7 @@ export class CardioData {
   elevationGainMetres?: number;
 }
 
-export const CardioDataSchema =
-  SchemaFactory.createForClass(CardioData);
+export const CardioDataSchema = SchemaFactory.createForClass(CardioData);
 
 @Schema({ _id: false })
 export class ExerciseSet {
@@ -244,8 +237,7 @@ export class ExerciseSet {
   completed?: boolean;
 }
 
-export const ExerciseSetSchema =
-  SchemaFactory.createForClass(ExerciseSet);
+export const ExerciseSetSchema = SchemaFactory.createForClass(ExerciseSet);
 
 @Schema({ _id: false })
 export class Exercise {
@@ -268,8 +260,7 @@ export class Exercise {
   notes?: string;
 }
 
-export const ExerciseSchema =
-  SchemaFactory.createForClass(Exercise);
+export const ExerciseSchema = SchemaFactory.createForClass(Exercise);
 
 @Schema({ _id: false })
 export class WorkoutData {
@@ -343,8 +334,7 @@ export class WorkoutData {
   completedAt?: Date;
 }
 
-export const WorkoutDataSchema =
-  SchemaFactory.createForClass(WorkoutData);
+export const WorkoutDataSchema = SchemaFactory.createForClass(WorkoutData);
 
 @Schema({ _id: false })
 export class NutritionData {
@@ -400,8 +390,7 @@ export class NutritionData {
   notes?: string;
 }
 
-export const NutritionDataSchema =
-  SchemaFactory.createForClass(NutritionData);
+export const NutritionDataSchema = SchemaFactory.createForClass(NutritionData);
 
 @Schema({ _id: false })
 export class PainEntry {
@@ -440,8 +429,7 @@ export class PainEntry {
   resolved?: boolean;
 }
 
-export const PainEntrySchema =
-  SchemaFactory.createForClass(PainEntry);
+export const PainEntrySchema = SchemaFactory.createForClass(PainEntry);
 
 @Schema({ _id: false })
 export class HabitEntry {
@@ -461,8 +449,7 @@ export class HabitEntry {
   completed: boolean;
 }
 
-export const HabitEntrySchema =
-  SchemaFactory.createForClass(HabitEntry);
+export const HabitEntrySchema = SchemaFactory.createForClass(HabitEntry);
 
 @Schema({
   timestamps: true,
@@ -608,8 +595,7 @@ export class HealthEntry {
   isActive: boolean;
 }
 
-export const HealthEntrySchema =
-  SchemaFactory.createForClass(HealthEntry);
+export const HealthEntrySchema = SchemaFactory.createForClass(HealthEntry);
 
 HealthEntrySchema.index(
   {

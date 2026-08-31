@@ -1,17 +1,8 @@
-import {
-  Prop,
-  Schema,
-  SchemaFactory,
-} from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type JournalEntryDocument =
-  HydratedDocument<JournalEntry>;
+export type JournalEntryDocument = HydratedDocument<JournalEntry>;
 
 export enum JournalEntryType {
   DAILY = 'daily',
@@ -69,6 +60,8 @@ export enum JournalSource {
   IMPORTED = 'imported',
 
   OTHER = 'other',
+
+  BRAIN_DUMP = 'brain_dump',
 }
 
 /**
@@ -87,32 +80,28 @@ export class JournalWorkout {
 
     default: false,
   })
-  completed:
-    boolean;
+  completed: boolean;
 
   @Prop({
     type: String,
 
     trim: true,
   })
-  type?:
-    string;
+  type?: string;
 
   @Prop({
     type: String,
 
     trim: true,
   })
-  title?:
-    string;
+  title?: string;
 
   @Prop({
     type: Number,
 
     min: 0,
   })
-  durationMinutes?:
-    number;
+  durationMinutes?: number;
 
   @Prop({
     type: Number,
@@ -121,22 +110,18 @@ export class JournalWorkout {
 
     max: 21,
   })
-  strainScore?:
-    number;
+  strainScore?: number;
 
   @Prop({
     type: String,
 
     trim: true,
   })
-  notes?:
-    string;
+  notes?: string;
 }
 
 export const JournalWorkoutSchema =
-  SchemaFactory.createForClass(
-    JournalWorkout,
-  );
+  SchemaFactory.createForClass(JournalWorkout);
 
 /**
  * Reading snapshot.
@@ -150,42 +135,35 @@ export class JournalReading {
 
     default: false,
   })
-  completed:
-    boolean;
+  completed: boolean;
 
   @Prop({
-    type:
-      SchemaTypes.ObjectId,
+    type: SchemaTypes.ObjectId,
 
-    ref:
-      'LibraryItem',
+    ref: 'LibraryItem',
   })
-  libraryItemId?:
-    Types.ObjectId;
+  libraryItemId?: Types.ObjectId;
 
   @Prop({
     type: String,
 
     trim: true,
   })
-  title?:
-    string;
+  title?: string;
 
   @Prop({
     type: String,
 
     trim: true,
   })
-  author?:
-    string;
+  author?: string;
 
   @Prop({
     type: Number,
 
     min: 0,
   })
-  pagesRead?:
-    number;
+  pagesRead?: number;
 
   @Prop({
     type: Number,
@@ -194,22 +172,18 @@ export class JournalReading {
 
     max: 100,
   })
-  progressPercentage?:
-    number;
+  progressPercentage?: number;
 
   @Prop({
     type: String,
 
     trim: true,
   })
-  thought?:
-    string;
+  thought?: string;
 }
 
 export const JournalReadingSchema =
-  SchemaFactory.createForClass(
-    JournalReading,
-  );
+  SchemaFactory.createForClass(JournalReading);
 
 /**
  * Sleep snapshot.
@@ -228,8 +202,7 @@ export class JournalSleep {
 
     max: 24,
   })
-  durationHours?:
-    number;
+  durationHours?: number;
 
   @Prop({
     type: Number,
@@ -238,8 +211,7 @@ export class JournalSleep {
 
     max: 100,
   })
-  performancePercentage?:
-    number;
+  performancePercentage?: number;
 
   @Prop({
     type: Number,
@@ -248,8 +220,7 @@ export class JournalSleep {
 
     max: 10,
   })
-  quality?:
-    number;
+  quality?: number;
 
   @Prop({
     type: Number,
@@ -258,21 +229,15 @@ export class JournalSleep {
 
     max: 100,
   })
-  recoveryScore?:
-    number;
+  recoveryScore?: number;
 }
 
-export const JournalSleepSchema =
-  SchemaFactory.createForClass(
-    JournalSleep,
-  );
+export const JournalSleepSchema = SchemaFactory.createForClass(JournalSleep);
 
 @Schema({
-  timestamps:
-    true,
+  timestamps: true,
 
-  collection:
-    'journal_entries',
+  collection: 'journal_entries',
 })
 export class JournalEntry {
   /**
@@ -286,8 +251,7 @@ export class JournalEntry {
 
     index: true,
   })
-  date:
-    Date;
+  date: Date;
 
   /**
    * Asia/Kolkata-friendly key:
@@ -305,8 +269,7 @@ export class JournalEntry {
 
     trim: true,
   })
-  dateKey:
-    string;
+  dateKey: string;
 
   @Prop({
     type: String,
@@ -321,22 +284,18 @@ export class JournalEntry {
 
     lowercase: true,
   })
-  slug:
-    string;
+  slug: string;
 
   @Prop({
     type: String,
 
-    enum:
-      JournalEntryType,
+    enum: JournalEntryType,
 
-    default:
-      JournalEntryType.DAILY,
+    default: JournalEntryType.DAILY,
 
     index: true,
   })
-  type:
-    JournalEntryType;
+  type: JournalEntryType;
 
   @Prop({
     type: String,
@@ -345,8 +304,7 @@ export class JournalEntry {
 
     trim: true,
   })
-  title:
-    string;
+  title: string;
 
   /**
    * Main journal body.
@@ -358,8 +316,7 @@ export class JournalEntry {
 
     trim: true,
   })
-  content?:
-    string;
+  content?: string;
 
   /**
    * Short standout line shown on
@@ -370,22 +327,18 @@ export class JournalEntry {
 
     trim: true,
   })
-  highlight?:
-    string;
+  highlight?: string;
 
   @Prop({
     type: String,
 
-    enum:
-      JournalMood,
+    enum: JournalMood,
 
-    default:
-      JournalMood.NEUTRAL,
+    default: JournalMood.NEUTRAL,
 
     index: true,
   })
-  mood:
-    JournalMood;
+  mood: JournalMood;
 
   @Prop({
     type: Number,
@@ -394,8 +347,7 @@ export class JournalEntry {
 
     max: 10,
   })
-  moodScore?:
-    number;
+  moodScore?: number;
 
   @Prop({
     type: Number,
@@ -404,8 +356,7 @@ export class JournalEntry {
 
     max: 10,
   })
-  energyScore?:
-    number;
+  energyScore?: number;
 
   @Prop({
     type: Number,
@@ -414,8 +365,7 @@ export class JournalEntry {
 
     max: 10,
   })
-  productivityScore?:
-    number;
+  productivityScore?: number;
 
   @Prop({
     type: Number,
@@ -424,100 +374,81 @@ export class JournalEntry {
 
     max: 10,
   })
-  stressScore?:
-    number;
+  stressScore?: number;
 
   @Prop({
     type: [String],
 
     default: [],
   })
-  tags:
-    string[];
+  tags: string[];
 
   @Prop({
     type: [String],
 
     default: [],
   })
-  lessons:
-    string[];
+  lessons: string[];
 
   @Prop({
     type: [String],
 
     default: [],
   })
-  decisions:
-    string[];
+  decisions: string[];
 
   @Prop({
     type: [String],
 
     default: [],
   })
-  ideas:
-    string[];
+  ideas: string[];
 
   @Prop({
     type: [String],
 
     default: [],
   })
-  gratitude:
-    string[];
+  gratitude: string[];
 
   @Prop({
     type: [String],
 
     default: [],
   })
-  challenges:
-    string[];
+  challenges: string[];
 
   @Prop({
     type: [String],
 
     default: [],
   })
-  wins:
-    string[];
+  wins: string[];
 
   @Prop({
-    type:
-      JournalWorkoutSchema,
+    type: JournalWorkoutSchema,
 
-    default:
-      () => ({
-        completed:
-          false,
-      }),
+    default: () => ({
+      completed: false,
+    }),
   })
-  workout:
-    JournalWorkout;
+  workout: JournalWorkout;
 
   @Prop({
-    type:
-      JournalReadingSchema,
+    type: JournalReadingSchema,
 
-    default:
-      () => ({
-        completed:
-          false,
-      }),
+    default: () => ({
+      completed: false,
+    }),
   })
-  reading:
-    JournalReading;
+  reading: JournalReading;
 
   @Prop({
-    type:
-      JournalSleepSchema,
+    type: JournalSleepSchema,
 
-    default:
-      () => ({}),
+    default: () => ({}),
   })
-  sleep:
-    JournalSleep;
+  sleep: JournalSleep;
 
   @Prop({
     type: Number,
@@ -526,58 +457,45 @@ export class JournalEntry {
 
     default: 0,
   })
-  steps:
-    number;
+  steps: number;
 
   /**
    * Memories connected to this entry.
    */
   @Prop({
-    type: [
-      SchemaTypes.ObjectId,
-    ],
+    type: [SchemaTypes.ObjectId],
 
-    ref:
-      'Memory',
+    ref: 'Memory',
 
     default: [],
   })
-  memoryIds:
-    Types.ObjectId[];
+  memoryIds: Types.ObjectId[];
 
   /**
    * Companies involved in this day/
    * thought/decision.
    */
   @Prop({
-    type: [
-      SchemaTypes.ObjectId,
-    ],
+    type: [SchemaTypes.ObjectId],
 
-    ref:
-      'Company',
+    ref: 'Company',
 
     default: [],
   })
-  companyIds:
-    Types.ObjectId[];
+  companyIds: Types.ObjectId[];
 
   /**
    * Additional library items referenced
    * beyond the main reading snapshot.
    */
   @Prop({
-    type: [
-      SchemaTypes.ObjectId,
-    ],
+    type: [SchemaTypes.ObjectId],
 
-    ref:
-      'LibraryItem',
+    ref: 'LibraryItem',
 
     default: [],
   })
-  libraryItemIds:
-    Types.ObjectId[];
+  libraryItemIds: Types.ObjectId[];
 
   /**
    * Public/private handling.
@@ -587,16 +505,13 @@ export class JournalEntry {
   @Prop({
     type: String,
 
-    enum:
-      JournalVisibility,
+    enum: JournalVisibility,
 
-    default:
-      JournalVisibility.PRIVATE,
+    default: JournalVisibility.PRIVATE,
 
     index: true,
   })
-  visibility:
-    JournalVisibility;
+  visibility: JournalVisibility;
 
   /**
    * Publishing is separate from visibility.
@@ -611,14 +526,12 @@ export class JournalEntry {
 
     index: true,
   })
-  isPublished:
-    boolean;
+  isPublished: boolean;
 
   @Prop({
     type: Date,
   })
-  publishedAt?:
-    Date;
+  publishedAt?: Date;
 
   @Prop({
     type: Boolean,
@@ -627,8 +540,7 @@ export class JournalEntry {
 
     index: true,
   })
-  isFavourite:
-    boolean;
+  isFavourite: boolean;
 
   @Prop({
     type: Boolean,
@@ -637,8 +549,7 @@ export class JournalEntry {
 
     index: true,
   })
-  isArchived:
-    boolean;
+  isArchived: boolean;
 
   @Prop({
     type: Boolean,
@@ -647,8 +558,7 @@ export class JournalEntry {
 
     index: true,
   })
-  isActive:
-    boolean;
+  isActive: boolean;
 
   /**
    * Where the entry came from.
@@ -656,121 +566,93 @@ export class JournalEntry {
   @Prop({
     type: String,
 
-    enum:
-      JournalSource,
+    enum: JournalSource,
 
-    default:
-      JournalSource.MANUAL,
+    default: JournalSource.MANUAL,
 
     index: true,
   })
-  source:
-    JournalSource;
+  source: JournalSource;
 
   @Prop({
     type: String,
 
     trim: true,
   })
-  sourceExternalId?:
-    string;
+  sourceExternalId?: string;
 
   /**
    * Internal integration/AI metadata.
    * Never expose directly from public APIs.
    */
   @Prop({
-    type:
-      SchemaTypes.Mixed,
+    type: SchemaTypes.Mixed,
 
     default: {},
   })
-  metadata:
-    Record<
-      string,
-      unknown
-    >;
+  metadata: Record<string, unknown>;
 }
 
-export const JournalEntrySchema =
-  SchemaFactory.createForClass(
-    JournalEntry,
-  );
+export const JournalEntrySchema = SchemaFactory.createForClass(JournalEntry);
 
 /**
  * Common Journal listing.
  */
 JournalEntrySchema.index({
-  isActive:
-    1,
+  isActive: 1,
 
-  isArchived:
-    1,
+  isArchived: 1,
 
-  date:
-    -1,
+  date: -1,
 });
 
 /**
  * Public journal page.
  */
 JournalEntrySchema.index({
-  visibility:
-    1,
+  visibility: 1,
 
-  isPublished:
-    1,
+  isPublished: 1,
 
-  isActive:
-    1,
+  isActive: 1,
 
-  isArchived:
-    1,
+  isArchived: 1,
 
-  date:
-    -1,
+  date: -1,
 });
 
 /**
  * Filter by entry type.
  */
 JournalEntrySchema.index({
-  type:
-    1,
+  type: 1,
 
-  date:
-    -1,
+  date: -1,
 });
 
 /**
  * Daily grouping.
  */
 JournalEntrySchema.index({
-  dateKey:
-    1,
+  dateKey: 1,
 
-  date:
-    -1,
+  date: -1,
 });
 
 /**
  * Mood history.
  */
 JournalEntrySchema.index({
-  mood:
-    1,
+  mood: 1,
 
-  date:
-    -1,
+  date: -1,
 });
 
 /**
  * Integration deduplication.
  */
 JournalEntrySchema.index({
-  source:
-    1,
+  source: 1,
 
-  sourceExternalId:
-    1,
+  sourceExternalId: 1,
 });

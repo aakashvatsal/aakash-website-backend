@@ -6,10 +6,7 @@ import {
   IsString,
 } from 'class-validator';
 
-import {
-  ProductStatus,
-  RepurchaseStatus,
-} from '../schemas/product.schema';
+import { ProductStatus, RepurchaseStatus } from '../schemas/product.schema';
 
 export class UpdateProductStatusDto {
   @IsEnum(ProductStatus)

@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
 export type SupplementDocument = HydratedDocument<Supplement>;
 
@@ -122,14 +118,6 @@ export const SupplementScheduleSchema =
 })
 export class Supplement {
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
     required: true,
     trim: true,
     index: true,
@@ -241,18 +229,15 @@ export class Supplement {
   isActive: boolean;
 }
 
-export const SupplementSchema =
-  SchemaFactory.createForClass(Supplement);
+export const SupplementSchema = SchemaFactory.createForClass(Supplement);
 
 SupplementSchema.index({
-  userId: 1,
   status: 1,
   isActive: 1,
 });
 
 SupplementSchema.index(
   {
-    userId: 1,
     name: 1,
     brand: 1,
   },

@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type IntimateCareProductDocument =
-  HydratedDocument<IntimateCareProduct>;
+export type IntimateCareProductDocument = HydratedDocument<IntimateCareProduct>;
 
 export enum IntimateCareProductCategory {
   GENTLE_WASH = 'gentle_wash',
@@ -100,14 +95,6 @@ export const IntimateCareScheduleSchema =
   collection: 'intimate_care_products',
 })
 export class IntimateCareProduct {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   @Prop({
     required: true,
     trim: true,
@@ -226,14 +213,12 @@ export const IntimateCareProductSchema =
   SchemaFactory.createForClass(IntimateCareProduct);
 
 IntimateCareProductSchema.index({
-  userId: 1,
   category: 1,
   status: 1,
 });
 
 IntimateCareProductSchema.index(
   {
-    userId: 1,
     name: 1,
     brand: 1,
   },

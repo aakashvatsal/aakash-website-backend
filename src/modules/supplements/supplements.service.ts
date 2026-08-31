@@ -34,11 +34,8 @@ export class SupplementsService {
   ) {}
 
   async create(dto: CreateSupplementDto) {
-    this.validateObjectId(dto.userId, 'user ID');
-
     return this.supplementModel.create({
       ...dto,
-      userId: new Types.ObjectId(dto.userId),
       schedule: {
         ...dto.schedule,
         startDate: dto.schedule.startDate
@@ -51,11 +48,8 @@ export class SupplementsService {
     });
   }
 
-  async findAll(userId: string, status?: SupplementStatus) {
-    this.validateObjectId(userId, 'user ID');
-
+  async findAll(status?: SupplementStatus) {
     const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
       isActive: true,
     };
 
@@ -63,20 +57,15 @@ export class SupplementsService {
       filter.status = status;
     }
 
-    return this.supplementModel
-      .find(filter)
-      .sort({ name: 1 })
-      .lean();
+    return this.supplementModel.find(filter).sort({ name: 1 }).lean();
   }
 
-  async findOne(supplementId: string, userId: string) {
+  async findOne(supplementId: string) {
     this.validateObjectId(supplementId, 'supplement ID');
-    this.validateObjectId(userId, 'user ID');
 
     const supplement = await this.supplementModel
       .findOne({
         _id: new Types.ObjectId(supplementId),
-        userId: new Types.ObjectId(userId),
         isActive: true,
       })
       .lean();
@@ -88,19 +77,12 @@ export class SupplementsService {
     return supplement;
   }
 
-  async update(
-    supplementId: string,
-    userId: string,
-    dto: UpdateSupplementDto,
-  ) {
+  async update(supplementId: string, dto: UpdateSupplementDto) {
     this.validateObjectId(supplementId, 'supplement ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {
       ...dto,
     };
-
-    delete updateData.userId;
 
     if (dto.schedule) {
       updateData.schedule = {
@@ -118,7 +100,6 @@ export class SupplementsService {
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(supplementId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -138,14 +119,12 @@ export class SupplementsService {
     return updated;
   }
 
-  async remove(supplementId: string, userId: string) {
+  async remove(supplementId: string) {
     this.validateObjectId(supplementId, 'supplement ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updated = await this.supplementModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(supplementId),
-        userId: new Types.ObjectId(userId),
         isActive: true,
       },
       {
@@ -169,14 +148,10 @@ export class SupplementsService {
     };
   }
 
-  async generateDailyLog(userId: string, dateValue: string) {
-    this.validateObjectId(userId, 'user ID');
-
+  async generateDailyLog(dateValue: string) {
     const date = this.normalizeDate(dateValue);
-    const objectUserId = new Types.ObjectId(userId);
 
     const existing = await this.dailySupplementLogModel.findOne({
-      userId: objectUserId,
       date,
       isActive: true,
     });
@@ -187,7 +162,6 @@ export class SupplementsService {
 
     const supplements = await this.supplementModel
       .find({
-        userId: objectUserId,
         status: SupplementStatus.ACTIVE,
         isActive: true,
         $and: [
@@ -232,7 +206,6 @@ export class SupplementsService {
     });
 
     return this.dailySupplementLogModel.create({
-      userId: objectUserId,
       date,
       supplements: scheduledItems,
       totalScheduled: scheduledItems.length,
@@ -243,14 +216,11 @@ export class SupplementsService {
     });
   }
 
-  async getDailyLog(userId: string, dateValue: string) {
-    this.validateObjectId(userId, 'user ID');
-
+  async getDailyLog(dateValue: string) {
     const date = this.normalizeDate(dateValue);
 
     const log = await this.dailySupplementLogModel
       .findOne({
-        userId: new Types.ObjectId(userId),
         date,
         isActive: true,
       })
@@ -265,15 +235,8 @@ export class SupplementsService {
     return log;
   }
 
-  async getLogs(
-    userId: string,
-    startDate?: string,
-    endDate?: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async getLogs(startDate?: string, endDate?: string) {
     const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
       isActive: true,
     };
 
@@ -293,45 +256,33 @@ export class SupplementsService {
       filter.date = dateFilter;
     }
 
-    return this.dailySupplementLogModel
-      .find(filter)
-      .sort({ date: -1 })
-      .lean();
+    return this.dailySupplementLogModel.find(filter).sort({ date: -1 }).lean();
   }
 
   async updateSupplementLogItem(
-    userId: string,
     logId: string,
     itemIndex: number,
     dto: UpdateSupplementLogItemDto,
   ) {
-    this.validateObjectId(userId, 'user ID');
     this.validateObjectId(logId, 'daily supplement log ID');
 
     const log = await this.dailySupplementLogModel.findOne({
       _id: new Types.ObjectId(logId),
-      userId: new Types.ObjectId(userId),
       isActive: true,
     });
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily supplement log not found.',
-      );
+      throw new NotFoundException('Daily supplement log not found.');
     }
 
     if (!Number.isInteger(itemIndex) || itemIndex < 0) {
-      throw new BadRequestException(
-        'Invalid supplement item index.',
-      );
+      throw new BadRequestException('Invalid supplement item index.');
     }
 
     const item = log.supplements[itemIndex];
 
     if (!item) {
-      throw new BadRequestException(
-        'Supplement item does not exist.',
-      );
+      throw new BadRequestException('Supplement item does not exist.');
     }
 
     item.status = dto.status;
@@ -369,21 +320,16 @@ export class SupplementsService {
     return log;
   }
 
-  async markPendingAsMissed(userId: string, dateValue: string) {
-    this.validateObjectId(userId, 'user ID');
-
+  async markPendingAsMissed(dateValue: string) {
     const date = this.normalizeDate(dateValue);
 
     const log = await this.dailySupplementLogModel.findOne({
-      userId: new Types.ObjectId(userId),
       date,
       isActive: true,
     });
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily supplement log not found.',
-      );
+      throw new NotFoundException('Daily supplement log not found.');
     }
 
     for (const item of log.supplements) {
@@ -419,22 +365,33 @@ export class SupplementsService {
       })
       .toLowerCase() as DayOfWeek;
 
+    const anchorDate = supplement.schedule.startDate
+      ? new Date(supplement.schedule.startDate)
+      : supplement.createdAt
+        ? new Date(supplement.createdAt)
+        : new Date(date);
+
+    anchorDate.setHours(0, 0, 0, 0);
+
+    const differenceInDays = Math.floor(
+      (date.getTime() - anchorDate.getTime()) / (1000 * 60 * 60 * 24),
+    );
+
+    if (differenceInDays < 0) {
+      return false;
+    }
+
     if (frequency === SupplementFrequency.WEEKLY) {
-      return supplement.schedule.daysOfWeek?.includes(dayName);
+      if (supplement.schedule.daysOfWeek?.length) {
+        return supplement.schedule.daysOfWeek.includes(dayName);
+      }
+
+      // If no weekday was explicitly selected, keep the supplement on a
+      // stable seven-day cadence anchored to its start/creation date.
+      return differenceInDays % 7 === 0;
     }
 
     if (frequency === SupplementFrequency.ALTERNATE_DAYS) {
-      const startDate = supplement.schedule.startDate
-        ? new Date(supplement.schedule.startDate)
-        : date;
-
-      startDate.setHours(0, 0, 0, 0);
-
-      const differenceInDays = Math.floor(
-        (date.getTime() - startDate.getTime()) /
-          (1000 * 60 * 60 * 24),
-      );
-
       return differenceInDays % 2 === 0;
     }
 
@@ -444,31 +401,14 @@ export class SupplementsService {
       }
 
       if (supplement.schedule.intervalDays) {
-        const startDate = supplement.schedule.startDate
-          ? new Date(supplement.schedule.startDate)
-          : date;
-
-        startDate.setHours(0, 0, 0, 0);
-
-        const differenceInDays = Math.floor(
-          (date.getTime() - startDate.getTime()) /
-            (1000 * 60 * 60 * 24),
-        );
-
-        return (
-          differenceInDays %
-            supplement.schedule.intervalDays ===
-          0
-        );
+        return differenceInDays % supplement.schedule.intervalDays === 0;
       }
     }
 
     return false;
   }
 
-  private recalculateDailyLog(
-    log: DailySupplementLogDocument,
-  ): void {
+  private recalculateDailyLog(log: DailySupplementLogDocument): void {
     log.totalScheduled = log.supplements.length;
 
     log.totalTaken = log.supplements.filter(
@@ -487,16 +427,10 @@ export class SupplementsService {
       (item) => item.status === SupplementLogStatus.PARTIAL,
     ).length;
 
-    const adherenceUnits =
-      log.totalTaken + partialCount * 0.5;
+    const adherenceUnits = log.totalTaken + partialCount * 0.5;
 
     log.adherencePercentage = log.totalScheduled
-      ? Number(
-          (
-            (adherenceUnits / log.totalScheduled) *
-            100
-          ).toFixed(2),
-        )
+      ? Number(((adherenceUnits / log.totalScheduled) * 100).toFixed(2))
       : 0;
   }
 
@@ -512,14 +446,9 @@ export class SupplementsService {
     return date;
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ): void {
+  private validateObjectId(value: string, fieldName: string): void {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
   }
 }

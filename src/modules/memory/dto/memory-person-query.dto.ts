@@ -1,7 +1,4 @@
-import {
-  Transform,
-  Type,
-} from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
@@ -17,30 +14,16 @@ import {
   PersonRelationshipType,
 } from '../schemas/memory-person.schema';
 
-function transformOptionalBoolean({
-  value,
-}: {
-  value: unknown;
-}) {
-  if (
-    value === undefined ||
-    value === null ||
-    value === ''
-  ) {
+function transformOptionalBoolean({ value }: { value: unknown }) {
+  if (value === undefined || value === null || value === '') {
     return undefined;
   }
 
-  if (
-    value === true ||
-    value === 'true'
-  ) {
+  if (value === true || value === 'true') {
     return true;
   }
 
-  if (
-    value === false ||
-    value === 'false'
-  ) {
+  if (value === false || value === 'false') {
     return false;
   }
 
@@ -63,6 +46,21 @@ export class MemoryPersonQueryDto {
   @IsOptional()
   @IsEnum(PersonIdentityStatus)
   identityStatus?: PersonIdentityStatus;
+
+  @IsOptional()
+  @IsString()
+  organizationName?: string;
+
+  @IsOptional()
+  @IsString()
+  tag?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  minImportance?: number;
 
   @IsOptional()
   @Transform(transformOptionalBoolean)

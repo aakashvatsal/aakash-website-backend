@@ -1,6 +1,4 @@
-import {
-  Type,
-} from 'class-transformer';
+import { Type } from 'class-transformer';
 
 import {
   IsArray,
@@ -122,9 +120,7 @@ export class NowHealthReferenceDto {
 }
 
 export class CreateNowStatusDto {
-  @IsEnum(
-    NowActivityType,
-  )
+  @IsEnum(NowActivityType)
   activityType: NowActivityType;
 
   @IsString()
@@ -143,16 +139,11 @@ export class CreateNowStatusDto {
   currentFocus?: string;
 
   @IsOptional()
-  @IsEnum(
-    NowAvailability,
-  )
-  availability?:
-    NowAvailability;
+  @IsEnum(NowAvailability)
+  availability?: NowAvailability;
 
   @IsOptional()
-  @IsEnum(
-    NowMood,
-  )
+  @IsEnum(NowMood)
   mood?: NowMood;
 
   @IsOptional()
@@ -177,21 +168,13 @@ export class CreateNowStatusDto {
 
   @IsOptional()
   @ValidateNested()
-  @Type(
-    () =>
-      NowCompanyReferenceDto,
-  )
-  building?:
-    NowCompanyReferenceDto;
+  @Type(() => NowCompanyReferenceDto)
+  building?: NowCompanyReferenceDto;
 
   @IsOptional()
   @ValidateNested()
-  @Type(
-    () =>
-      NowReadingReferenceDto,
-  )
-  reading?:
-    NowReadingReferenceDto;
+  @Type(() => NowReadingReferenceDto)
+  reading?: NowReadingReferenceDto;
 
   @IsOptional()
   @IsString()
@@ -203,12 +186,8 @@ export class CreateNowStatusDto {
 
   @IsOptional()
   @ValidateNested()
-  @Type(
-    () =>
-      NowHealthReferenceDto,
-  )
-  health?:
-    NowHealthReferenceDto;
+  @Type(() => NowHealthReferenceDto)
+  health?: NowHealthReferenceDto;
 
   @IsOptional()
   @IsArray()
@@ -218,11 +197,8 @@ export class CreateNowStatusDto {
   tags?: string[];
 
   @IsOptional()
-  @IsEnum(
-    NowVisibility,
-  )
-  visibility?:
-    NowVisibility;
+  @IsEnum(NowVisibility)
+  visibility?: NowVisibility;
 
   @IsOptional()
   @IsBoolean()
@@ -253,11 +229,8 @@ export class CreateNowStatusDto {
   lastActivityAt?: string;
 
   @IsOptional()
-  @IsEnum(
-    NowSource,
-  )
-  source?:
-    NowSource;
+  @IsEnum(NowSource)
+  source?: NowSource;
 
   @IsOptional()
   @IsString()
@@ -265,8 +238,5 @@ export class CreateNowStatusDto {
 
   @IsOptional()
   @IsObject()
-  metadata?: Record<
-    string,
-    unknown
-  >;
+  metadata?: Record<string, unknown>;
 }

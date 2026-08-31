@@ -1,17 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 import {
   SkincareApplicationArea,
   SkincareTimeOfDay,
 } from './skincare-product.schema';
 
-export type DailySkincareLogDocument =
-  HydratedDocument<DailySkincareLog>;
+export type DailySkincareLogDocument = HydratedDocument<DailySkincareLog>;
 
 export enum SkincareLogStatus {
   PENDING = 'pending',
@@ -293,16 +288,7 @@ export const SkinEnvironmentDataSchema =
 })
 export class DailySkincareLog {
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
     required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
-    required: true,
-    index: true,
   })
   date: Date;
 
@@ -392,7 +378,6 @@ export const DailySkincareLogSchema =
 
 DailySkincareLogSchema.index(
   {
-    userId: 1,
     date: 1,
   },
   {
@@ -401,7 +386,6 @@ DailySkincareLogSchema.index(
 );
 
 DailySkincareLogSchema.index({
-  userId: 1,
   adherencePercentage: 1,
   date: -1,
 });

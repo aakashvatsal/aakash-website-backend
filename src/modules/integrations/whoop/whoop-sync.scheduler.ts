@@ -1,22 +1,12 @@
-import {
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
-import {
-  Cron,
-} from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 
-import {
-  WhoopService,
-} from './whoop.service';
+import { WhoopService } from './whoop.service';
 
 @Injectable()
 export class WhoopSyncScheduler {
-  private readonly logger =
-    new Logger(
-      WhoopSyncScheduler.name,
-    );
+  private readonly logger = new Logger(WhoopSyncScheduler.name);
 
   /**
    * Prevent another sync from starting
@@ -24,13 +14,9 @@ export class WhoopSyncScheduler {
    *
    * This protects a single NestJS instance.
    */
-  private isRunning =
-    false;
+  private isRunning = false;
 
-  constructor(
-    private readonly whoopService:
-      WhoopService,
-  ) {}
+  constructor(private readonly whoopService: WhoopService) {}
 
   /**
    * Every 2 hours:
@@ -46,17 +32,13 @@ export class WhoopSyncScheduler {
     // '0 0 */2 * * *',
     '0 */30 * * * *',
     {
-      name:
-        'whoop-health-sync',
+      name: 'whoop-health-sync',
 
-      timeZone:
-        'Asia/Kolkata',
+      timeZone: 'Asia/Kolkata',
     },
   )
   async syncWhoopHealth() {
-    if (
-      this.isRunning
-    ) {
+    if (this.isRunning) {
       this.logger.warn(
         'Skipping WHOOP sync because previous sync is still running.',
       );
@@ -64,48 +46,26 @@ export class WhoopSyncScheduler {
       return;
     }
 
-    this.isRunning =
-      true;
+    this.isRunning = true;
 
-    const startedAt =
-      Date.now();
+    const startedAt = Date.now();
 
     try {
-      this.logger.log(
-        'Starting automatic WHOOP health sync.',
-      );
+      this.logger.log('Starting automatic WHOOP health sync.');
 
-      const result =
-        await this.whoopService.syncRecentHealth(
-          3,
-        );
+      const result = await this.whoopService.syncRecentHealth(3);
 
       this.logger.log(
-        `WHOOP sync completed in ${
-          Date.now() -
-          startedAt
-        }ms. ${JSON.stringify(
-          result?.data ??
-            result,
+        `WHOOP sync completed in ${Date.now() - startedAt}ms. ${JSON.stringify(
+          result?.data ?? result,
         )}`,
       );
-    } catch (
-      error
-    ) {
-      const message =
-        error instanceof
-        Error
-          ? error.message
-          : String(
-              error,
-            );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
 
-      this.logger.error(
-        `Automatic WHOOP sync failed: ${message}`,
-      );
+      this.logger.error(`Automatic WHOOP sync failed: ${message}`);
     } finally {
-      this.isRunning =
-        false;
+      this.isRunning = false;
     }
   }
 }

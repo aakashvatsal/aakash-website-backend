@@ -9,10 +9,7 @@ import {
   HaircareProduct,
   HaircareProductSchema,
 } from './schemas/haircare-product.schema';
-import {
-  HairReport,
-  HairReportSchema,
-} from './schemas/hair-report.schema';
+import { HairReport, HairReportSchema } from './schemas/hair-report.schema';
 import { HaircareController } from './haircare.controller';
 import { HaircareService } from './haircare.service';
 

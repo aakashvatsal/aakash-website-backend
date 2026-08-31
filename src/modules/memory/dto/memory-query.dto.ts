@@ -12,17 +12,18 @@ import {
 
 import {
   MemoryAccessLevel,
+  MemoryCaptureOrigin,
+  MemoryDurability,
+  MemoryLifecycleStatus,
+  MemoryPersonRelation,
+  MemoryScope,
   MemorySensitivity,
   MemorySource,
   MemoryType,
   MemoryVerificationStatus,
 } from '../schemas/memory.schema';
 
-const transformBoolean = ({
-  value,
-}: {
-  value: unknown;
-}) => {
+const transformBoolean = ({ value }: { value: unknown }) => {
   if (value === true || value === 'true') {
     return true;
   }
@@ -41,6 +42,18 @@ export class MemoryQueryDto {
   @IsOptional()
   @IsMongoId()
   personId?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  subjectPersonId?: string;
+
+  @IsOptional()
+  @IsEnum(MemoryScope)
+  scope?: MemoryScope;
+
+  @IsOptional()
+  @IsEnum(MemoryPersonRelation)
+  personRelation?: MemoryPersonRelation;
 
   @IsOptional()
   @IsEnum(MemoryType)
@@ -65,6 +78,22 @@ export class MemoryQueryDto {
   @IsOptional()
   @IsString()
   tag?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsString()
+  entity?: string;
+
+  @IsOptional()
+  @IsEnum(MemoryDurability)
+  durability?: MemoryDurability;
+
+  @IsOptional()
+  @IsEnum(MemoryCaptureOrigin)
+  captureOrigin?: MemoryCaptureOrigin;
 
   @IsOptional()
   @IsString()
@@ -93,6 +122,15 @@ export class MemoryQueryDto {
   @Transform(transformBoolean)
   @IsBoolean()
   isArchived?: boolean;
+
+  @IsOptional()
+  @IsEnum(MemoryLifecycleStatus)
+  lifecycleStatus?: MemoryLifecycleStatus;
+
+  @IsOptional()
+  @Transform(transformBoolean)
+  @IsBoolean()
+  includeHistorical?: boolean;
 
   @IsOptional()
   @Type(() => Number)

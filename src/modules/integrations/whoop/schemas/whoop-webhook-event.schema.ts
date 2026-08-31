@@ -1,59 +1,39 @@
-import {
-  Prop,
-  Schema,
-  SchemaFactory,
-} from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
-import {
-  HydratedDocument,
-  SchemaTypes,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes } from 'mongoose';
 
-export type WhoopWebhookEventDocument =
-  HydratedDocument<WhoopWebhookEvent>;
+export type WhoopWebhookEventDocument = HydratedDocument<WhoopWebhookEvent>;
 
 export enum WhoopWebhookEventType {
-  WORKOUT_UPDATED =
-    'workout.updated',
+  WORKOUT_UPDATED = 'workout.updated',
 
-  WORKOUT_DELETED =
-    'workout.deleted',
+  WORKOUT_DELETED = 'workout.deleted',
 
-  SLEEP_UPDATED =
-    'sleep.updated',
+  SLEEP_UPDATED = 'sleep.updated',
 
-  SLEEP_DELETED =
-    'sleep.deleted',
+  SLEEP_DELETED = 'sleep.deleted',
 
-  RECOVERY_UPDATED =
-    'recovery.updated',
+  RECOVERY_UPDATED = 'recovery.updated',
 
-  RECOVERY_DELETED =
-    'recovery.deleted',
+  RECOVERY_DELETED = 'recovery.deleted',
 }
 
 export enum WhoopWebhookProcessingStatus {
-  PENDING =
-    'pending',
+  PENDING = 'pending',
 
-  PROCESSING =
-    'processing',
+  PROCESSING = 'processing',
 
-  PROCESSED =
-    'processed',
+  PROCESSED = 'processed',
 
-  FAILED =
-    'failed',
+  FAILED = 'failed',
 
-  IGNORED =
-    'ignored',
+  IGNORED = 'ignored',
 }
 
 @Schema({
   timestamps: true,
 
-  collection:
-    'whoop_webhook_events',
+  collection: 'whoop_webhook_events',
 })
 export class WhoopWebhookEvent {
   @Prop({
@@ -65,14 +45,12 @@ export class WhoopWebhookEvent {
 
     trim: true,
   })
-  traceId:
-    string;
+  traceId: string;
 
   @Prop({
     required: true,
   })
-  whoopUserId:
-    number;
+  whoopUserId: number;
 
   @Prop({
     required: true,
@@ -81,39 +59,32 @@ export class WhoopWebhookEvent {
 
     index: true,
   })
-  resourceId:
-    string;
+  resourceId: string;
 
   @Prop({
     type: String,
 
-    enum:
-      WhoopWebhookEventType,
+    enum: WhoopWebhookEventType,
 
     required: true,
 
     index: true,
   })
-  eventType:
-    WhoopWebhookEventType;
+  eventType: WhoopWebhookEventType;
 
   @Prop({
     type: String,
 
-    enum:
-      WhoopWebhookProcessingStatus,
+    enum: WhoopWebhookProcessingStatus,
 
-    default:
-      WhoopWebhookProcessingStatus.PENDING,
+    default: WhoopWebhookProcessingStatus.PENDING,
 
     index: true,
   })
-  status:
-    WhoopWebhookProcessingStatus;
+  status: WhoopWebhookProcessingStatus;
 
   @Prop()
-  receivedAt:
-    Date;
+  receivedAt: Date;
 
   @Prop()
   processedAt?: Date;
@@ -124,28 +95,20 @@ export class WhoopWebhookEvent {
   errorMessage?: string;
 
   @Prop({
-    type:
-      SchemaTypes.Mixed,
+    type: SchemaTypes.Mixed,
 
     default: {},
   })
-  payload:
-    Record<
-      string,
-      unknown
-    >;
+  payload: Record<string, unknown>;
 
   @Prop({
     default: 0,
   })
-  attempts:
-    number;
+  attempts: number;
 }
 
 export const WhoopWebhookEventSchema =
-  SchemaFactory.createForClass(
-    WhoopWebhookEvent,
-  );
+  SchemaFactory.createForClass(WhoopWebhookEvent);
 
 WhoopWebhookEventSchema.index({
   eventType: 1,

@@ -7,57 +7,37 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 
-import {
-  AdminGuard,
-} from '../../common/guards/admin.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
-import {
-  CreateJournalEntryDto,
-} from './dto/create-journal-entry.dto';
+import { CreateJournalEntryDto } from './dto/create-journal-entry.dto';
 
-import {
-  JournalQueryDto,
-} from './dto/journal-query.dto';
+import { JournalQueryDto } from './dto/journal-query.dto';
 
-import {
-  UpdateJournalEntryDto,
-} from './dto/update-journal-entry.dto';
+import { UpdateJournalEntryDto } from './dto/update-journal-entry.dto';
 
-import {
-  JournalEnrichmentService,
-} from './journal-enrichment.service';
+import { JournalEnrichmentService } from './journal-enrichment.service';
 
-import {
-  JournalService,
-} from './journal.service';
+import { JournalService } from './journal.service';
 
 @Controller('journal')
 export class JournalController {
   constructor(
-    private readonly journalService:
-      JournalService,
+    private readonly journalService: JournalService,
 
-    private readonly journalEnrichmentService:
-      JournalEnrichmentService,
+    private readonly journalEnrichmentService: JournalEnrichmentService,
   ) {}
 
   @Post()
-  @UseGuards(AdminGuard)
   create(
     @Body()
-    dto:
-      CreateJournalEntryDto,
+    dto: CreateJournalEntryDto,
   ) {
-    return this.journalService.create(
-      dto,
-    );
+    return this.journalService.create(dto);
   }
 
   @Post('today/enrich')
-  @UseGuards(AdminGuard)
   enrichToday() {
     return this.journalEnrichmentService.enrichToday();
   }
@@ -69,14 +49,12 @@ export class JournalController {
    * /:journalEntryId.
    */
   @Get('public')
+  @Public()
   findPublic(
     @Query()
-    query:
-      JournalQueryDto,
+    query: JournalQueryDto,
   ) {
-    return this.journalService.findPublic(
-      query,
-    );
+    return this.journalService.findPublic(query);
   }
 
   /**
@@ -84,14 +62,12 @@ export class JournalController {
    * by slug.
    */
   @Get('public/:slug')
+  @Public()
   findPublicBySlug(
     @Param('slug')
-    slug:
-      string,
+    slug: string,
   ) {
-    return this.journalService.findPublicBySlug(
-      slug,
-    );
+    return this.journalService.findPublicBySlug(slug);
   }
 
   /**
@@ -100,175 +76,96 @@ export class JournalController {
   @Get()
   findAll(
     @Query()
-    query:
-      JournalQueryDto,
+    query: JournalQueryDto,
   ) {
-    return this.journalService.findAll(
-      query,
-    );
+    return this.journalService.findAll(query);
   }
 
   /**
    * Internal lookup by slug.
    *
-   * Useful for admin/HSAKAA.
+   * Useful for Personal OS/HSAKAA.
    */
   @Get('slug/:slug')
   findBySlug(
     @Param('slug')
-    slug:
-      string,
+    slug: string,
   ) {
-    return this.journalService.findBySlug(
-      slug,
-    );
+    return this.journalService.findBySlug(slug);
   }
 
-  @Patch(
-    ':journalEntryId/publish',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':journalEntryId/publish')
   publish(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.publish(
-      journalEntryId,
-    );
+    return this.journalService.publish(journalEntryId);
   }
 
-  @Patch(
-    ':journalEntryId/unpublish',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':journalEntryId/unpublish')
   unpublish(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.unpublish(
-      journalEntryId,
-    );
+    return this.journalService.unpublish(journalEntryId);
   }
 
-  @Patch(
-    ':journalEntryId/favourite',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':journalEntryId/favourite')
   favourite(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.favourite(
-      journalEntryId,
-    );
+    return this.journalService.favourite(journalEntryId);
   }
 
-  @Patch(
-    ':journalEntryId/unfavourite',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':journalEntryId/unfavourite')
   unfavourite(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.unfavourite(
-      journalEntryId,
-    );
+    return this.journalService.unfavourite(journalEntryId);
   }
 
-  @Patch(
-    ':journalEntryId/archive',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':journalEntryId/archive')
   archive(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.archive(
-      journalEntryId,
-    );
+    return this.journalService.archive(journalEntryId);
   }
 
-  @Patch(
-    ':journalEntryId/restore',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':journalEntryId/restore')
   restore(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.restore(
-      journalEntryId,
-    );
+    return this.journalService.restore(journalEntryId);
   }
 
-  @Patch(
-    ':journalEntryId',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':journalEntryId')
   update(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
 
     @Body()
-    dto:
-      UpdateJournalEntryDto,
+    dto: UpdateJournalEntryDto,
   ) {
-    return this.journalService.update(
-      journalEntryId,
-      dto,
-    );
+    return this.journalService.update(journalEntryId, dto);
   }
 
-  @Get(
-    ':journalEntryId',
-  )
+  @Get(':journalEntryId')
   findById(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.findById(
-      journalEntryId,
-    );
+    return this.journalService.findById(journalEntryId);
   }
 
-  @Delete(
-    ':journalEntryId',
-  )
-  @UseGuards(AdminGuard)
+  @Delete(':journalEntryId')
   remove(
-    @Param(
-      'journalEntryId',
-    )
-    journalEntryId:
-      string,
+    @Param('journalEntryId')
+    journalEntryId: string,
   ) {
-    return this.journalService.remove(
-      journalEntryId,
-    );
+    return this.journalService.remove(journalEntryId);
   }
 }

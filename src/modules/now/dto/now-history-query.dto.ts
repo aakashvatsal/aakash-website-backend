@@ -1,7 +1,4 @@
-import {
-  Transform,
-  Type,
-} from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 import {
   IsBoolean,
@@ -18,85 +15,54 @@ import {
   NowVisibility,
 } from '../schemas/now-status.schema';
 
-const transformBoolean =
-  ({
-    value,
-  }: {
-    value: unknown;
-  }) => {
-    if (
-      value === true ||
-      value === 'true'
-    ) {
-      return true;
-    }
+const transformBoolean = ({ value }: { value: unknown }) => {
+  if (value === true || value === 'true') {
+    return true;
+  }
 
-    if (
-      value === false ||
-      value === 'false'
-    ) {
-      return false;
-    }
+  if (value === false || value === 'false') {
+    return false;
+  }
 
-    return value;
-  };
+  return value;
+};
 
 export class NowHistoryQueryDto {
   @IsOptional()
-  @IsEnum(
-    NowActivityType,
-  )
-  activityType?:
-    NowActivityType;
+  @IsEnum(NowActivityType)
+  activityType?: NowActivityType;
 
   @IsOptional()
-  @IsEnum(
-    NowVisibility,
-  )
-  visibility?:
-    NowVisibility;
+  @IsEnum(NowVisibility)
+  visibility?: NowVisibility;
 
   @IsOptional()
-  @IsEnum(
-    NowSource,
-  )
+  @IsEnum(NowSource)
   source?: NowSource;
 
   @IsOptional()
-  @Transform(
-    transformBoolean,
-  )
+  @Transform(transformBoolean)
   @IsBoolean()
   isCurrent?: boolean;
 
   @IsOptional()
-  @Transform(
-    transformBoolean,
-  )
+  @Transform(transformBoolean)
   @IsBoolean()
   isActive?: boolean;
 
   @IsOptional()
-  @Transform(
-    transformBoolean,
-  )
+  @Transform(transformBoolean)
   @IsBoolean()
   isArchived?: boolean;
 
   @IsOptional()
-  @Type(
-    () =>
-      Number,
-  )
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   page = 1;
 
   @IsOptional()
-  @Type(
-    () =>
-      Number,
-  )
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   @Max(100)

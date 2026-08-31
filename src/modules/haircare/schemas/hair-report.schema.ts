@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type HairReportDocument =
-  HydratedDocument<HairReport>;
+export type HairReportDocument = HydratedDocument<HairReport>;
 
 export enum HairReportType {
   WEEKLY = 'weekly',
@@ -141,14 +136,6 @@ export const HairRecommendationSchema =
   collection: 'hair_reports',
 })
 export class HairReport {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   @Prop({
     type: String,
     enum: HairReportType,
@@ -297,12 +284,10 @@ export class HairReport {
   isActive: boolean;
 }
 
-export const HairReportSchema =
-  SchemaFactory.createForClass(HairReport);
+export const HairReportSchema = SchemaFactory.createForClass(HairReport);
 
 HairReportSchema.index(
   {
-    userId: 1,
     reportType: 1,
     periodStart: 1,
     periodEnd: 1,
@@ -313,6 +298,5 @@ HairReportSchema.index(
 );
 
 HairReportSchema.index({
-  userId: 1,
   periodEnd: -1,
 });

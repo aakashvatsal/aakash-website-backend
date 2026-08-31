@@ -4,10 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { WhoopHealthService } from './integrations/whoop-health.service';
-import {
-  HealthEntry,
-  HealthEntrySchema,
-} from './schemas/health-entry.schema';
+import { HealthEntry, HealthEntrySchema } from './schemas/health-entry.schema';
 import { HealthDashboardService } from './health-dashboard.service';
 
 @Module({

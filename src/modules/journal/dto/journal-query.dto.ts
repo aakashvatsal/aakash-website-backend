@@ -17,11 +17,7 @@ import {
   JournalVisibility,
 } from '../schemas/journal-entry.schema';
 
-const transformBoolean = ({
-  value,
-}: {
-  value: unknown;
-}) => {
+const transformBoolean = ({ value }: { value: unknown }) => {
   if (value === true || value === 'true') {
     return true;
   }

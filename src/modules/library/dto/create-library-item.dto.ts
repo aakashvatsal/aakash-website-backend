@@ -18,9 +18,6 @@ import {
 } from '../schemas/library-item.schema';
 
 export class CreateLibraryItemDto {
-  // @IsMongoId()
-  // userId: string;
-
   @IsString()
   title: string;
 

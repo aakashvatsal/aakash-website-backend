@@ -22,9 +22,6 @@ import {
 } from '../schemas/meditation-entry.schema';
 
 export class CreateMeditationEntryDto {
-  @IsMongoId()
-  userId: string;
-
   @IsDateString()
   date: string;
 

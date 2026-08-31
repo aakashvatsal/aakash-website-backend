@@ -1,11 +1,5 @@
-import {
-  PartialType,
-} from '@nestjs/mapped-types';
+import { PartialType } from '@nestjs/mapped-types';
 
-import {
-  CreateNowStatusDto,
-} from './create-now-status.dto';
+import { CreateNowStatusDto } from './create-now-status.dto';
 
-export class UpdateNowStatusDto extends PartialType(
-  CreateNowStatusDto,
-) {}
+export class UpdateNowStatusDto extends PartialType(CreateNowStatusDto) {}

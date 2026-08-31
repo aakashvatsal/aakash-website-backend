@@ -7,24 +7,23 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 
-import {
-  AdminGuard,
-} from '../../common/guards/admin.guard';
-
 import { CreateMemoryPersonDto } from './dto/create-memory-person.dto';
+import {
+  CreatePersonInteractionDto,
+  PersonTimelineQueryDto,
+} from './dto/person-interaction.dto';
 import { MemoryPersonQueryDto } from './dto/memory-person-query.dto';
 import { UpdateMemoryPersonDto } from './dto/update-memory-person.dto';
 import { MemoryPeopleService } from './memory-people.service';
+import { PersonTimelineService } from './person-timeline.service';
 
 @Controller('memory-people')
-@UseGuards(AdminGuard)
 export class MemoryPeopleController {
   constructor(
-    private readonly memoryPeopleService:
-      MemoryPeopleService,
+    private readonly memoryPeopleService: MemoryPeopleService,
+    private readonly personTimelineService: PersonTimelineService,
   ) {}
 
   @Post()
@@ -32,9 +31,7 @@ export class MemoryPeopleController {
     @Body()
     dto: CreateMemoryPersonDto,
   ) {
-    return this.memoryPeopleService.create(
-      dto,
-    );
+    return this.memoryPeopleService.create(dto);
   }
 
   @Get()
@@ -42,9 +39,23 @@ export class MemoryPeopleController {
     @Query()
     query: MemoryPersonQueryDto,
   ) {
-    return this.memoryPeopleService.findAll(
-      query,
-    );
+    return this.memoryPeopleService.findAll(query);
+  }
+
+  @Get(':personId/timeline')
+  getTimeline(
+    @Param('personId') personId: string,
+    @Query() query: PersonTimelineQueryDto,
+  ) {
+    return this.personTimelineService.getTimeline(personId, query);
+  }
+
+  @Post(':personId/interactions')
+  recordInteraction(
+    @Param('personId') personId: string,
+    @Body() dto: CreatePersonInteractionDto,
+  ) {
+    return this.personTimelineService.recordInteraction(personId, dto);
   }
 
   @Get(':personId')
@@ -52,9 +63,7 @@ export class MemoryPeopleController {
     @Param('personId')
     personId: string,
   ) {
-    return this.memoryPeopleService.findOne(
-      personId,
-    );
+    return this.memoryPeopleService.findOne(personId);
   }
 
   @Patch(':personId')
@@ -65,34 +74,23 @@ export class MemoryPeopleController {
     @Body()
     dto: UpdateMemoryPersonDto,
   ) {
-    return this.memoryPeopleService.update(
-      personId,
-      dto,
-    );
+    return this.memoryPeopleService.update(personId, dto);
   }
 
-  @Patch(
-    ':personId/consent/grant',
-  )
+  @Patch(':personId/consent/grant')
   grantConsent(
     @Param('personId')
     personId: string,
   ) {
-    return this.memoryPeopleService.grantConsent(
-      personId,
-    );
+    return this.memoryPeopleService.grantConsent(personId);
   }
 
-  @Patch(
-    ':personId/consent/revoke',
-  )
+  @Patch(':personId/consent/revoke')
   revokeConsent(
     @Param('personId')
     personId: string,
   ) {
-    return this.memoryPeopleService.revokeConsent(
-      personId,
-    );
+    return this.memoryPeopleService.revokeConsent(personId);
   }
 
   @Patch(':personId/block')
@@ -105,10 +103,7 @@ export class MemoryPeopleController {
       reason?: string;
     },
   ) {
-    return this.memoryPeopleService.block(
-      personId,
-      body.reason,
-    );
+    return this.memoryPeopleService.block(personId, body.reason);
   }
 
   @Patch(':personId/unblock')
@@ -116,9 +111,7 @@ export class MemoryPeopleController {
     @Param('personId')
     personId: string,
   ) {
-    return this.memoryPeopleService.unblock(
-      personId,
-    );
+    return this.memoryPeopleService.unblock(personId);
   }
 
   @Patch(':personId/archive')
@@ -126,9 +119,7 @@ export class MemoryPeopleController {
     @Param('personId')
     personId: string,
   ) {
-    return this.memoryPeopleService.archive(
-      personId,
-    );
+    return this.memoryPeopleService.archive(personId);
   }
 
   @Patch(':personId/restore')
@@ -136,9 +127,7 @@ export class MemoryPeopleController {
     @Param('personId')
     personId: string,
   ) {
-    return this.memoryPeopleService.restore(
-      personId,
-    );
+    return this.memoryPeopleService.restore(personId);
   }
 
   @Delete(':personId')
@@ -146,8 +135,6 @@ export class MemoryPeopleController {
     @Param('personId')
     personId: string,
   ) {
-    return this.memoryPeopleService.remove(
-      personId,
-    );
+    return this.memoryPeopleService.remove(personId);
   }
 }

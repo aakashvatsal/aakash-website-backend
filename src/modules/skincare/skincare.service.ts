@@ -25,20 +25,15 @@ import {
 export class SkincareService {
   constructor(
     @InjectModel(SkincareProduct.name)
-    private readonly skincareProductModel:
-      Model<SkincareProductDocument>,
+    private readonly skincareProductModel: Model<SkincareProductDocument>,
 
     @InjectModel(DailySkincareLog.name)
-    private readonly dailySkincareLogModel:
-      Model<DailySkincareLogDocument>,
+    private readonly dailySkincareLogModel: Model<DailySkincareLogDocument>,
   ) {}
 
   async createProduct(dto: CreateSkincareProductDto) {
-    this.validateObjectId(dto.userId, 'user ID');
-
     return this.skincareProductModel.create({
       ...dto,
-      userId: new Types.ObjectId(dto.userId),
       schedule: {
         ...dto.schedule,
         startDate: dto.schedule.startDate
@@ -48,20 +43,12 @@ export class SkincareService {
           ? new Date(dto.schedule.endDate)
           : undefined,
       },
-      patchTestAt: dto.patchTestAt
-        ? new Date(dto.patchTestAt)
-        : undefined,
+      patchTestAt: dto.patchTestAt ? new Date(dto.patchTestAt) : undefined,
     });
   }
 
-  async findProducts(
-    userId: string,
-    status?: SkincareProductStatus,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async findProducts(status?: SkincareProductStatus) {
     const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
       isActive: true,
     };
 
@@ -75,19 +62,12 @@ export class SkincareService {
       .lean();
   }
 
-  async updateProduct(
-    productId: string,
-    userId: string,
-    dto: UpdateSkincareProductDto,
-  ) {
+  async updateProduct(productId: string, dto: UpdateSkincareProductDto) {
     this.validateObjectId(productId, 'product ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {
       ...dto,
     };
-
-    delete updateData.userId;
 
     if (dto.schedule) {
       updateData.schedule = {
@@ -105,7 +85,6 @@ export class SkincareService {
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(productId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -119,22 +98,18 @@ export class SkincareService {
       .lean();
 
     if (!product) {
-      throw new NotFoundException(
-        'Skincare product not found.',
-      );
+      throw new NotFoundException('Skincare product not found.');
     }
 
     return product;
   }
 
-  async removeProduct(productId: string, userId: string) {
+  async removeProduct(productId: string) {
     this.validateObjectId(productId, 'product ID');
-    this.validateObjectId(userId, 'user ID');
 
     const product = await this.skincareProductModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(productId),
-        userId: new Types.ObjectId(userId),
         isActive: true,
       },
       {
@@ -150,9 +125,7 @@ export class SkincareService {
     );
 
     if (!product) {
-      throw new NotFoundException(
-        'Skincare product not found.',
-      );
+      throw new NotFoundException('Skincare product not found.');
     }
 
     return {
@@ -160,14 +133,9 @@ export class SkincareService {
     };
   }
 
-  async generateDailyLog(userId: string, dateValue: string) {
-    this.validateObjectId(userId, 'user ID');
-
+  async generateDailyLog(dateValue: string) {
     const date = this.normalizeDate(dateValue);
-    const objectUserId = new Types.ObjectId(userId);
-
     const existing = await this.dailySkincareLogModel.findOne({
-      userId: objectUserId,
       date,
       isActive: true,
     });
@@ -178,7 +146,6 @@ export class SkincareService {
 
     const products = await this.skincareProductModel
       .find({
-        userId: objectUserId,
         status: SkincareProductStatus.ACTIVE,
         isActive: true,
       })
@@ -207,7 +174,6 @@ export class SkincareService {
     });
 
     return this.dailySkincareLogModel.create({
-      userId: objectUserId,
       date,
       routineItems,
       totalScheduled: routineItems.length,
@@ -218,23 +184,18 @@ export class SkincareService {
     });
   }
 
-  async getDailyLog(userId: string, dateValue: string) {
-    this.validateObjectId(userId, 'user ID');
-
+  async getDailyLog(dateValue: string) {
     const date = this.normalizeDate(dateValue);
 
     const log = await this.dailySkincareLogModel
       .findOne({
-        userId: new Types.ObjectId(userId),
         date,
         isActive: true,
       })
       .lean();
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily skincare log not found.',
-      );
+      throw new NotFoundException('Daily skincare log not found.');
     }
 
     return log;
@@ -242,31 +203,24 @@ export class SkincareService {
 
   async updateRoutineItem(
     logId: string,
-    userId: string,
     itemIndex: number,
     dto: UpdateSkincareLogItemDto,
   ) {
     this.validateObjectId(logId, 'log ID');
-    this.validateObjectId(userId, 'user ID');
 
     const log = await this.dailySkincareLogModel.findOne({
       _id: new Types.ObjectId(logId),
-      userId: new Types.ObjectId(userId),
       isActive: true,
     });
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily skincare log not found.',
-      );
+      throw new NotFoundException('Daily skincare log not found.');
     }
 
     const item = log.routineItems[itemIndex];
 
     if (!item) {
-      throw new BadRequestException(
-        'Invalid skincare routine item index.',
-      );
+      throw new BadRequestException('Invalid skincare routine item index.');
     }
 
     item.status = dto.status;
@@ -301,8 +255,7 @@ export class SkincareService {
       item.notes = dto.notes;
     }
 
-    item.completionPercentage =
-      this.getCompletionPercentage(dto.status);
+    item.completionPercentage = this.getCompletionPercentage(dto.status);
 
     this.recalculateLog(log);
 
@@ -313,7 +266,6 @@ export class SkincareService {
 
   async updateObservation(
     logId: string,
-    userId: string,
     data: {
       observation?: Record<string, unknown>;
       environment?: Record<string, unknown>;
@@ -322,32 +274,23 @@ export class SkincareService {
     },
   ) {
     this.validateObjectId(logId, 'log ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updated = await this.dailySkincareLogModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(logId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
           $set: {
-            ...(data.observation
-              ? { observation: data.observation }
-              : {}),
-            ...(data.environment
-              ? { environment: data.environment }
-              : {}),
+            ...(data.observation ? { observation: data.observation } : {}),
+            ...(data.environment ? { environment: data.environment } : {}),
             ...(data.progressPhotoUrls
               ? {
-                  progressPhotoUrls:
-                    data.progressPhotoUrls,
+                  progressPhotoUrls: data.progressPhotoUrls,
                 }
               : {}),
-            ...(data.notes !== undefined
-              ? { notes: data.notes }
-              : {}),
+            ...(data.notes !== undefined ? { notes: data.notes } : {}),
           },
         },
         {
@@ -358,9 +301,7 @@ export class SkincareService {
       .lean();
 
     if (!updated) {
-      throw new NotFoundException(
-        'Daily skincare log not found.',
-      );
+      throw new NotFoundException('Daily skincare log not found.');
     }
 
     return updated;
@@ -372,25 +313,17 @@ export class SkincareService {
   ): boolean {
     const schedule = product.schedule;
 
-    if (
-      schedule.startDate &&
-      date < new Date(schedule.startDate)
-    ) {
+    if (schedule.startDate && date < new Date(schedule.startDate)) {
+      return false;
+    }
+
+    if (schedule.endDate && date > new Date(schedule.endDate)) {
       return false;
     }
 
     if (
-      schedule.endDate &&
-      date > new Date(schedule.endDate)
-    ) {
-      return false;
-    }
-
-    if (
-      schedule.frequency ===
-        SkincareFrequency.DAILY ||
-      schedule.frequency ===
-        SkincareFrequency.TWICE_DAILY
+      schedule.frequency === SkincareFrequency.DAILY ||
+      schedule.frequency === SkincareFrequency.TWICE_DAILY
     ) {
       return true;
     }
@@ -398,27 +331,19 @@ export class SkincareService {
     const dayOfWeek = date.getDay();
 
     if (
-      schedule.frequency ===
-        SkincareFrequency.WEEKLY ||
-      schedule.frequency ===
-        SkincareFrequency.TWICE_WEEKLY
+      schedule.frequency === SkincareFrequency.WEEKLY ||
+      schedule.frequency === SkincareFrequency.TWICE_WEEKLY
     ) {
       return schedule.daysOfWeek?.includes(dayOfWeek);
     }
 
-    if (
-      schedule.frequency ===
-      SkincareFrequency.ALTERNATE_DAYS
-    ) {
-      const start = schedule.startDate
-        ? new Date(schedule.startDate)
-        : date;
+    if (schedule.frequency === SkincareFrequency.ALTERNATE_DAYS) {
+      const start = schedule.startDate ? new Date(schedule.startDate) : date;
 
       start.setHours(0, 0, 0, 0);
 
       const differenceInDays = Math.floor(
-        (date.getTime() - start.getTime()) /
-          (1000 * 60 * 60 * 24),
+        (date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
       );
 
       return differenceInDays % 2 === 0;
@@ -428,66 +353,47 @@ export class SkincareService {
       schedule.frequency === SkincareFrequency.CUSTOM &&
       schedule.intervalDays
     ) {
-      const start = schedule.startDate
-        ? new Date(schedule.startDate)
-        : date;
+      const start = schedule.startDate ? new Date(schedule.startDate) : date;
 
       start.setHours(0, 0, 0, 0);
 
       const differenceInDays = Math.floor(
-        (date.getTime() - start.getTime()) /
-          (1000 * 60 * 60 * 24),
+        (date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
       );
 
-      return (
-        differenceInDays % schedule.intervalDays === 0
-      );
+      return differenceInDays % schedule.intervalDays === 0;
     }
 
     return false;
   }
 
-  private recalculateLog(
-    log: DailySkincareLogDocument,
-  ) {
+  private recalculateLog(log: DailySkincareLogDocument) {
     log.totalScheduled = log.routineItems.length;
 
     log.totalApplied = log.routineItems.filter(
-      (item) =>
-        item.status === SkincareLogStatus.APPLIED,
+      (item) => item.status === SkincareLogStatus.APPLIED,
     ).length;
 
     log.totalMissed = log.routineItems.filter(
-      (item) =>
-        item.status === SkincareLogStatus.MISSED,
+      (item) => item.status === SkincareLogStatus.MISSED,
     ).length;
 
     log.totalSkipped = log.routineItems.filter(
-      (item) =>
-        item.status === SkincareLogStatus.SKIPPED,
+      (item) => item.status === SkincareLogStatus.SKIPPED,
     ).length;
 
     const partial = log.routineItems.filter(
-      (item) =>
-        item.status === SkincareLogStatus.PARTIAL,
+      (item) => item.status === SkincareLogStatus.PARTIAL,
     ).length;
 
-    const completedUnits =
-      log.totalApplied + partial * 0.5;
+    const completedUnits = log.totalApplied + partial * 0.5;
 
     log.adherencePercentage = log.totalScheduled
-      ? Number(
-          (
-            (completedUnits / log.totalScheduled) *
-            100
-          ).toFixed(2),
-        )
+      ? Number(((completedUnits / log.totalScheduled) * 100).toFixed(2))
       : 0;
   }
 
-  private getCompletionPercentage(
-    status: SkincareLogStatus,
-  ) {
+  private getCompletionPercentage(status: SkincareLogStatus) {
     switch (status) {
       case SkincareLogStatus.APPLIED:
         return 100;
@@ -512,14 +418,9 @@ export class SkincareService {
     return date;
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ) {
+  private validateObjectId(value: string, fieldName: string) {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
   }
 }

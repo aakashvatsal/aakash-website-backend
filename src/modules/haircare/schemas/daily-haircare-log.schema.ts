@@ -1,17 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 import {
   HairApplicationArea,
   HaircareTimeOfDay,
 } from './haircare-product.schema';
 
-export type DailyHaircareLogDocument =
-  HydratedDocument<DailyHaircareLog>;
+export type DailyHaircareLogDocument = HydratedDocument<DailyHaircareLog>;
 
 export enum HaircareLogStatus {
   PENDING = 'pending',
@@ -200,8 +195,7 @@ export class HairWashData {
   notes?: string;
 }
 
-export const HairWashDataSchema =
-  SchemaFactory.createForClass(HairWashData);
+export const HairWashDataSchema = SchemaFactory.createForClass(HairWashData);
 
 @Schema({ _id: false })
 export class DailyHairObservation {
@@ -394,16 +388,7 @@ export const HairLifestyleDataSchema =
 })
 export class DailyHaircareLog {
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
     required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
-    required: true,
-    index: true,
   })
   date: Date;
 
@@ -499,7 +484,6 @@ export const DailyHaircareLogSchema =
 
 DailyHaircareLogSchema.index(
   {
-    userId: 1,
     date: 1,
   },
   {
@@ -508,13 +492,11 @@ DailyHaircareLogSchema.index(
 );
 
 DailyHaircareLogSchema.index({
-  userId: 1,
   adherencePercentage: 1,
   date: -1,
 });
 
 DailyHaircareLogSchema.index({
-  userId: 1,
   'observation.hairFall': 1,
   date: -1,
 });

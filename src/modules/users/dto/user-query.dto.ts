@@ -1,7 +1,4 @@
-import {
-  Transform,
-  Type,
-} from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsNumber,
@@ -11,11 +8,7 @@ import {
   Min,
 } from 'class-validator';
 
-const transformBoolean = ({
-  value,
-}: {
-  value: unknown;
-}) => {
+const transformBoolean = ({ value }: { value: unknown }) => {
   if (value === true || value === 'true') {
     return true;
   }

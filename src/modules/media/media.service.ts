@@ -4,16 +4,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import {
-  QueryFilter,
-  Model,
-  Types,
-} from 'mongoose';
+import { QueryFilter, Model, Types } from 'mongoose';
 
 import { CreateMediaPostDto } from './dto/create-media-post.dto';
 import { UpdateMediaPostDto } from './dto/update-media-post.dto';
 import { UpdateMediaOutcomeDto } from './dto/update-media-outcome.dto';
 import { MediaAnalyticsService } from './services/media-analytics.service';
+import { MediaCoreService } from './media-core.service';
 import {
   MediaMetricSnapshot,
   MediaMetricSnapshotDocument,
@@ -23,13 +20,15 @@ import {
   MediaPost,
   MediaPostDocument,
   MediaPostStatus,
-  MediaPlatform
+  MediaPlatform,
+  MediaPostType,
 } from './schemas/media-post.schema';
 
 interface FindMediaPostsParams {
-  // userId: string;
   platform?: MediaPlatform;
   status?: MediaPostStatus;
+  postType?: MediaPostType;
+  contentPillar?: string;
   companyId?: string;
   search?: string;
   page?: number;
@@ -43,99 +42,110 @@ export class MediaService {
     private readonly mediaPostModel: Model<MediaPostDocument>,
 
     @InjectModel(MediaMetricSnapshot.name)
-    private readonly mediaMetricSnapshotModel:
-      Model<MediaMetricSnapshotDocument>,
+    private readonly mediaMetricSnapshotModel: Model<MediaMetricSnapshotDocument>,
 
     private readonly mediaAnalyticsService: MediaAnalyticsService,
+    private readonly mediaCoreService: MediaCoreService,
   ) {}
 
   async create(dto: CreateMediaPostDto) {
-  const mediaPost = await this.mediaPostModel.create({
-    ...dto,
+    const mediaPost = await this.mediaPostModel.create({
+      ...dto,
 
-    companyId: dto.companyId
-      ? new Types.ObjectId(dto.companyId)
-      : undefined,
+      companyId: dto.companyId ? new Types.ObjectId(dto.companyId) : undefined,
 
-    date: new Date(dto.date),
+      date: new Date(dto.date),
 
-    publishing: dto.publishing
-      ? {
-          ...dto.publishing,
+      publishing: dto.publishing
+        ? {
+            ...dto.publishing,
 
-          scheduledAt: dto.publishing.scheduledAt
-            ? new Date(dto.publishing.scheduledAt)
-            : undefined,
+            scheduledAt: dto.publishing.scheduledAt
+              ? new Date(dto.publishing.scheduledAt)
+              : undefined,
 
-          publishedAt: dto.publishing.publishedAt
-            ? new Date(dto.publishing.publishedAt)
-            : undefined,
-        }
-      : undefined,
+            publishedAt: dto.publishing.publishedAt
+              ? new Date(dto.publishing.publishedAt)
+              : undefined,
+          }
+        : undefined,
 
-    outcome: dto.outcome
-      ? {
-          ...dto.outcome,
+      outcome: dto.outcome
+        ? {
+            ...dto.outcome,
 
-          evaluatedAt: dto.outcome.evaluatedAt
-            ? new Date(dto.outcome.evaluatedAt)
-            : undefined,
-        }
-      : undefined,
+            evaluatedAt: dto.outcome.evaluatedAt
+              ? new Date(dto.outcome.evaluatedAt)
+              : undefined,
+          }
+        : undefined,
 
-    analyticsSync: dto.analyticsSync
-      ? {
-          ...dto.analyticsSync,
+      analyticsSync: dto.analyticsSync
+        ? {
+            ...dto.analyticsSync,
 
-          lastSyncedAt: dto.analyticsSync.lastSyncedAt
-            ? new Date(dto.analyticsSync.lastSyncedAt)
-            : undefined,
-        }
-      : undefined,
+            lastSyncedAt: dto.analyticsSync.lastSyncedAt
+              ? new Date(dto.analyticsSync.lastSyncedAt)
+              : undefined,
+          }
+        : undefined,
 
-    memoryIds: dto.memoryIds?.map(
-      (memoryId) => new Types.ObjectId(memoryId),
-    ),
+      memoryIds: dto.memoryIds?.map((memoryId) => new Types.ObjectId(memoryId)),
 
-    metadata: dto.metadata ?? {},
+      metadata: dto.metadata ?? {},
 
-    isActive: dto.isActive ?? true,
-    isArchived: dto.isArchived ?? false,
-  });
+      isActive: dto.isActive ?? true,
+      isArchived: dto.isArchived ?? false,
+    });
 
-  return {
-    statusCode: 201,
-    message: 'Media post created successfully',
-    data: mediaPost,
-  };
-}
+    await this.syncCoreSafely(mediaPost);
 
-  async findAll(params: FindMediaPostsParams) {
+    return {
+      statusCode: 201,
+      message: 'Media post created successfully',
+      data: mediaPost,
+    };
+  }
+
+  async findAll(params: FindMediaPostsParams, publicOnly = false) {
     const {
-      // userId,
       platform,
       status,
+      postType,
+      contentPillar,
       companyId,
       search,
       page = 1,
       limit = 20,
     } = params;
 
-    // if (!Types.ObjectId.isValid(userId)) {
-    //   throw new BadRequestException('Invalid user ID.');
-    // }
-
     const filter: QueryFilter<MediaPostDocument> = {
-      // userId: new Types.ObjectId(userId),
       isActive: true,
+      ...(publicOnly
+        ? {
+            isArchived: false,
+            'publishing.status': MediaPostStatus.POSTED,
+          }
+        : {}),
     };
 
     if (platform) {
       filter.platform = platform;
     }
 
-    if (status) {
+    if (!publicOnly && status) {
       filter['publishing.status'] = status;
+    }
+
+    if (postType) {
+      filter.postType = postType;
+    }
+
+    if (contentPillar?.trim()) {
+      filter['strategy.contentPillar'] = {
+        $regex: this.escapeRegex(contentPillar.trim()),
+        $options: 'i',
+      };
     }
 
     if (companyId) {
@@ -153,16 +163,20 @@ export class MediaService {
     }
 
     const safePage = Math.max(Number(page) || 1, 1);
-    const safeLimit = Math.min(
-      Math.max(Number(limit) || 20, 1),
-      100,
-    );
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
 
     const skip = (safePage - 1) * safeLimit;
 
+    const mediaQuery = this.mediaPostModel.find(filter);
+
+    if (publicOnly) {
+      mediaQuery.select(
+        '_id date platform postType content.title content.hook content.shortDescription content.detailedDescription content.caption content.textPostScript content.videoScript content.voiceOverScript content.carouselSlides content.shotList content.hashtags content.cta creative.assetUrls publishing.status publishing.publishedAt publishing.externalPostUrl outcome.contentScore strategy.primaryGoal strategy.contentPillar createdAt',
+      );
+    }
+
     const [data, total] = await Promise.all([
-      this.mediaPostModel
-        .find(filter)
+      mediaQuery
         .sort({ date: -1, createdAt: -1 })
         .skip(skip)
         .limit(safeLimit)
@@ -182,14 +196,12 @@ export class MediaService {
     };
   }
 
-  async findOne(mediaPostId: string, userId?: string) {
+  async findOne(mediaPostId: string) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    // this.validateObjectId(userId, 'user ID');
 
     const mediaPost = await this.mediaPostModel
       .findOne({
         _id: new Types.ObjectId(mediaPostId),
-        // userId: new Types.ObjectId(userId),
         isActive: true,
       })
       .lean();
@@ -211,21 +223,12 @@ export class MediaService {
     };
   }
 
-  async update(
-    mediaPostId: string,
-    // userId: string,
-    dto: UpdateMediaPostDto,
-  ) {
+  async update(mediaPostId: string, dto: UpdateMediaPostDto) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    // this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {
       ...dto,
     };
-
-    // if (dto.userId) {
-    //   updateData.userId = new Types.ObjectId(dto.userId);
-    // }
 
     if (dto.companyId) {
       updateData.companyId = new Types.ObjectId(dto.companyId);
@@ -251,7 +254,6 @@ export class MediaService {
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(mediaPostId),
-          // userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -268,29 +270,22 @@ export class MediaService {
       throw new NotFoundException('Media post not found.');
     }
 
+    await this.syncCoreSafely(updated);
     return updated;
   }
 
-  async updateOutcome(
-    mediaPostId: string,
-    userId: string,
-    dto: UpdateMediaOutcomeDto,
-  ) {
+  async updateOutcome(mediaPostId: string, dto: UpdateMediaOutcomeDto) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    this.validateObjectId(userId, 'user ID');
 
     const outcome = {
       ...dto,
-      evaluatedAt: dto.evaluatedAt
-        ? new Date(dto.evaluatedAt)
-        : new Date(),
+      evaluatedAt: dto.evaluatedAt ? new Date(dto.evaluatedAt) : new Date(),
     };
 
     const updated = await this.mediaPostModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(mediaPostId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -314,7 +309,6 @@ export class MediaService {
 
   async markAsPosted(
     mediaPostId: string,
-    userId: string,
     publishingData: {
       externalPostUrl: string;
       platformPostId: string;
@@ -325,30 +319,22 @@ export class MediaService {
     },
   ) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updated = await this.mediaPostModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(mediaPostId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
           $set: {
             'publishing.status': MediaPostStatus.POSTED,
-            'publishing.publishedAt':
-              publishingData.publishedAt || new Date(),
-            'publishing.externalPostUrl':
-              publishingData.externalPostUrl,
-            'publishing.platformPostId':
-              publishingData.platformPostId,
-            'publishing.platformAccountId':
-              publishingData.platformAccountId,
-            'publishing.platformMediaId':
-              publishingData.platformMediaId,
-            'publishing.analyticsUrl':
-              publishingData.analyticsUrl,
+            'publishing.publishedAt': publishingData.publishedAt || new Date(),
+            'publishing.externalPostUrl': publishingData.externalPostUrl,
+            'publishing.platformPostId': publishingData.platformPostId,
+            'publishing.platformAccountId': publishingData.platformAccountId,
+            'publishing.platformMediaId': publishingData.platformMediaId,
+            'publishing.analyticsUrl': publishingData.analyticsUrl,
             'publishing.errorMessage': null,
             'analyticsSync.enabled': true,
             'analyticsSync.nextSyncAt': new Date(),
@@ -365,21 +351,18 @@ export class MediaService {
       throw new NotFoundException('Media post not found.');
     }
 
+    await this.syncCoreSafely(updated);
     return updated;
   }
 
   async syncMetrics(
     mediaPostId: string,
-    userId: string,
-    period: MetricSnapshotPeriod =
-      MetricSnapshotPeriod.LATEST,
+    period: MetricSnapshotPeriod = MetricSnapshotPeriod.LATEST,
   ) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    this.validateObjectId(userId, 'user ID');
 
     const mediaPost = await this.mediaPostModel.findOne({
       _id: new Types.ObjectId(mediaPostId),
-      userId: new Types.ObjectId(userId),
       isActive: true,
     });
 
@@ -387,32 +370,23 @@ export class MediaService {
       throw new NotFoundException('Media post not found.');
     }
 
-    if (
-      mediaPost.publishing?.status !==
-      MediaPostStatus.POSTED
-    ) {
+    if (mediaPost.publishing?.status !== MediaPostStatus.POSTED) {
       throw new BadRequestException(
         'Metrics can only be synced for a posted media item.',
       );
     }
 
     if (!mediaPost.publishing?.platformPostId) {
-      throw new BadRequestException(
-        'Platform post ID is missing.',
-      );
+      throw new BadRequestException('Platform post ID is missing.');
     }
 
     try {
-      const metrics =
-        await this.mediaAnalyticsService.getPostMetrics({
-          platform: mediaPost.platform,
-          platformPostId:
-            mediaPost.publishing.platformPostId,
-          platformAccountId:
-            mediaPost.publishing.platformAccountId,
-          platformMediaId:
-            mediaPost.publishing.platformMediaId,
-        });
+      const metrics = await this.mediaAnalyticsService.getPostMetrics({
+        platform: mediaPost.platform,
+        platformPostId: mediaPost.publishing.platformPostId,
+        platformAccountId: mediaPost.publishing.platformAccountId,
+        platformMediaId: mediaPost.publishing.platformMediaId,
+      });
 
       const normalized = metrics.normalized;
 
@@ -428,52 +402,43 @@ export class MediaService {
           clicks: normalized.clicks || 0,
         });
 
-      const snapshot =
-        await this.mediaMetricSnapshotModel
-          .findOneAndUpdate(
-            {
+      const snapshot = await this.mediaMetricSnapshotModel
+        .findOneAndUpdate(
+          {
+            mediaPostId: mediaPost._id,
+            period,
+          },
+          {
+            $set: {
               mediaPostId: mediaPost._id,
+              platform: mediaPost.platform,
               period,
+              capturedAt: new Date(),
+              impressions: normalized.impressions || 0,
+              reach: normalized.reach || 0,
+              views: normalized.views || 0,
+              likes: normalized.likes || 0,
+              comments: normalized.comments || 0,
+              shares: normalized.shares || 0,
+              saves: normalized.saves || 0,
+              clicks: normalized.clicks || 0,
+              profileVisits: normalized.profileVisits || 0,
+              followersGained: normalized.followersGained || 0,
+              leadsGenerated: normalized.leadsGenerated || 0,
+              conversions: normalized.conversions || 0,
+              watchTimeSeconds: normalized.watchTimeSeconds || 0,
+              averageWatchPercentage: normalized.averageWatchPercentage,
+              engagementRate,
+              rawMetrics: metrics.raw,
             },
-            {
-              $set: {
-                // userId: mediaPost.userId,
-                mediaPostId: mediaPost._id,
-                platform: mediaPost.platform,
-                period,
-                capturedAt: new Date(),
-                impressions:
-                  normalized.impressions || 0,
-                reach: normalized.reach || 0,
-                views: normalized.views || 0,
-                likes: normalized.likes || 0,
-                comments: normalized.comments || 0,
-                shares: normalized.shares || 0,
-                saves: normalized.saves || 0,
-                clicks: normalized.clicks || 0,
-                profileVisits:
-                  normalized.profileVisits || 0,
-                followersGained:
-                  normalized.followersGained || 0,
-                leadsGenerated:
-                  normalized.leadsGenerated || 0,
-                conversions:
-                  normalized.conversions || 0,
-                watchTimeSeconds:
-                  normalized.watchTimeSeconds || 0,
-                averageWatchPercentage:
-                  normalized.averageWatchPercentage,
-                engagementRate,
-                rawMetrics: metrics.raw,
-              },
-            },
-            {
-              upsert: true,
-              new: true,
-              runValidators: true,
-            },
-          )
-          .lean();
+          },
+          {
+            upsert: true,
+            new: true,
+            runValidators: true,
+          },
+        )
+        .lean();
 
       await this.mediaPostModel.updateOne(
         {
@@ -483,8 +448,7 @@ export class MediaService {
           $set: {
             'analyticsSync.enabled': true,
             'analyticsSync.lastSyncedAt': new Date(),
-            'analyticsSync.nextSyncAt':
-              this.getNextSyncDate(mediaPost),
+            'analyticsSync.nextSyncAt': this.getNextSyncDate(mediaPost),
             'analyticsSync.lastSyncError': null,
           },
           $inc: {
@@ -496,9 +460,7 @@ export class MediaService {
       return snapshot;
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : 'Unknown analytics sync error';
+        error instanceof Error ? error.message : 'Unknown analytics sync error';
 
       await this.mediaPostModel.updateOne(
         {
@@ -518,19 +480,13 @@ export class MediaService {
     }
   }
 
-  async getMetricHistory(
-    mediaPostId: string,
-    userId: string,
-  ) {
+  async getMetricHistory(mediaPostId: string) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    this.validateObjectId(userId, 'user ID');
 
-    const mediaPostExists =
-      await this.mediaPostModel.exists({
-        _id: new Types.ObjectId(mediaPostId),
-        userId: new Types.ObjectId(userId),
-        isActive: true,
-      });
+    const mediaPostExists = await this.mediaPostModel.exists({
+      _id: new Types.ObjectId(mediaPostId),
+      isActive: true,
+    });
 
     if (!mediaPostExists) {
       throw new NotFoundException('Media post not found.');
@@ -546,15 +502,13 @@ export class MediaService {
       .lean();
   }
 
-  async archive(mediaPostId: string, userId: string) {
+  async archive(mediaPostId: string) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updated = await this.mediaPostModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(mediaPostId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -572,18 +526,17 @@ export class MediaService {
       throw new NotFoundException('Media post not found.');
     }
 
+    await this.syncCoreSafely(updated);
     return updated;
   }
 
-  async remove(mediaPostId: string, userId: string) {
+  async remove(mediaPostId: string) {
     this.validateObjectId(mediaPostId, 'media post ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updated = await this.mediaPostModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(mediaPostId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -602,9 +555,21 @@ export class MediaService {
       throw new NotFoundException('Media post not found.');
     }
 
+    await this.syncCoreSafely(updated);
+
     return {
       message: 'Media post deleted successfully.',
     };
+  }
+
+  private async syncCoreSafely(
+    mediaPost: MediaPostDocument | (MediaPost & { _id: Types.ObjectId }),
+  ): Promise<void> {
+    try {
+      await this.mediaCoreService.syncLegacyPost(mediaPost);
+    } catch {
+      // Legacy media CRUD remains available; the idempotent Core V2 migration can repair a missed sync.
+    }
   }
 
   private calculateEngagementRate(metrics: {
@@ -623,27 +588,20 @@ export class MediaService {
       metrics.saves +
       metrics.clicks;
 
-    const denominator =
-      metrics.impressions || metrics.reach;
+    const denominator = metrics.impressions || metrics.reach;
 
     if (!denominator) {
       return 0;
     }
 
-    return Number(
-      ((engagements / denominator) * 100).toFixed(2),
-    );
+    return Number(((engagements / denominator) * 100).toFixed(2));
   }
 
-  private getNextSyncDate(
-    mediaPost: MediaPostDocument,
-  ): Date {
-    const publishedAt =
-      mediaPost.publishing?.publishedAt || new Date();
+  private getNextSyncDate(mediaPost: MediaPostDocument): Date {
+    const publishedAt = mediaPost.publishing?.publishedAt || new Date();
 
     const hoursSincePublished =
-      (Date.now() - publishedAt.getTime()) /
-      (1000 * 60 * 60);
+      (Date.now() - publishedAt.getTime()) / (1000 * 60 * 60);
 
     const nextSyncAt = new Date();
 
@@ -661,14 +619,13 @@ export class MediaService {
     return nextSyncAt;
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ): void {
+  private validateObjectId(value: string, fieldName: string): void {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
+  }
+
+  private escapeRegex(value: string) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 }

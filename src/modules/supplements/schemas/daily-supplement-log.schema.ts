@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type DailySupplementLogDocument =
-  HydratedDocument<DailySupplementLog>;
+export type DailySupplementLogDocument = HydratedDocument<DailySupplementLog>;
 
 export enum SupplementLogStatus {
   PENDING = 'pending',
@@ -94,16 +89,7 @@ export const DailySupplementItemSchema =
 })
 export class DailySupplementLog {
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
     required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
-    required: true,
-    index: true,
   })
   date: Date;
 
@@ -165,7 +151,6 @@ export const DailySupplementLogSchema =
 
 DailySupplementLogSchema.index(
   {
-    userId: 1,
     date: 1,
   },
   {
@@ -174,7 +159,6 @@ DailySupplementLogSchema.index(
 );
 
 DailySupplementLogSchema.index({
-  userId: 1,
   adherencePercentage: 1,
   date: -1,
 });

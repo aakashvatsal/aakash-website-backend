@@ -1,15 +1,6 @@
-import {
-  IsEnum,
-  IsNumber,
-  IsOptional,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsNumber, IsOptional, Max, Min } from 'class-validator';
 
-import {
-  ProductUnit,
-  UsageFrequency,
-} from '../schemas/product.schema';
+import { ProductUnit, UsageFrequency } from '../schemas/product.schema';
 
 export class UpdateProductUsageDto {
   @IsOptional()

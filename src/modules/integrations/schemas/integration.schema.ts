@@ -1,16 +1,8 @@
-import {
-  Prop,
-  Schema,
-  SchemaFactory,
-} from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
-import {
-  HydratedDocument,
-  SchemaTypes,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes } from 'mongoose';
 
-export type IntegrationDocument =
-  HydratedDocument<Integration>;
+export type IntegrationDocument = HydratedDocument<Integration>;
 
 export enum IntegrationProvider {
   WHOOP = 'whoop',
@@ -38,8 +30,7 @@ export class Integration {
   @Prop({
     type: String,
     enum: IntegrationStatus,
-    default:
-      IntegrationStatus.CONNECTED,
+    default: IntegrationStatus.CONNECTED,
   })
   status: IntegrationStatus;
 
@@ -77,10 +68,7 @@ export class Integration {
     type: SchemaTypes.Mixed,
     default: {},
   })
-  metadata: Record<
-    string,
-    unknown
-  >;
+  metadata: Record<string, unknown>;
 
   @Prop({
     default: true,
@@ -88,10 +76,7 @@ export class Integration {
   isActive: boolean;
 }
 
-export const IntegrationSchema =
-  SchemaFactory.createForClass(
-    Integration,
-  );
+export const IntegrationSchema = SchemaFactory.createForClass(Integration);
 
 IntegrationSchema.index(
   {

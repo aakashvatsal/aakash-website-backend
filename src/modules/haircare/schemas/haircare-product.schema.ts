@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type HaircareProductDocument =
-  HydratedDocument<HaircareProduct>;
+export type HaircareProductDocument = HydratedDocument<HaircareProduct>;
 
 export enum HaircareProductCategory {
   SHAMPOO = 'shampoo',
@@ -114,14 +109,6 @@ export const HaircareScheduleSchema =
   collection: 'haircare_products',
 })
 export class HaircareProduct {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   @Prop({
     required: true,
     trim: true,
@@ -311,14 +298,12 @@ export const HaircareProductSchema =
   SchemaFactory.createForClass(HaircareProduct);
 
 HaircareProductSchema.index({
-  userId: 1,
   status: 1,
   category: 1,
 });
 
 HaircareProductSchema.index(
   {
-    userId: 1,
     name: 1,
     brand: 1,
   },

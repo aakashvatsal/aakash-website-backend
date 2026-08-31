@@ -1,25 +1,12 @@
-import {
-  Injectable,
-  Logger,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 
-import {
-  ConfigService,
-} from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 
-import {
-  InjectModel,
-} from '@nestjs/mongoose';
+import { InjectModel } from '@nestjs/mongoose';
 
-import {
-  createHmac,
-  timingSafeEqual,
-} from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 
-import {
-  Model,
-} from 'mongoose';
+import { Model } from 'mongoose';
 
 import {
   NowActivityType,
@@ -28,13 +15,9 @@ import {
   NowVisibility,
 } from '../../now/schemas/now-status.schema';
 
-import {
-  NowService,
-} from '../../now/now.service';
+import { NowService } from '../../now/now.service';
 
-import {
-  WhoopWebhookDto,
-} from './dto/whoop-webhook.dto';
+import { WhoopWebhookDto } from './dto/whoop-webhook.dto';
 
 import {
   WhoopWebhookEvent,
@@ -43,134 +26,88 @@ import {
   WhoopWebhookProcessingStatus,
 } from './schemas/whoop-webhook-event.schema';
 
-import {
-  WhoopService,
-} from './whoop.service';
+import { WhoopService } from './whoop.service';
 
 @Injectable()
 export class WhoopWebhookService {
-  private readonly logger =
-    new Logger(
-      WhoopWebhookService.name,
-    );
+  private readonly logger = new Logger(WhoopWebhookService.name);
 
   constructor(
-    @InjectModel(
-      WhoopWebhookEvent.name,
-    )
-    private readonly webhookEventModel:
-      Model<WhoopWebhookEventDocument>,
+    @InjectModel(WhoopWebhookEvent.name)
+    private readonly webhookEventModel: Model<WhoopWebhookEventDocument>,
 
-    private readonly configService:
-      ConfigService,
+    private readonly configService: ConfigService,
 
-    private readonly whoopService:
-      WhoopService,
+    private readonly whoopService: WhoopService,
 
-    private readonly nowService:
-      NowService,
+    private readonly nowService: NowService,
   ) {}
 
   async acceptWebhook(
-    dto:
-      WhoopWebhookDto,
+    dto: WhoopWebhookDto,
 
-    rawBody:
-      Buffer,
+    rawBody: Buffer,
 
-    signature?:
-      string,
+    signature?: string,
 
-    timestamp?:
-      string,
+    timestamp?: string,
   ) {
-    this.validateSignature(
-      rawBody,
-      signature,
-      timestamp,
-    );
+    this.validateSignature(rawBody, signature, timestamp);
 
-    const existing =
-      await this.webhookEventModel
-        .findOne({
-          traceId:
-            dto.trace_id,
-        })
-        .select({
-          _id: 1,
-          status: 1,
-        })
-        .lean();
+    const existing = await this.webhookEventModel
+      .findOne({
+        traceId: dto.trace_id,
+      })
+      .select({
+        _id: 1,
+        status: 1,
+      })
+      .lean();
 
     if (existing) {
       return {
-        accepted:
-          true,
+        accepted: true,
 
-        duplicate:
-          true,
+        duplicate: true,
       };
     }
 
     try {
-      const event =
-        await this.webhookEventModel.create(
-          {
-            traceId:
-              dto.trace_id,
+      const event = await this.webhookEventModel.create({
+        traceId: dto.trace_id,
 
-            whoopUserId:
-              dto.user_id,
+        whoopUserId: dto.user_id,
 
-            resourceId:
-              dto.id,
+        resourceId: dto.id,
 
-            eventType:
-              dto.type,
+        eventType: dto.type,
 
-            status:
-              WhoopWebhookProcessingStatus.PENDING,
+        status: WhoopWebhookProcessingStatus.PENDING,
 
-            receivedAt:
-              new Date(),
+        receivedAt: new Date(),
 
-            attempts:
-              0,
+        attempts: 0,
 
-            payload: {
-              ...dto,
-            },
-          },
-        );
-
-      setImmediate(
-        () => {
-          void this.processWebhook(
-            event._id.toString(),
-          );
+        payload: {
+          ...dto,
         },
-      );
+      });
+
+      setImmediate(() => {
+        void this.processWebhook(event._id.toString());
+      });
 
       return {
-        accepted:
-          true,
+        accepted: true,
 
-        duplicate:
-          false,
+        duplicate: false,
       };
-    } catch (
-      error: any
-    ) {
-      if (
-        error?.code ===
-        11000
-      ) {
+    } catch (error: any) {
+      if (error?.code === 11000) {
         return {
-          accepted:
-            true,
+          accepted: true,
 
-          duplicate:
-            true,
+          duplicate: true,
         };
       }
 
@@ -178,54 +115,35 @@ export class WhoopWebhookService {
     }
   }
 
-  async processWebhook(
-    eventId:
-      string,
-  ) {
-    const event =
-      await this.webhookEventModel.findById(
-        eventId,
-      );
+  async processWebhook(eventId: string) {
+    const event = await this.webhookEventModel.findById(eventId);
 
     if (!event) {
       return;
     }
 
     if (
-      event.status ===
-        WhoopWebhookProcessingStatus.PROCESSED ||
-      event.status ===
-        WhoopWebhookProcessingStatus.IGNORED
+      event.status === WhoopWebhookProcessingStatus.PROCESSED ||
+      event.status === WhoopWebhookProcessingStatus.IGNORED
     ) {
       return;
     }
 
-    event.status =
-      WhoopWebhookProcessingStatus.PROCESSING;
+    event.status = WhoopWebhookProcessingStatus.PROCESSING;
 
-    event.attempts =
-      (
-        event.attempts ??
-        0
-      ) + 1;
+    event.attempts = (event.attempts ?? 0) + 1;
 
     await event.save();
 
     try {
-      switch (
-        event.eventType
-      ) {
+      switch (event.eventType) {
         case WhoopWebhookEventType.WORKOUT_UPDATED:
-          await this.handleWorkoutUpdated(
-            event.resourceId,
-          );
+          await this.handleWorkoutUpdated(event.resourceId);
 
           break;
 
         case WhoopWebhookEventType.SLEEP_UPDATED:
-          await this.handleSleepUpdated(
-            event.resourceId,
-          );
+          await this.handleSleepUpdated(event.resourceId);
 
           break;
 
@@ -237,282 +155,175 @@ export class WhoopWebhookService {
         case WhoopWebhookEventType.WORKOUT_DELETED:
         case WhoopWebhookEventType.SLEEP_DELETED:
         case WhoopWebhookEventType.RECOVERY_DELETED:
-          await this.handleDeletedEvent(
-            event.eventType,
-          );
+          await this.handleDeletedEvent(event.eventType);
 
           break;
 
         default:
-          event.status =
-            WhoopWebhookProcessingStatus.IGNORED;
+          event.status = WhoopWebhookProcessingStatus.IGNORED;
 
-          event.processedAt =
-            new Date();
+          event.processedAt = new Date();
 
           await event.save();
 
           return;
       }
 
-      event.status =
-        WhoopWebhookProcessingStatus.PROCESSED;
+      event.status = WhoopWebhookProcessingStatus.PROCESSED;
 
-      event.processedAt =
-        new Date();
+      event.processedAt = new Date();
 
-      event.errorMessage =
-        undefined;
+      event.errorMessage = undefined;
 
       await event.save();
-    } catch (
-      error
-    ) {
+    } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : 'Unknown WHOOP webhook processing error.';
 
-      event.status =
-        WhoopWebhookProcessingStatus.FAILED;
+      event.status = WhoopWebhookProcessingStatus.FAILED;
 
-      event.errorMessage =
-        message;
+      event.errorMessage = message;
 
       await event.save();
 
-      this.logger.error(
-        `WHOOP webhook ${event.traceId} failed: ${message}`,
-      );
+      this.logger.error(`WHOOP webhook ${event.traceId} failed: ${message}`);
     }
   }
 
-  private async handleWorkoutUpdated(
-    workoutId:
-      string,
-  ) {
-    await this.whoopService.syncRecentHealth(
-      3,
-    );
+  private async handleWorkoutUpdated(workoutId: string) {
+    await this.whoopService.syncRecentHealth(3);
 
-    const workout =
-      await this.whoopService.getWorkoutById(
-        workoutId,
-      );
+    const workout = await this.whoopService.getWorkoutById(workoutId);
 
-    const isCurrent =
-      this.isIntervalActiveNow(
-        workout.start,
-        workout.end,
-      );
+    const isCurrent = this.isIntervalActiveNow(workout.start, workout.end);
 
     if (!isCurrent) {
       return;
     }
 
-    const canReplace =
-      await this.nowService.canAutomaticSourceReplaceCurrent();
+    const canReplace = await this.nowService.canAutomaticSourceReplaceCurrent();
 
     if (!canReplace) {
       return;
     }
 
-    const activityName =
-      this.resolveWorkoutName(
-        workout,
-      );
+    const activityName = this.resolveWorkoutName(workout);
 
-    const durationMinutes =
-      this.getDurationMinutes(
-        workout.start,
-        workout.end,
-      );
+    const durationMinutes = this.getDurationMinutes(workout.start, workout.end);
 
-    await this.nowService.create(
-      {
-        activityType:
-          NowActivityType.EXERCISING,
+    await this.nowService.create({
+      activityType: NowActivityType.EXERCISING,
 
-        activity:
-          activityName
-            ? `${activityName} workout`
-            : 'Working out',
+      activity: activityName ? `${activityName} workout` : 'Working out',
 
-        headline:
-          activityName
-            ? `Training · ${activityName}`
-            : 'Training',
+      headline: activityName ? `Training · ${activityName}` : 'Training',
 
-        currentFocus:
-          'Physical training',
+      currentFocus: 'Physical training',
 
-        availability:
-          NowAvailability.BUSY,
+      availability: NowAvailability.BUSY,
 
-        health: {
-          activity:
-            activityName ??
-            'Workout',
+      health: {
+        activity: activityName ?? 'Workout',
 
-          workoutDurationMinutes:
-            durationMinutes,
+        workoutDurationMinutes: durationMinutes,
 
-          strainScore:
-            this.numberOrUndefined(
-              workout.score
-                ?.strain,
-            ),
-        },
-
-        tags: [
-          'health',
-          'training',
-          'whoop',
-        ],
-
-        visibility:
-          NowVisibility.PUBLIC,
-
-        showLocation:
-          false,
-
-        showAvailability:
-          true,
-
-        showMood:
-          false,
-
-        showHealth:
-          true,
-
-        source:
-          NowSource.WHOOP,
-
-        sourceExternalId:
-          workoutId,
-
-        startedAt:
-          workout.start,
-
-        expiresAt:
-          workout.end,
-
-        lastActivityAt:
-          new Date().toISOString(),
-
-        metadata: {
-          whoopWorkoutId:
-            workoutId,
-
-          sportId:
-            workout.sport_id,
-        },
+        strainScore: this.numberOrUndefined(workout.score?.strain),
       },
-    );
+
+      tags: ['health', 'training', 'whoop'],
+
+      visibility: NowVisibility.PUBLIC,
+
+      showLocation: false,
+
+      showAvailability: true,
+
+      showMood: false,
+
+      showHealth: true,
+
+      source: NowSource.WHOOP,
+
+      sourceExternalId: workoutId,
+
+      startedAt: workout.start,
+
+      expiresAt: workout.end,
+
+      lastActivityAt: new Date().toISOString(),
+
+      metadata: {
+        whoopWorkoutId: workoutId,
+
+        sportId: workout.sport_id,
+      },
+    });
   }
 
-  private async handleSleepUpdated(
-    sleepId:
-      string,
-  ) {
-    await this.whoopService.syncRecentHealth(
-      3,
-    );
+  private async handleSleepUpdated(sleepId: string) {
+    await this.whoopService.syncRecentHealth(3);
 
-    const sleep =
-      await this.whoopService.getSleepById(
-        sleepId,
-      );
+    const sleep = await this.whoopService.getSleepById(sleepId);
 
-    if (
-      sleep.nap ===
-      true
-    ) {
+    if (sleep.nap === true) {
       return;
     }
 
-    const isCurrent =
-      this.isIntervalActiveNow(
-        sleep.start,
-        sleep.end,
-      );
+    const isCurrent = this.isIntervalActiveNow(sleep.start, sleep.end);
 
     if (!isCurrent) {
       return;
     }
 
-    const canReplace =
-      await this.nowService.canAutomaticSourceReplaceCurrent();
+    const canReplace = await this.nowService.canAutomaticSourceReplaceCurrent();
 
     if (!canReplace) {
       return;
     }
 
-    await this.nowService.create(
-      {
-        activityType:
-          NowActivityType.SLEEPING,
+    await this.nowService.create({
+      activityType: NowActivityType.SLEEPING,
 
-        activity:
-          'Sleeping',
+      activity: 'Sleeping',
 
-        headline:
-          'Offline · Sleeping',
+      headline: 'Offline · Sleeping',
 
-        currentFocus:
-          'Rest and recovery',
+      currentFocus: 'Rest and recovery',
 
-        availability:
-          NowAvailability.OFFLINE,
+      availability: NowAvailability.OFFLINE,
 
-        tags: [
-          'sleep',
-          'health',
-          'whoop',
-        ],
+      tags: ['sleep', 'health', 'whoop'],
 
-        visibility:
-          NowVisibility.PUBLIC,
+      visibility: NowVisibility.PUBLIC,
 
-        showLocation:
-          false,
+      showLocation: false,
 
-        showAvailability:
-          true,
+      showAvailability: true,
 
-        showMood:
-          false,
+      showMood: false,
 
-        showHealth:
-          true,
+      showHealth: true,
 
-        source:
-          NowSource.WHOOP,
+      source: NowSource.WHOOP,
 
-        sourceExternalId:
-          sleepId,
+      sourceExternalId: sleepId,
 
-        startedAt:
-          sleep.start,
+      startedAt: sleep.start,
 
-        expiresAt:
-          sleep.end,
+      expiresAt: sleep.end,
 
-        lastActivityAt:
-          new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
 
-        metadata: {
-          whoopSleepId:
-            sleepId,
-        },
+      metadata: {
+        whoopSleepId: sleepId,
       },
-    );
+    });
   }
 
   private async handleRecoveryUpdated() {
-    await this.whoopService.syncRecentHealth(
-      3,
-    );
+    await this.whoopService.syncRecentHealth(3);
 
     /**
      * Recovery changes the health
@@ -521,136 +332,74 @@ export class WhoopWebhookService {
      */
   }
 
-  private async handleDeletedEvent(
-    eventType:
-      WhoopWebhookEventType,
-  ) {
-    await this.whoopService.syncRecentHealth(
-      3,
-    );
+  private async handleDeletedEvent(eventType: WhoopWebhookEventType) {
+    await this.whoopService.syncRecentHealth(3);
 
-    this.logger.log(
-      `WHOOP deletion webhook processed: ${eventType}`,
-    );
+    this.logger.log(`WHOOP deletion webhook processed: ${eventType}`);
   }
 
   private validateSignature(
-    rawBody:
-      Buffer,
+    rawBody: Buffer,
 
-    signature?:
-      string,
+    signature?: string,
 
-    timestamp?:
-      string,
+    timestamp?: string,
   ) {
-    if (
-      !signature ||
-      !timestamp
-    ) {
+    if (!signature || !timestamp) {
       throw new UnauthorizedException(
         'WHOOP webhook signature headers are missing.',
       );
     }
 
-    const clientSecret =
-      this.configService.get<string>(
-        'WHOOP_CLIENT_SECRET',
-      );
+    const clientSecret = this.configService.get<string>('WHOOP_CLIENT_SECRET');
 
     if (!clientSecret) {
-      throw new UnauthorizedException(
-        'WHOOP_CLIENT_SECRET is not configured.',
-      );
+      throw new UnauthorizedException('WHOOP_CLIENT_SECRET is not configured.');
     }
 
-    const signedContent =
-      Buffer.concat([
-        Buffer.from(
-          timestamp,
-          'utf8',
-        ),
+    const signedContent = Buffer.concat([
+      Buffer.from(timestamp, 'utf8'),
 
-        rawBody,
-      ]);
+      rawBody,
+    ]);
 
-    const expectedSignature =
-      createHmac(
-        'sha256',
-        clientSecret,
-      )
-        .update(
-          signedContent,
-        )
-        .digest(
-          'base64',
-        );
+    const expectedSignature = createHmac('sha256', clientSecret)
+      .update(signedContent)
+      .digest('base64');
 
-    const expectedBuffer =
-      Buffer.from(
-        expectedSignature,
-        'utf8',
-      );
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
 
-    const providedBuffer =
-      Buffer.from(
-        signature,
-        'utf8',
-      );
+    const providedBuffer = Buffer.from(signature, 'utf8');
 
-    if (
-      expectedBuffer.length !==
-      providedBuffer.length
-    ) {
-      throw new UnauthorizedException(
-        'Invalid WHOOP webhook signature.',
-      );
+    if (expectedBuffer.length !== providedBuffer.length) {
+      throw new UnauthorizedException('Invalid WHOOP webhook signature.');
     }
 
-    const valid =
-      timingSafeEqual(
-        expectedBuffer,
-        providedBuffer,
-      );
+    const valid = timingSafeEqual(expectedBuffer, providedBuffer);
 
     if (!valid) {
-      throw new UnauthorizedException(
-        'Invalid WHOOP webhook signature.',
-      );
+      throw new UnauthorizedException('Invalid WHOOP webhook signature.');
     }
   }
 
   private isIntervalActiveNow(
-    startValue?:
-      string,
+    startValue?: string,
 
-    endValue?:
-      string,
+    endValue?: string,
   ) {
     if (!startValue) {
       return false;
     }
 
-    const now =
-      Date.now();
+    const now = Date.now();
 
-    const start =
-      new Date(
-        startValue,
-      ).getTime();
+    const start = new Date(startValue).getTime();
 
-    if (
-      Number.isNaN(
-        start,
-      )
-    ) {
+    if (Number.isNaN(start)) {
       return false;
     }
 
-    if (
-      start >
-      now
-    ) {
+    if (start > now) {
       return false;
     }
 
@@ -658,105 +407,52 @@ export class WhoopWebhookService {
       return true;
     }
 
-    const end =
-      new Date(
-        endValue,
-      ).getTime();
+    const end = new Date(endValue).getTime();
 
-    if (
-      Number.isNaN(
-        end,
-      )
-    ) {
+    if (Number.isNaN(end)) {
       return false;
     }
 
-    return (
-      start <= now &&
-      end >= now
-    );
+    return start <= now && end >= now;
   }
 
   private getDurationMinutes(
-    startValue?:
-      string,
+    startValue?: string,
 
-    endValue?:
-      string,
+    endValue?: string,
   ) {
-    if (
-      !startValue ||
-      !endValue
-    ) {
+    if (!startValue || !endValue) {
       return undefined;
     }
 
-    const start =
-      new Date(
-        startValue,
-      ).getTime();
+    const start = new Date(startValue).getTime();
 
-    const end =
-      new Date(
-        endValue,
-      ).getTime();
+    const end = new Date(endValue).getTime();
 
-    if (
-      Number.isNaN(
-        start,
-      ) ||
-      Number.isNaN(
-        end,
-      ) ||
-      end <= start
-    ) {
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) {
       return undefined;
     }
 
-    return Number(
-      (
-        (end -
-          start) /
-        60000
-      ).toFixed(
-        2,
-      ),
-    );
+    return Number(((end - start) / 60000).toFixed(2));
   }
 
-  private resolveWorkoutName(
-    workout: {
-      sport_name?: string;
-      sport_id?: number;
-    },
-  ) {
-    if (
-      workout.sport_name
-    ) {
+  private resolveWorkoutName(workout: {
+    sport_name?: string;
+    sport_id?: number;
+  }) {
+    if (workout.sport_name) {
       return workout.sport_name;
     }
 
-    if (
-      workout.sport_id !==
-      undefined
-    ) {
+    if (workout.sport_id !== undefined) {
       return `Sport ${workout.sport_id}`;
     }
 
     return undefined;
   }
 
-  private numberOrUndefined(
-    value:
-      unknown,
-  ) {
-    if (
-      typeof value !==
-        'number' ||
-      !Number.isFinite(
-        value,
-      )
-    ) {
+  private numberOrUndefined(value: unknown) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
       return undefined;
     }
 

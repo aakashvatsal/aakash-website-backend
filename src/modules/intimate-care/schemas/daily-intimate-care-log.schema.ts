@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 import {
   IntimateCareApplicationArea,
@@ -122,8 +118,9 @@ export class IntimateCareRoutineItem {
   notes?: string;
 }
 
-export const IntimateCareRoutineItemSchema =
-  SchemaFactory.createForClass(IntimateCareRoutineItem);
+export const IntimateCareRoutineItemSchema = SchemaFactory.createForClass(
+  IntimateCareRoutineItem,
+);
 
 @Schema({ _id: false })
 export class IntimateCareObservation {
@@ -225,8 +222,9 @@ export class IntimateCareObservation {
   notes?: string;
 }
 
-export const IntimateCareObservationSchema =
-  SchemaFactory.createForClass(IntimateCareObservation);
+export const IntimateCareObservationSchema = SchemaFactory.createForClass(
+  IntimateCareObservation,
+);
 
 @Schema({ _id: false })
 export class IntimateCareHygieneData {
@@ -267,8 +265,9 @@ export class IntimateCareHygieneData {
   notes?: string;
 }
 
-export const IntimateCareHygieneDataSchema =
-  SchemaFactory.createForClass(IntimateCareHygieneData);
+export const IntimateCareHygieneDataSchema = SchemaFactory.createForClass(
+  IntimateCareHygieneData,
+);
 
 @Schema({
   timestamps: true,
@@ -276,16 +275,7 @@ export const IntimateCareHygieneDataSchema =
 })
 export class DailyIntimateCareLog {
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
     required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
-    required: true,
-    index: true,
   })
   date: Date;
 
@@ -350,7 +340,6 @@ export const DailyIntimateCareLogSchema =
 
 DailyIntimateCareLogSchema.index(
   {
-    userId: 1,
     date: 1,
   },
   {
@@ -359,7 +348,6 @@ DailyIntimateCareLogSchema.index(
 );
 
 DailyIntimateCareLogSchema.index({
-  userId: 1,
   adherencePercentage: 1,
   date: -1,
 });

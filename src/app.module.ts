@@ -24,8 +24,17 @@ import { IntimateCareModule } from './modules/intimate-care/intimate-care.module
 import { MeditationModule } from './modules/meditation/meditation.module';
 import { ProductsModule } from './modules/products/products.module';
 import { NowModule } from './modules/now/now.module';
-import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { RemindersModule } from './modules/reminders/reminders.module';
+import { BrainDumpModule } from './modules/brain-dump/brain-dump.module';
 import { HsakaaModule } from './hsakaa/hsakaa.module';
+import { SystemModule } from './modules/system/system.module';
+import { KnowledgeGraphModule } from './modules/knowledge-graph/knowledge-graph.module';
+import { UniversalSearchModule } from './modules/universal-search/universal-search.module';
+import { ContextEngineModule } from './modules/context-engine/context-engine.module';
+import { ProactiveModule } from './modules/proactive/proactive.module';
+import { ReleaseHardeningModule } from './modules/release-hardening/release-hardening.module';
+import { ProductionOpsModule } from './modules/production-ops/production-ops.module';
 
 @Module({
   imports: [
@@ -63,8 +72,19 @@ import { HsakaaModule } from './hsakaa/hsakaa.module';
     MeditationModule,
     ProductsModule,
     NowModule,
-    AdminDashboardModule,
+    DashboardModule,
+    RemindersModule,
+    BrainDumpModule,
     HsakaaModule,
+    SystemModule,
+    KnowledgeGraphModule,
+    UniversalSearchModule,
+    ContextEngineModule,
+    ProactiveModule,
+    ReleaseHardeningModule,
+    ProductionOpsModule,
   ],
+
+  providers: [],
 })
 export class AppModule {}

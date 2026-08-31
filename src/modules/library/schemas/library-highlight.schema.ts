@@ -1,26 +1,14 @@
-import {
-  Prop,
-  Schema,
-  SchemaFactory,
-} from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-import {
-  LibraryItemSource,
-} from './library-item.schema';
+import { LibraryItemSource } from './library-item.schema';
 
-export type LibraryHighlightDocument =
-  HydratedDocument<LibraryHighlight>;
+export type LibraryHighlightDocument = HydratedDocument<LibraryHighlight>;
 
 export enum LibraryHighlightType {
   HIGHLIGHT = 'highlight',
   NOTE = 'note',
-  HIGHLIGHT_WITH_NOTE =
-    'highlight_with_note',
+  HIGHLIGHT_WITH_NOTE = 'highlight_with_note',
 }
 
 @Schema({
@@ -61,8 +49,7 @@ export class LibraryHighlight {
   @Prop({
     type: String,
     enum: LibraryHighlightType,
-    default:
-      LibraryHighlightType.HIGHLIGHT,
+    default: LibraryHighlightType.HIGHLIGHT,
     index: true,
   })
   type: LibraryHighlightType;
@@ -126,8 +113,7 @@ export class LibraryHighlight {
   @Prop({
     type: String,
     enum: LibraryItemSource,
-    default:
-      LibraryItemSource.APPLE_BOOKS,
+    default: LibraryItemSource.APPLE_BOOKS,
     index: true,
   })
   source: LibraryItemSource;
@@ -174,9 +160,7 @@ export class LibraryHighlight {
 }
 
 export const LibraryHighlightSchema =
-  SchemaFactory.createForClass(
-    LibraryHighlight,
-  );
+  SchemaFactory.createForClass(LibraryHighlight);
 
 LibraryHighlightSchema.index(
   {

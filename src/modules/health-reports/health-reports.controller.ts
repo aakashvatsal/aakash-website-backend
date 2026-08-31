@@ -16,37 +16,21 @@ import { HealthReportType } from './schemas/health-report.schema';
 
 @Controller('health-reports')
 export class HealthReportsController {
-  constructor(
-    private readonly healthReportsService: HealthReportsService,
-  ) {}
+  constructor(private readonly healthReportsService: HealthReportsService) {}
 
   @Post('generate')
-  generate(
-    @Body() dto: GenerateHealthReportDto,
-  ) {
+  generate(@Body() dto: GenerateHealthReportDto) {
     return this.healthReportsService.generateReport(dto);
   }
 
   @Get()
-  findAll(
-    @Query('userId') userId: string,
-    @Query('reportType') reportType?: HealthReportType,
-  ) {
-    return this.healthReportsService.findAll(
-      userId,
-      reportType,
-    );
+  findAll(@Query('reportType') reportType?: HealthReportType) {
+    return this.healthReportsService.findAll(reportType);
   }
 
   @Get(':reportId')
-  findOne(
-    @Param('reportId') reportId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.healthReportsService.findOne(
-      reportId,
-      userId,
-    );
+  findOne(@Param('reportId') reportId: string) {
+    return this.healthReportsService.findOne(reportId);
   }
 
   @Patch(':reportId/recommendations/:recommendationIndex')
@@ -54,25 +38,17 @@ export class HealthReportsController {
     @Param('reportId') reportId: string,
     @Param('recommendationIndex')
     recommendationIndex: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateRecommendationDto,
   ) {
     return this.healthReportsService.updateRecommendation(
       reportId,
-      userId,
       Number(recommendationIndex),
       dto,
     );
   }
 
   @Delete(':reportId')
-  remove(
-    @Param('reportId') reportId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.healthReportsService.remove(
-      reportId,
-      userId,
-    );
+  remove(@Param('reportId') reportId: string) {
+    return this.healthReportsService.remove(reportId);
   }
 }

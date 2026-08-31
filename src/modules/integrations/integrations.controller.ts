@@ -8,43 +8,47 @@ import {
   Req,
 } from '@nestjs/common';
 
-import type {
-  RawBodyRequest,
-} from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
 
-import type {
-  Request,
-} from 'express';
+import type { Request } from 'express';
 
-import {
-  WhoopWebhookDto,
-} from './whoop/dto/whoop-webhook.dto';
+import { Public } from '../../common/decorators/public.decorator';
 
-import {
-  WhoopService,
-} from './whoop/whoop.service';
+import { IntegrationsService } from './integrations.service';
 
-import {
-  WhoopWebhookService,
-} from './whoop/whoop-webhook.service';
+import { WhoopWebhookDto } from './whoop/dto/whoop-webhook.dto';
+
+import { WhoopService } from './whoop/whoop.service';
+
+import { WhoopWebhookService } from './whoop/whoop-webhook.service';
 
 @Controller('integrations')
 export class IntegrationsController {
   constructor(
-    private readonly whoopService:
-      WhoopService,
+    private readonly integrationsService: IntegrationsService,
 
-    private readonly whoopWebhookService:
-      WhoopWebhookService,
+    private readonly whoopService: WhoopService,
+
+    private readonly whoopWebhookService: WhoopWebhookService,
   ) {}
+
+  @Get('overview')
+  getOverview() {
+    return this.integrationsService.getOverview();
+  }
+
+  @Get('media-analytics/status')
+  getMediaAnalyticsStatus() {
+    return this.integrationsService.getMediaAnalyticsStatus();
+  }
 
   @Get('whoop/connect')
   getWhoopConnectUrl() {
-    return this.whoopService
-      .getAuthorizationUrl();
+    return this.whoopService.getAuthorizationUrl();
   }
 
   @Get('whoop/callback')
+  @Public()
   whoopCallback(
     @Query('code')
     code?: string,
@@ -55,24 +59,20 @@ export class IntegrationsController {
     @Query('error')
     error?: string,
 
-    @Query(
-      'error_description',
-    )
+    @Query('error_description')
     errorDescription?: string,
   ) {
-    return this.whoopService
-      .handleCallback(
-        code,
-        state,
-        error,
-        errorDescription,
-      );
+    return this.whoopService.handleCallback(
+      code,
+      state,
+      error,
+      errorDescription,
+    );
   }
 
   @Get('whoop/status')
   getWhoopStatus() {
-    return this.whoopService
-      .getStatus();
+    return this.whoopService.getStatus();
   }
 
   /**
@@ -86,11 +86,10 @@ export class IntegrationsController {
     @Query('endDate')
     endDate?: string,
   ) {
-    return this.whoopService
-      .syncHealth({
-        startDate,
-        endDate,
-      });
+    return this.whoopService.syncHealth({
+      startDate,
+      endDate,
+    });
   }
 
   /**
@@ -98,32 +97,20 @@ export class IntegrationsController {
    *
    * Useful for manual testing.
    */
-  @Post(
-    'whoop/sync/recent',
-  )
+  @Post('whoop/sync/recent')
   syncRecentWhoop(
     @Query('days')
     days?: string,
   ) {
-    const numberOfDays =
-      days
-        ? Number(
-            days,
-          )
-        : 3;
+    const numberOfDays = days ? Number(days) : 3;
 
-    return this.whoopService
-      .syncRecentHealth(
-        numberOfDays,
-      );
+    return this.whoopService.syncRecentHealth(numberOfDays);
   }
 
   /**
    * One-time historical import.
    */
-  @Post(
-    'whoop/backfill',
-  )
+  @Post('whoop/backfill')
   backfillWhoop(
     @Query('startDate')
     startDate: string,
@@ -131,11 +118,7 @@ export class IntegrationsController {
     @Query('endDate')
     endDate: string,
   ) {
-    return this.whoopService
-      .backfillHealth(
-        startDate,
-        endDate,
-      );
+    return this.whoopService.backfillHealth(startDate, endDate);
   }
 
   /**
@@ -149,44 +132,32 @@ export class IntegrationsController {
    * - recovery.updated
    * - recovery.deleted
    */
-  @Post(
-    'whoop/webhook',
-  )
+  @Post('whoop/webhook')
+  @Public()
   receiveWhoopWebhook(
     @Body()
-    dto:
-      WhoopWebhookDto,
+    dto: WhoopWebhookDto,
 
     @Req()
-    request:
-      RawBodyRequest<Request>,
+    request: RawBodyRequest<Request>,
 
-    @Headers(
-      'x-whoop-signature',
-    )
-    signature?:
-      string,
+    @Headers('x-whoop-signature')
+    signature?: string,
 
-    @Headers(
-      'x-whoop-signature-timestamp',
-    )
-    timestamp?:
-      string,
+    @Headers('x-whoop-signature-timestamp')
+    timestamp?: string,
   ) {
-    if (
-      !request.rawBody
-    ) {
+    if (!request.rawBody) {
       throw new Error(
         'Raw request body is unavailable. Enable rawBody in NestFactory.',
       );
     }
 
-    return this.whoopWebhookService
-      .acceptWebhook(
-        dto,
-        request.rawBody,
-        signature,
-        timestamp,
-      );
+    return this.whoopWebhookService.acceptWebhook(
+      dto,
+      request.rawBody,
+      signature,
+      timestamp,
+    );
   }
 }

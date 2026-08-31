@@ -54,9 +54,6 @@ class SkincareScheduleDto {
 
 export class CreateSkincareProductDto {
   @IsString()
-  userId: string;
-
-  @IsString()
   name: string;
 
   @IsOptional()

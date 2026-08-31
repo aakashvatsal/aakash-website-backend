@@ -15,57 +15,36 @@ import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { UpdateProductStatusDto } from './dto/update-product-status.dto';
 import { UpdateProductUsageDto } from './dto/update-product-usage.dto';
-import {
-  RecommendationStatus,
-} from './schemas/product-recommendation.schema';
+import { RecommendationStatus } from './schemas/product-recommendation.schema';
 import { ProductsService } from './products.service';
 
 @Controller('products')
 export class ProductsController {
-  constructor(
-    private readonly productsService:
-      ProductsService,
-  ) {}
+  constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  create(
-    @Body() dto: CreateProductDto,
-  ) {
+  create(@Body() dto: CreateProductDto) {
     return this.productsService.create(dto);
   }
 
   @Get()
-  findAll(
-    @Query() query: ProductQueryDto,
-  ) {
+  findAll(@Query() query: ProductQueryDto) {
     return this.productsService.findAll(query);
   }
 
   @Get('current')
-  findCurrentProducts(
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.findCurrentProducts(
-      userId,
-    );
+  findCurrentProducts() {
+    return this.productsService.findCurrentProducts();
   }
 
   @Get('what-to-buy-next')
-  getWhatToBuyNext(
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.getWhatToBuyNext(
-      userId,
-    );
+  getWhatToBuyNext() {
+    return this.productsService.getWhatToBuyNext();
   }
 
   @Patch('refresh-statuses')
-  refreshAutomaticStatuses(
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.refreshAutomaticStatuses(
-      userId,
-    );
+  refreshAutomaticStatuses() {
+    return this.productsService.refreshAutomaticStatuses();
   }
 
   @Post('recommendations')
@@ -73,30 +52,21 @@ export class ProductsController {
     @Body()
     dto: CreateProductRecommendationDto,
   ) {
-    return this.productsService.createRecommendation(
-      dto,
-    );
+    return this.productsService.createRecommendation(dto);
   }
 
   @Get('recommendations')
   getRecommendations(
-    @Query('userId') userId: string,
     @Query('status')
     status?: RecommendationStatus,
   ) {
-    return this.productsService.getRecommendations(
-      userId,
-      status,
-    );
+    return this.productsService.getRecommendations(status);
   }
 
-  @Patch(
-    'recommendations/:recommendationId/status',
-  )
+  @Patch('recommendations/:recommendationId/status')
   updateRecommendationStatus(
     @Param('recommendationId')
     recommendationId: string,
-    @Query('userId') userId: string,
     @Body()
     body: {
       status: RecommendationStatus;
@@ -105,141 +75,75 @@ export class ProductsController {
   ) {
     return this.productsService.updateRecommendationStatus(
       recommendationId,
-      userId,
       body.status,
       body.reason,
     );
   }
 
   @Get(':productId')
-  findOne(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.findOne(
-      productId,
-      userId,
-    );
+  findOne(@Param('productId') productId: string) {
+    return this.productsService.findOne(productId);
   }
 
   @Patch(':productId')
-  update(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-    @Body() dto: UpdateProductDto,
-  ) {
-    return this.productsService.update(
-      productId,
-      userId,
-      dto,
-    );
+  update(@Param('productId') productId: string, @Body() dto: UpdateProductDto) {
+    return this.productsService.update(productId, dto);
   }
 
   @Patch(':productId/usage')
   updateUsage(
     @Param('productId') productId: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateProductUsageDto,
   ) {
-    return this.productsService.updateUsage(
-      productId,
-      userId,
-      dto,
-    );
+    return this.productsService.updateUsage(productId, dto);
   }
 
   @Patch(':productId/consume')
   consumeProduct(
     @Param('productId') productId: string,
-    @Query('userId') userId: string,
     @Body()
     body: {
       quantityUsed: number;
     },
   ) {
-    return this.productsService.consumeProduct(
-      productId,
-      userId,
-      body.quantityUsed,
-    );
+    return this.productsService.consumeProduct(productId, body.quantityUsed);
   }
 
   @Patch(':productId/status')
   updateStatus(
     @Param('productId') productId: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateProductStatusDto,
   ) {
-    return this.productsService.updateStatus(
-      productId,
-      userId,
-      dto,
-    );
+    return this.productsService.updateStatus(productId, dto);
   }
 
   @Patch(':productId/low')
-  markLow(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.markLow(
-      productId,
-      userId,
-    );
+  markLow(@Param('productId') productId: string) {
+    return this.productsService.markLow(productId);
   }
 
   @Patch(':productId/finished')
-  markFinished(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.markFinished(
-      productId,
-      userId,
-    );
+  markFinished(@Param('productId') productId: string) {
+    return this.productsService.markFinished(productId);
   }
 
   @Patch(':productId/favourite/toggle')
-  toggleFavourite(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.toggleFavourite(
-      productId,
-      userId,
-    );
+  toggleFavourite(@Param('productId') productId: string) {
+    return this.productsService.toggleFavourite(productId);
   }
 
   @Patch(':productId/archive')
-  archive(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.archive(
-      productId,
-      userId,
-    );
+  archive(@Param('productId') productId: string) {
+    return this.productsService.archive(productId);
   }
 
   @Patch(':productId/restore')
-  restore(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.restore(
-      productId,
-      userId,
-    );
+  restore(@Param('productId') productId: string) {
+    return this.productsService.restore(productId);
   }
 
   @Delete(':productId')
-  remove(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.productsService.remove(
-      productId,
-      userId,
-    );
+  remove(@Param('productId') productId: string) {
+    return this.productsService.remove(productId);
   }
 }

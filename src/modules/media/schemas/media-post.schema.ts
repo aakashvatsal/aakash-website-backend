@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type MediaPostDocument = HydratedDocument<MediaPost>;
 
@@ -14,6 +10,7 @@ export enum MediaPlatform {
   X = 'x',
   FACEBOOK = 'facebook',
   THREADS = 'threads',
+  WHATSAPP = 'whatsapp',
 }
 
 export enum MediaPostType {
@@ -26,6 +23,10 @@ export enum MediaPostType {
   STORY = 'story',
   ARTICLE = 'article',
   POLL = 'poll',
+  THREAD = 'thread',
+  WHATSAPP_MESSAGE = 'whatsapp_message',
+  WHATSAPP_STATUS = 'whatsapp_status',
+  WHATSAPP_TEMPLATE = 'whatsapp_template',
 }
 
 export enum MediaPostStatus {
@@ -109,8 +110,7 @@ export class MediaStrategy {
   hypothesis?: string;
 }
 
-export const MediaStrategySchema =
-  SchemaFactory.createForClass(MediaStrategy);
+export const MediaStrategySchema = SchemaFactory.createForClass(MediaStrategy);
 
 @Schema({ _id: false })
 export class MediaContent {
@@ -163,8 +163,7 @@ export class MediaContent {
   cta?: string;
 }
 
-export const MediaContentSchema =
-  SchemaFactory.createForClass(MediaContent);
+export const MediaContentSchema = SchemaFactory.createForClass(MediaContent);
 
 @Schema({ _id: false })
 export class MediaCreative {
@@ -234,8 +233,7 @@ export class MediaCreative {
   permissionNotes?: string;
 }
 
-export const MediaCreativeSchema =
-  SchemaFactory.createForClass(MediaCreative);
+export const MediaCreativeSchema = SchemaFactory.createForClass(MediaCreative);
 
 @Schema({ _id: false })
 export class MediaPublishing {
@@ -293,8 +291,9 @@ export class MediaExpectationMetric {
   unit?: string;
 }
 
-export const MediaExpectationMetricSchema =
-  SchemaFactory.createForClass(MediaExpectationMetric);
+export const MediaExpectationMetricSchema = SchemaFactory.createForClass(
+  MediaExpectationMetric,
+);
 
 @Schema({ _id: false })
 export class MediaExpectation {
@@ -354,8 +353,7 @@ export class MediaOutcome {
   evaluatedAt?: Date;
 }
 
-export const MediaOutcomeSchema =
-  SchemaFactory.createForClass(MediaOutcome);
+export const MediaOutcomeSchema = SchemaFactory.createForClass(MediaOutcome);
 
 @Schema({ _id: false })
 export class MediaAnalyticsSync {
@@ -386,14 +384,6 @@ export const MediaAnalyticsSyncSchema =
   collection: 'media_posts',
 })
 export class MediaPost {
-  // @Prop({
-  //   type: SchemaTypes.ObjectId,
-  //   ref: 'User',
-  //   required: true,
-  //   index: true,
-  // })
-  // userId: Types.ObjectId;
-
   @Prop({
     type: SchemaTypes.ObjectId,
     ref: 'Company',
@@ -485,29 +475,24 @@ export class MediaPost {
   isActive: boolean;
 }
 
-export const MediaPostSchema =
-  SchemaFactory.createForClass(MediaPost);
+export const MediaPostSchema = SchemaFactory.createForClass(MediaPost);
 
 MediaPostSchema.index({
-  userId: 1,
   date: -1,
 });
 
 MediaPostSchema.index({
-  userId: 1,
   platform: 1,
   'publishing.status': 1,
   date: -1,
 });
 
 MediaPostSchema.index({
-  userId: 1,
   companyId: 1,
   date: -1,
 });
 
 MediaPostSchema.index({
-  userId: 1,
   'strategy.contentPillar': 1,
   date: -1,
 });

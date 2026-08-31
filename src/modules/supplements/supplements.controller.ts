@@ -18,9 +18,7 @@ import { SupplementsService } from './supplements.service';
 
 @Controller('supplements')
 export class SupplementsController {
-  constructor(
-    private readonly supplementsService: SupplementsService,
-  ) {}
+  constructor(private readonly supplementsService: SupplementsService) {}
 
   @Post()
   create(@Body() dto: CreateSupplementDto) {
@@ -28,56 +26,35 @@ export class SupplementsController {
   }
 
   @Get()
-  findAll(
-    @Query('userId') userId: string,
-    @Query('status') status?: SupplementStatus,
-  ) {
-    return this.supplementsService.findAll(userId, status);
+  findAll(@Query('status') status?: SupplementStatus) {
+    return this.supplementsService.findAll(status);
   }
 
   @Get('logs')
   getLogs(
-    @Query('userId') userId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ) {
-    return this.supplementsService.getLogs(
-      userId,
-      startDate,
-      endDate,
-    );
+    return this.supplementsService.getLogs(startDate, endDate);
   }
 
   @Get('logs/daily')
-  getDailyLog(
-    @Query('userId') userId: string,
-    @Query('date') date: string,
-  ) {
-    return this.supplementsService.getDailyLog(
-      userId,
-      date,
-    );
+  getDailyLog(@Query('date') date: string) {
+    return this.supplementsService.getDailyLog(date);
   }
 
   @Post('logs/generate')
-  generateDailyLog(
-    @Body() dto: GenerateDailySupplementLogDto,
-  ) {
-    return this.supplementsService.generateDailyLog(
-      dto.userId,
-      dto.date,
-    );
+  generateDailyLog(@Body() dto: GenerateDailySupplementLogDto) {
+    return this.supplementsService.generateDailyLog(dto.date);
   }
 
   @Patch('logs/:logId/items/:itemIndex')
   updateSupplementLogItem(
     @Param('logId') logId: string,
     @Param('itemIndex') itemIndex: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateSupplementLogItemDto,
   ) {
     return this.supplementsService.updateSupplementLogItem(
-      userId,
       logId,
       Number(itemIndex),
       dto,
@@ -85,48 +62,25 @@ export class SupplementsController {
   }
 
   @Patch('logs/mark-missed')
-  markPendingAsMissed(
-    @Query('userId') userId: string,
-    @Query('date') date: string,
-  ) {
-    return this.supplementsService.markPendingAsMissed(
-      userId,
-      date,
-    );
+  markPendingAsMissed(@Query('date') date: string) {
+    return this.supplementsService.markPendingAsMissed(date);
   }
 
   @Get(':supplementId')
-  findOne(
-    @Param('supplementId') supplementId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.supplementsService.findOne(
-      supplementId,
-      userId,
-    );
+  findOne(@Param('supplementId') supplementId: string) {
+    return this.supplementsService.findOne(supplementId);
   }
 
   @Patch(':supplementId')
   update(
     @Param('supplementId') supplementId: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateSupplementDto,
   ) {
-    return this.supplementsService.update(
-      supplementId,
-      userId,
-      dto,
-    );
+    return this.supplementsService.update(supplementId, dto);
   }
 
   @Delete(':supplementId')
-  remove(
-    @Param('supplementId') supplementId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.supplementsService.remove(
-      supplementId,
-      userId,
-    );
+  remove(@Param('supplementId') supplementId: string) {
+    return this.supplementsService.remove(supplementId);
   }
 }

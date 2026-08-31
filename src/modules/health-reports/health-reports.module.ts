@@ -1,10 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
-import {
-  DietEntry,
-  DietEntrySchema,
-} from '../diet/schemas/diet-entry.schema';
+import { DietEntry, DietEntrySchema } from '../diet/schemas/diet-entry.schema';
 import {
   HealthEntry,
   HealthEntrySchema,

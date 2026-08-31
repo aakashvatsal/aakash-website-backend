@@ -6,11 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import {
-  QueryFilter,
-  Model,
-  Types,
-} from 'mongoose';
+import { QueryFilter, Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 
 import { ChangeEmailDto } from './dto/change-email.dto';
@@ -19,10 +15,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserQueryDto } from './dto/user-query.dto';
-import {
-  User,
-  UserDocument,
-} from './schemas/user.schema';
+import { User, UserDocument } from './schemas/user.schema';
 
 @Injectable()
 export class UsersService {
@@ -41,9 +34,7 @@ export class UsersService {
     });
 
     if (existing) {
-      throw new ConflictException(
-        'An account with this email already exists.',
-      );
+      throw new ConflictException('An account with this email already exists.');
     }
 
     const hashedPassword = await bcrypt.hash(
@@ -74,20 +65,13 @@ export class UsersService {
       .select('+password');
 
     if (!user) {
-      throw new UnauthorizedException(
-        'Invalid email or password.',
-      );
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
-    const passwordMatches = await bcrypt.compare(
-      dto.password,
-      user.password,
-    );
+    const passwordMatches = await bcrypt.compare(dto.password, user.password);
 
     if (!passwordMatches) {
-      throw new UnauthorizedException(
-        'Invalid email or password.',
-      );
+      throw new UnauthorizedException('Invalid email or password.');
     }
 
     user.lastLoginAt = new Date();
@@ -99,10 +83,7 @@ export class UsersService {
 
   async findAll(query: UserQueryDto) {
     const page = Math.max(query.page || 1, 1);
-    const limit = Math.min(
-      Math.max(query.limit || 20, 1),
-      100,
-    );
+    const limit = Math.min(Math.max(query.limit || 20, 1), 100);
 
     const filter: QueryFilter<UserDocument> = {};
 
@@ -115,14 +96,11 @@ export class UsersService {
     }
 
     if (query.isEmailVerified !== undefined) {
-      filter.isEmailVerified =
-        query.isEmailVerified;
+      filter.isEmailVerified = query.isEmailVerified;
     }
 
     if (query.search?.trim()) {
-      const search = this.escapeRegex(
-        query.search.trim(),
-      );
+      const search = this.escapeRegex(query.search.trim());
 
       filter.$or = [
         {
@@ -178,9 +156,7 @@ export class UsersService {
       .lean();
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
     return user;
@@ -198,17 +174,13 @@ export class UsersService {
       .lean();
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
     return user;
   }
 
-  async findByEmailWithPassword(
-    emailValue: string,
-  ) {
+  async findByEmailWithPassword(emailValue: string) {
     const email = this.normalizeEmail(emailValue);
 
     return this.userModel
@@ -220,10 +192,7 @@ export class UsersService {
       .select('+password');
   }
 
-  async update(
-    userId: string,
-    dto: UpdateUserDto,
-  ) {
+  async update(userId: string, dto: UpdateUserDto) {
     this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {
@@ -252,18 +221,13 @@ export class UsersService {
       .lean();
 
     if (!updated) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
     return updated;
   }
 
-  async changePassword(
-    userId: string,
-    dto: ChangePasswordDto,
-  ) {
+  async changePassword(userId: string, dto: ChangePasswordDto) {
     this.validateObjectId(userId, 'user ID');
 
     if (dto.currentPassword === dto.newPassword) {
@@ -281,9 +245,7 @@ export class UsersService {
       .select('+password');
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
     const passwordMatches = await bcrypt.compare(
@@ -292,15 +254,10 @@ export class UsersService {
     );
 
     if (!passwordMatches) {
-      throw new UnauthorizedException(
-        'Current password is incorrect.',
-      );
+      throw new UnauthorizedException('Current password is incorrect.');
     }
 
-    user.password = await bcrypt.hash(
-      dto.newPassword,
-      this.passwordSaltRounds,
-    );
+    user.password = await bcrypt.hash(dto.newPassword, this.passwordSaltRounds);
 
     user.passwordChangedAt = new Date();
 
@@ -311,10 +268,7 @@ export class UsersService {
     };
   }
 
-  async changeEmail(
-    userId: string,
-    dto: ChangeEmailDto,
-  ) {
+  async changeEmail(userId: string, dto: ChangeEmailDto) {
     this.validateObjectId(userId, 'user ID');
 
     const user = await this.userModel
@@ -326,20 +280,13 @@ export class UsersService {
       .select('+password');
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
-    const passwordMatches = await bcrypt.compare(
-      dto.password,
-      user.password,
-    );
+    const passwordMatches = await bcrypt.compare(dto.password, user.password);
 
     if (!passwordMatches) {
-      throw new UnauthorizedException(
-        'Password is incorrect.',
-      );
+      throw new UnauthorizedException('Password is incorrect.');
     }
 
     const email = this.normalizeEmail(dto.email);
@@ -358,9 +305,7 @@ export class UsersService {
     });
 
     if (duplicate) {
-      throw new ConflictException(
-        'An account with this email already exists.',
-      );
+      throw new ConflictException('An account with this email already exists.');
     }
 
     user.email = email;
@@ -396,9 +341,7 @@ export class UsersService {
       .lean();
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
     return user;
@@ -442,9 +385,7 @@ export class UsersService {
       .lean();
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
     return {
@@ -474,9 +415,7 @@ export class UsersService {
       .lean();
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found or already active.',
-      );
+      throw new NotFoundException('User not found or already active.');
     }
 
     return user;
@@ -504,9 +443,7 @@ export class UsersService {
       .lean();
 
     if (!user) {
-      throw new NotFoundException(
-        'User not found.',
-      );
+      throw new NotFoundException('User not found.');
     }
 
     return {
@@ -536,9 +473,7 @@ export class UsersService {
       .lean();
 
     if (!user) {
-      throw new NotFoundException(
-        'Archived user not found.',
-      );
+      throw new NotFoundException('Archived user not found.');
     }
 
     return user;
@@ -548,13 +483,8 @@ export class UsersService {
     return this.archive(userId);
   }
 
-  private sanitizeUser(
-    user: Record<string, any>,
-  ) {
-    const {
-      password,
-      ...safeUser
-    } = user;
+  private sanitizeUser(user: Record<string, any>) {
+    const { password, ...safeUser } = user;
 
     return safeUser;
   }
@@ -564,20 +494,12 @@ export class UsersService {
   }
 
   private escapeRegex(value: string) {
-    return value.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      '\\$&',
-    );
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ) {
+  private validateObjectId(value: string, fieldName: string) {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
   }
 }

@@ -7,7 +7,9 @@ describe('IntegrationsService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [IntegrationsService],
-    }).compile();
+    })
+      .useMocker(() => ({ get: jest.fn() }))
+      .compile();
 
     service = module.get<IntegrationsService>(IntegrationsService);
   });

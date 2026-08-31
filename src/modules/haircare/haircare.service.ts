@@ -4,10 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import {
-  Model,
-  Types,
-} from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import { CreateHaircareProductDto } from './dto/create-haircare-product.dto';
 import { UpdateHairObservationDto } from './dto/update-hair-observation.dto';
@@ -30,22 +27,15 @@ import {
 export class HaircareService {
   constructor(
     @InjectModel(HaircareProduct.name)
-    private readonly haircareProductModel:
-      Model<HaircareProductDocument>,
+    private readonly haircareProductModel: Model<HaircareProductDocument>,
 
     @InjectModel(DailyHaircareLog.name)
-    private readonly dailyHaircareLogModel:
-      Model<DailyHaircareLogDocument>,
+    private readonly dailyHaircareLogModel: Model<DailyHaircareLogDocument>,
   ) {}
 
-  async createProduct(
-    dto: CreateHaircareProductDto,
-  ) {
-    this.validateObjectId(dto.userId, 'user ID');
-
+  async createProduct(dto: CreateHaircareProductDto) {
     return this.haircareProductModel.create({
       ...dto,
-      userId: new Types.ObjectId(dto.userId),
       schedule: {
         ...dto.schedule,
         startDate: dto.schedule.startDate
@@ -55,20 +45,12 @@ export class HaircareService {
           ? new Date(dto.schedule.endDate)
           : undefined,
       },
-      patchTestAt: dto.patchTestAt
-        ? new Date(dto.patchTestAt)
-        : undefined,
+      patchTestAt: dto.patchTestAt ? new Date(dto.patchTestAt) : undefined,
     });
   }
 
-  async findProducts(
-    userId: string,
-    status?: HaircareProductStatus,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async findProducts(status?: HaircareProductStatus) {
     const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
       isActive: true,
     };
 
@@ -85,43 +67,29 @@ export class HaircareService {
       .lean();
   }
 
-  async findProduct(
-    productId: string,
-    userId: string,
-  ) {
+  async findProduct(productId: string) {
     this.validateObjectId(productId, 'product ID');
-    this.validateObjectId(userId, 'user ID');
 
     const product = await this.haircareProductModel
       .findOne({
         _id: new Types.ObjectId(productId),
-        userId: new Types.ObjectId(userId),
         isActive: true,
       })
       .lean();
 
     if (!product) {
-      throw new NotFoundException(
-        'Hair-care product not found.',
-      );
+      throw new NotFoundException('Hair-care product not found.');
     }
 
     return product;
   }
 
-  async updateProduct(
-    productId: string,
-    userId: string,
-    dto: UpdateHaircareProductDto,
-  ) {
+  async updateProduct(productId: string, dto: UpdateHaircareProductDto) {
     this.validateObjectId(productId, 'product ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {
       ...dto,
     };
-
-    delete updateData.userId;
 
     if (dto.schedule) {
       updateData.schedule = {
@@ -136,15 +104,13 @@ export class HaircareService {
     }
 
     if (dto.patchTestAt) {
-      updateData.patchTestAt =
-        new Date(dto.patchTestAt);
+      updateData.patchTestAt = new Date(dto.patchTestAt);
     }
 
     const product = await this.haircareProductModel
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(productId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -158,147 +124,118 @@ export class HaircareService {
       .lean();
 
     if (!product) {
-      throw new NotFoundException(
-        'Hair-care product not found.',
-      );
+      throw new NotFoundException('Hair-care product not found.');
     }
 
     return product;
   }
 
-  async removeProduct(
-    productId: string,
-    userId: string,
-  ) {
+  async removeProduct(productId: string) {
     this.validateObjectId(productId, 'product ID');
-    this.validateObjectId(userId, 'user ID');
 
-    const product =
-      await this.haircareProductModel.findOneAndUpdate(
-        {
-          _id: new Types.ObjectId(productId),
-          userId: new Types.ObjectId(userId),
-          isActive: true,
+    const product = await this.haircareProductModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(productId),
+        isActive: true,
+      },
+      {
+        $set: {
+          status: HaircareProductStatus.DISCONTINUED,
+          isActive: false,
+          isArchived: true,
         },
-        {
-          $set: {
-            status:
-              HaircareProductStatus.DISCONTINUED,
-            isActive: false,
-            isArchived: true,
-          },
-        },
-        {
-          new: true,
-        },
-      );
+      },
+      {
+        new: true,
+      },
+    );
 
     if (!product) {
-      throw new NotFoundException(
-        'Hair-care product not found.',
-      );
+      throw new NotFoundException('Hair-care product not found.');
     }
 
     return {
-      message:
-        'Hair-care product removed successfully.',
+      message: 'Hair-care product removed successfully.',
     };
   }
 
-  async generateDailyLog(
-    userId: string,
-    dateValue: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async generateDailyLog(dateValue: string) {
     const date = this.normalizeDate(dateValue);
-    const objectUserId =
-      new Types.ObjectId(userId);
-
-    const existing =
-      await this.dailyHaircareLogModel.findOne({
-        userId: objectUserId,
-        date,
-        isActive: true,
-      });
+    const existing = await this.dailyHaircareLogModel.findOne({
+      date,
+      isActive: true,
+    });
 
     if (existing) {
       return existing;
     }
 
-    const products =
-      await this.haircareProductModel
-        .find({
-          userId: objectUserId,
-          status: HaircareProductStatus.ACTIVE,
-          isActive: true,
-          $and: [
-            {
-              $or: [
-                {
-                  'schedule.startDate': {
-                    $exists: false,
-                  },
+    const products = await this.haircareProductModel
+      .find({
+        status: HaircareProductStatus.ACTIVE,
+        isActive: true,
+        $and: [
+          {
+            $or: [
+              {
+                'schedule.startDate': {
+                  $exists: false,
                 },
-                {
-                  'schedule.startDate': null,
+              },
+              {
+                'schedule.startDate': null,
+              },
+              {
+                'schedule.startDate': {
+                  $lte: date,
                 },
-                {
-                  'schedule.startDate': {
-                    $lte: date,
-                  },
+              },
+            ],
+          },
+          {
+            $or: [
+              {
+                'schedule.endDate': {
+                  $exists: false,
                 },
-              ],
-            },
-            {
-              $or: [
-                {
-                  'schedule.endDate': {
-                    $exists: false,
-                  },
+              },
+              {
+                'schedule.endDate': null,
+              },
+              {
+                'schedule.endDate': {
+                  $gte: date,
                 },
-                {
-                  'schedule.endDate': null,
-                },
-                {
-                  'schedule.endDate': {
-                    $gte: date,
-                  },
-                },
-              ],
-            },
-          ],
-        })
-        .lean();
+              },
+            ],
+          },
+        ],
+      })
+      .lean();
 
-    const applicableProducts = products.filter(
-      (product) =>
-        this.shouldUseOnDate(product, date),
+    const applicableProducts = products.filter((product) =>
+      this.shouldUseOnDate(product, date),
     );
 
-    const routineItems =
-      applicableProducts.flatMap((product) => {
-        const times =
-          product.schedule.timesOfDay?.length
-            ? product.schedule.timesOfDay
-            : [HaircareTimeOfDay.AS_NEEDED];
+    const routineItems = applicableProducts.flatMap((product) => {
+      const times = product.schedule.timesOfDay?.length
+        ? product.schedule.timesOfDay
+        : [HaircareTimeOfDay.AS_NEEDED];
 
-        return times.map((timeOfDay) => ({
-          productId: product._id,
-          productName: product.name,
-          category: product.category,
-          timeOfDay,
-          applicationAreas:
-            product.applicationAreas,
-          status: HaircareLogStatus.PENDING,
-          amountUnit: product.amountUnit,
-          completionPercentage: 0,
-          reactions: [],
-        }));
-      });
+      return times.map((timeOfDay) => ({
+        productId: product._id,
+        productName: product.name,
+        category: product.category,
+        timeOfDay,
+        applicationAreas: product.applicationAreas,
+        status: HaircareLogStatus.PENDING,
+        amountUnit: product.amountUnit,
+        completionPercentage: 0,
+        reactions: [],
+      }));
+    });
 
     return this.dailyHaircareLogModel.create({
-      userId: objectUserId,
       date,
       routineItems,
       totalScheduled: routineItems.length,
@@ -309,40 +246,25 @@ export class HaircareService {
     });
   }
 
-  async getDailyLog(
-    userId: string,
-    dateValue: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async getDailyLog(dateValue: string) {
     const date = this.normalizeDate(dateValue);
 
     const log = await this.dailyHaircareLogModel
       .findOne({
-        userId: new Types.ObjectId(userId),
         date,
         isActive: true,
       })
       .lean();
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily hair-care log not found.',
-      );
+      throw new NotFoundException('Daily hair-care log not found.');
     }
 
     return log;
   }
 
-  async getLogs(
-    userId: string,
-    startDate?: string,
-    endDate?: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async getLogs(startDate?: string, endDate?: string) {
     const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
       isActive: true,
     };
 
@@ -350,8 +272,7 @@ export class HaircareService {
       const dateFilter: Record<string, Date> = {};
 
       if (startDate) {
-        dateFilter.$gte =
-          this.normalizeDate(startDate);
+        dateFilter.$gte = this.normalizeDate(startDate);
       }
 
       if (endDate) {
@@ -373,51 +294,35 @@ export class HaircareService {
 
   async updateRoutineItem(
     logId: string,
-    userId: string,
     itemIndex: number,
     dto: UpdateHaircareLogItemDto,
   ) {
     this.validateObjectId(logId, 'log ID');
-    this.validateObjectId(userId, 'user ID');
 
-    if (
-      !Number.isInteger(itemIndex) ||
-      itemIndex < 0
-    ) {
-      throw new BadRequestException(
-        'Invalid hair-care routine item index.',
-      );
+    if (!Number.isInteger(itemIndex) || itemIndex < 0) {
+      throw new BadRequestException('Invalid hair-care routine item index.');
     }
 
-    const log =
-      await this.dailyHaircareLogModel.findOne({
-        _id: new Types.ObjectId(logId),
-        userId: new Types.ObjectId(userId),
-        isActive: true,
-      });
+    const log = await this.dailyHaircareLogModel.findOne({
+      _id: new Types.ObjectId(logId),
+      isActive: true,
+    });
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily hair-care log not found.',
-      );
+      throw new NotFoundException('Daily hair-care log not found.');
     }
 
     const item = log.routineItems[itemIndex];
 
     if (!item) {
-      throw new BadRequestException(
-        'Hair-care routine item does not exist.',
-      );
+      throw new BadRequestException('Hair-care routine item does not exist.');
     }
 
     item.status = dto.status;
 
     if (dto.appliedAt) {
-      item.appliedAt =
-        new Date(dto.appliedAt);
-    } else if (
-      dto.status === HaircareLogStatus.APPLIED
-    ) {
+      item.appliedAt = new Date(dto.appliedAt);
+    } else if (dto.status === HaircareLogStatus.APPLIED) {
       item.appliedAt = new Date();
     }
 
@@ -430,13 +335,11 @@ export class HaircareService {
     }
 
     if (dto.reactionSeverity !== undefined) {
-      item.reactionSeverity =
-        dto.reactionSeverity;
+      item.reactionSeverity = dto.reactionSeverity;
     }
 
     if (dto.reactionNotes !== undefined) {
-      item.reactionNotes =
-        dto.reactionNotes;
+      item.reactionNotes = dto.reactionNotes;
     }
 
     if (dto.skipReason !== undefined) {
@@ -447,8 +350,7 @@ export class HaircareService {
       item.notes = dto.notes;
     }
 
-    item.completionPercentage =
-      this.getCompletionPercentage(dto.status);
+    item.completionPercentage = this.getCompletionPercentage(dto.status);
 
     this.recalculateLog(log);
 
@@ -457,13 +359,8 @@ export class HaircareService {
     return log;
   }
 
-  async updateObservation(
-    logId: string,
-    userId: string,
-    dto: UpdateHairObservationDto,
-  ) {
+  async updateObservation(logId: string, dto: UpdateHairObservationDto) {
     this.validateObjectId(logId, 'log ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {};
 
@@ -474,15 +371,11 @@ export class HaircareService {
     if (dto.wash !== undefined) {
       updateData.wash = {
         ...dto.wash,
-        ...(
-          typeof dto.wash.washedAt === 'string'
-            ? {
-                washedAt: new Date(
-                  dto.wash.washedAt,
-                ),
-              }
-            : {}
-        ),
+        ...(typeof dto.wash.washedAt === 'string'
+          ? {
+              washedAt: new Date(dto.wash.washedAt),
+            }
+          : {}),
       };
     }
 
@@ -491,84 +384,60 @@ export class HaircareService {
     }
 
     if (dto.progressPhotoUrls !== undefined) {
-      updateData.progressPhotoUrls =
-        dto.progressPhotoUrls;
+      updateData.progressPhotoUrls = dto.progressPhotoUrls;
     }
 
-    if (
-      dto.dermatologistReviewRecommended !==
-      undefined
-    ) {
+    if (dto.dermatologistReviewRecommended !== undefined) {
       updateData.dermatologistReviewRecommended =
         dto.dermatologistReviewRecommended;
     }
 
-    if (
-      dto.dermatologistReviewReason !== undefined
-    ) {
-      updateData.dermatologistReviewReason =
-        dto.dermatologistReviewReason;
+    if (dto.dermatologistReviewReason !== undefined) {
+      updateData.dermatologistReviewReason = dto.dermatologistReviewReason;
     }
 
     if (dto.notes !== undefined) {
       updateData.notes = dto.notes;
     }
 
-    const updated =
-      await this.dailyHaircareLogModel
-        .findOneAndUpdate(
-          {
-            _id: new Types.ObjectId(logId),
-            userId: new Types.ObjectId(userId),
-            isActive: true,
-          },
-          {
-            $set: updateData,
-          },
-          {
-            new: true,
-            runValidators: true,
-          },
-        )
-        .lean();
+    const updated = await this.dailyHaircareLogModel
+      .findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(logId),
+          isActive: true,
+        },
+        {
+          $set: updateData,
+        },
+        {
+          new: true,
+          runValidators: true,
+        },
+      )
+      .lean();
 
     if (!updated) {
-      throw new NotFoundException(
-        'Daily hair-care log not found.',
-      );
+      throw new NotFoundException('Daily hair-care log not found.');
     }
 
     return updated;
   }
 
-  async markPendingAsMissed(
-    userId: string,
-    dateValue: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async markPendingAsMissed(dateValue: string) {
     const date = this.normalizeDate(dateValue);
 
-    const log =
-      await this.dailyHaircareLogModel.findOne({
-        userId: new Types.ObjectId(userId),
-        date,
-        isActive: true,
-      });
+    const log = await this.dailyHaircareLogModel.findOne({
+      date,
+      isActive: true,
+    });
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily hair-care log not found.',
-      );
+      throw new NotFoundException('Daily hair-care log not found.');
     }
 
     for (const item of log.routineItems) {
-      if (
-        item.status ===
-        HaircareLogStatus.PENDING
-      ) {
-        item.status =
-          HaircareLogStatus.MISSED;
+      if (item.status === HaircareLogStatus.PENDING) {
+        item.status = HaircareLogStatus.MISSED;
 
         item.completionPercentage = 0;
       }
@@ -582,25 +451,18 @@ export class HaircareService {
   }
 
   private shouldUseOnDate(
-    product:
-      | HaircareProductDocument
-      | Record<string, any>,
+    product: HaircareProductDocument | Record<string, any>,
     date: Date,
   ): boolean {
     const schedule = product.schedule;
 
-    if (
-      schedule.frequency ===
-      HaircareFrequency.AS_NEEDED
-    ) {
+    if (schedule.frequency === HaircareFrequency.AS_NEEDED) {
       return false;
     }
 
     if (
-      schedule.frequency ===
-        HaircareFrequency.DAILY ||
-      schedule.frequency ===
-        HaircareFrequency.TWICE_DAILY
+      schedule.frequency === HaircareFrequency.DAILY ||
+      schedule.frequency === HaircareFrequency.TWICE_DAILY
     ) {
       return true;
     }
@@ -608,127 +470,77 @@ export class HaircareService {
     const dayOfWeek = date.getDay();
 
     if (
-      schedule.frequency ===
-        HaircareFrequency.WEEKLY ||
-      schedule.frequency ===
-        HaircareFrequency.TWICE_WEEKLY ||
-      schedule.frequency ===
-        HaircareFrequency.THREE_TIMES_WEEKLY
+      schedule.frequency === HaircareFrequency.WEEKLY ||
+      schedule.frequency === HaircareFrequency.TWICE_WEEKLY ||
+      schedule.frequency === HaircareFrequency.THREE_TIMES_WEEKLY
     ) {
-      return (
-        schedule.daysOfWeek?.includes(
-          dayOfWeek,
-        ) ?? false
-      );
+      return schedule.daysOfWeek?.includes(dayOfWeek) ?? false;
     }
 
-    if (
-      schedule.frequency ===
-      HaircareFrequency.ALTERNATE_DAYS
-    ) {
-      const start = schedule.startDate
-        ? new Date(schedule.startDate)
-        : date;
+    if (schedule.frequency === HaircareFrequency.ALTERNATE_DAYS) {
+      const start = schedule.startDate ? new Date(schedule.startDate) : date;
 
       start.setHours(0, 0, 0, 0);
 
       const differenceInDays = Math.floor(
-        (date.getTime() - start.getTime()) /
-          (1000 * 60 * 60 * 24),
+        (date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
       );
 
       return differenceInDays % 2 === 0;
     }
 
     if (
-      schedule.frequency ===
-        HaircareFrequency.CUSTOM &&
+      schedule.frequency === HaircareFrequency.CUSTOM &&
       schedule.daysOfWeek?.length
     ) {
-      return schedule.daysOfWeek.includes(
-        dayOfWeek,
-      );
+      return schedule.daysOfWeek.includes(dayOfWeek);
     }
 
     if (
-      schedule.frequency ===
-        HaircareFrequency.CUSTOM &&
+      schedule.frequency === HaircareFrequency.CUSTOM &&
       schedule.intervalDays
     ) {
-      const start = schedule.startDate
-        ? new Date(schedule.startDate)
-        : date;
+      const start = schedule.startDate ? new Date(schedule.startDate) : date;
 
       start.setHours(0, 0, 0, 0);
 
       const differenceInDays = Math.floor(
-        (date.getTime() - start.getTime()) /
-          (1000 * 60 * 60 * 24),
+        (date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
       );
 
-      return (
-        differenceInDays %
-          schedule.intervalDays ===
-        0
-      );
+      return differenceInDays % schedule.intervalDays === 0;
     }
 
     return false;
   }
 
-  private recalculateLog(
-    log: DailyHaircareLogDocument,
-  ): void {
-    log.totalScheduled =
-      log.routineItems.length;
+  private recalculateLog(log: DailyHaircareLogDocument): void {
+    log.totalScheduled = log.routineItems.length;
 
-    log.totalApplied =
-      log.routineItems.filter(
-        (item) =>
-          item.status ===
-          HaircareLogStatus.APPLIED,
-      ).length;
+    log.totalApplied = log.routineItems.filter(
+      (item) => item.status === HaircareLogStatus.APPLIED,
+    ).length;
 
-    log.totalMissed =
-      log.routineItems.filter(
-        (item) =>
-          item.status ===
-          HaircareLogStatus.MISSED,
-      ).length;
+    log.totalMissed = log.routineItems.filter(
+      (item) => item.status === HaircareLogStatus.MISSED,
+    ).length;
 
-    log.totalSkipped =
-      log.routineItems.filter(
-        (item) =>
-          item.status ===
-          HaircareLogStatus.SKIPPED,
-      ).length;
+    log.totalSkipped = log.routineItems.filter(
+      (item) => item.status === HaircareLogStatus.SKIPPED,
+    ).length;
 
-    const partialCount =
-      log.routineItems.filter(
-        (item) =>
-          item.status ===
-          HaircareLogStatus.PARTIAL,
-      ).length;
+    const partialCount = log.routineItems.filter(
+      (item) => item.status === HaircareLogStatus.PARTIAL,
+    ).length;
 
-    const adherenceUnits =
-      log.totalApplied +
-      partialCount * 0.5;
+    const adherenceUnits = log.totalApplied + partialCount * 0.5;
 
-    log.adherencePercentage =
-      log.totalScheduled
-        ? Number(
-            (
-              (adherenceUnits /
-                log.totalScheduled) *
-              100
-            ).toFixed(2),
-          )
-        : 0;
+    log.adherencePercentage = log.totalScheduled
+      ? Number(((adherenceUnits / log.totalScheduled) * 100).toFixed(2))
+      : 0;
   }
 
-  private getCompletionPercentage(
-    status: HaircareLogStatus,
-  ): number {
+  private getCompletionPercentage(status: HaircareLogStatus): number {
     switch (status) {
       case HaircareLogStatus.APPLIED:
         return 100;
@@ -744,15 +556,11 @@ export class HaircareService {
     }
   }
 
-  private normalizeDate(
-    value: string,
-  ): Date {
+  private normalizeDate(value: string): Date {
     const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException(
-        'Invalid date.',
-      );
+      throw new BadRequestException('Invalid date.');
     }
 
     date.setHours(0, 0, 0, 0);
@@ -760,14 +568,9 @@ export class HaircareService {
     return date;
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ): void {
+  private validateObjectId(value: string, fieldName: string): void {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
   }
 }

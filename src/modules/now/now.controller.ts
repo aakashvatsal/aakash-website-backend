@@ -7,45 +7,28 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 
-import {
-  AdminGuard,
-} from 'src/common/guards/admin.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
-import {
-  CreateNowStatusDto,
-} from './dto/create-now-status.dto';
+import { CreateNowStatusDto } from './dto/create-now-status.dto';
 
-import {
-  NowHistoryQueryDto,
-} from './dto/now-history-query.dto';
+import { NowHistoryQueryDto } from './dto/now-history-query.dto';
 
-import {
-  UpdateNowStatusDto,
-} from './dto/update-now-status.dto';
+import { UpdateNowStatusDto } from './dto/update-now-status.dto';
 
-import {
-  NowService,
-} from './now.service';
+import { NowService } from './now.service';
 
 @Controller('now')
 export class NowController {
-  constructor(
-    private readonly nowService:
-      NowService,
-  ) {}
+  constructor(private readonly nowService: NowService) {}
 
   @Post()
-  @UseGuards(AdminGuard)
   create(
     @Body()
     dto: CreateNowStatusDto,
   ) {
-    return this.nowService.create(
-      dto,
-    );
+    return this.nowService.create(dto);
   }
 
   @Get('current')
@@ -54,8 +37,18 @@ export class NowController {
   }
 
   @Get('public')
+  @Public()
   getPublicCurrent() {
     return this.nowService.getPublicCurrent();
+  }
+
+  @Get('public/history')
+  @Public()
+  getPublicHistory(
+    @Query()
+    query: NowHistoryQueryDto,
+  ) {
+    return this.nowService.getPublicHistory(query.page, query.limit);
   }
 
   @Get('history')
@@ -63,10 +56,7 @@ export class NowController {
     @Query()
     query: NowHistoryQueryDto,
   ) {
-    return this.nowService.getHistory(
-      query.page,
-      query.limit,
-    );
+    return this.nowService.getHistory(query.page, query.limit);
   }
 
   @Get()
@@ -74,77 +64,58 @@ export class NowController {
     @Query()
     query: NowHistoryQueryDto,
   ) {
-    return this.nowService.findAll(
-      query,
-    );
+    return this.nowService.findAll(query);
   }
 
   @Patch('current')
-  @UseGuards(AdminGuard)
   async updateCurrent(
     @Body()
     dto: UpdateNowStatusDto,
   ) {
-    const current =
-      await this.nowService.getCurrent();
+    const current = await this.nowService.getCurrent();
 
     if (!current) {
       return null;
     }
 
-    return this.nowService.update(
-      current._id.toString(),
-      dto,
-    );
+    return this.nowService.update(current._id.toString(), dto);
   }
 
   @Patch('current/touch')
-  @UseGuards(AdminGuard)
   touchCurrent() {
     return this.nowService.touchCurrent();
   }
 
   @Patch('current/end')
-  @UseGuards(AdminGuard)
   endCurrent() {
     return this.nowService.endCurrent();
   }
 
   @Patch(':statusId/current')
-  @UseGuards(AdminGuard)
   setCurrent(
     @Param('statusId')
     statusId: string,
   ) {
-    return this.nowService.setCurrent(
-      statusId,
-    );
+    return this.nowService.setCurrent(statusId);
   }
 
   @Patch(':statusId/archive')
-  @UseGuards(AdminGuard)
   archive(
     @Param('statusId')
     statusId: string,
   ) {
-    return this.nowService.archive(
-      statusId,
-    );
+    return this.nowService.archive(statusId);
   }
 
   @Patch(':statusId/restore')
-  @UseGuards(AdminGuard)
   restore(
     @Param('statusId')
     statusId: string,
   ) {
-    return this.nowService.restore(
-      statusId,
-    );
+    return this.nowService.restore(statusId);
   }
 
   @Patch(':statusId')
-  @UseGuards(AdminGuard)
   update(
     @Param('statusId')
     statusId: string,
@@ -152,10 +123,7 @@ export class NowController {
     @Body()
     dto: UpdateNowStatusDto,
   ) {
-    return this.nowService.update(
-      statusId,
-      dto,
-    );
+    return this.nowService.update(statusId, dto);
   }
 
   @Get(':statusId')
@@ -163,19 +131,14 @@ export class NowController {
     @Param('statusId')
     statusId: string,
   ) {
-    return this.nowService.findById(
-      statusId,
-    );
+    return this.nowService.findById(statusId);
   }
 
   @Delete(':statusId')
-  @UseGuards(AdminGuard)
   remove(
     @Param('statusId')
     statusId: string,
   ) {
-    return this.nowService.remove(
-      statusId,
-    );
+    return this.nowService.remove(statusId);
   }
 }

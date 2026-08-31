@@ -3,7 +3,6 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
-  IsMongoId,
   IsNumber,
   IsObject,
   IsOptional,
@@ -250,9 +249,6 @@ class DietPreparationDto {
 }
 
 export class CreateDietEntryDto {
-  @IsMongoId()
-  userId: string;
-
   @IsDateString()
   date: string;
 

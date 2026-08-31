@@ -5,10 +5,7 @@ import {
   DailySupplementLog,
   DailySupplementLogSchema,
 } from './schemas/daily-supplement-log.schema';
-import {
-  Supplement,
-  SupplementSchema,
-} from './schemas/supplement.schema';
+import { Supplement, SupplementSchema } from './schemas/supplement.schema';
 import { SupplementsController } from './supplements.controller';
 import { SupplementsService } from './supplements.service';
 
@@ -27,9 +24,6 @@ import { SupplementsService } from './supplements.service';
   ],
   controllers: [SupplementsController],
   providers: [SupplementsService],
-  exports: [
-    SupplementsService,
-    MongooseModule,
-  ],
+  exports: [SupplementsService, MongooseModule],
 })
 export class SupplementsModule {}

@@ -1,47 +1,28 @@
-import {
-  Module,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 
-import {
-  MongooseModule,
-} from '@nestjs/mongoose';
+import { MongooseModule } from '@nestjs/mongoose';
 
-import {
-  NowController,
-} from './now.controller';
+import { NowController } from './now.controller';
 
-import {
-  NowService,
-} from './now.service';
+import { NowService } from './now.service';
 
-import {
-  NowStatus,
-  NowStatusSchema,
-} from './schemas/now-status.schema';
+import { NowStatus, NowStatusSchema } from './schemas/now-status.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       {
-        name:
-          NowStatus.name,
+        name: NowStatus.name,
 
-        schema:
-          NowStatusSchema,
+        schema: NowStatusSchema,
       },
     ]),
   ],
 
-  controllers: [
-    NowController,
-  ],
+  controllers: [NowController],
 
-  providers: [
-    NowService,
-  ],
+  providers: [NowService],
 
-  exports: [
-    NowService,
-  ],
+  exports: [NowService],
 })
 export class NowModule {}

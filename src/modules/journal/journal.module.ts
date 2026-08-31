@@ -1,34 +1,18 @@
-import {
-  Module,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 
-import {
-  MongooseModule,
-} from '@nestjs/mongoose';
+import { MongooseModule } from '@nestjs/mongoose';
 
-import {
-  HealthModule,
-} from '../health/health.module';
+import { HealthModule } from '../health/health.module';
 
-import {
-  LibraryModule,
-} from '../library/library.module';
+import { LibraryModule } from '../library/library.module';
 
-import {
-  NowModule,
-} from '../now/now.module';
+import { NowModule } from '../now/now.module';
 
-import {
-  JournalController,
-} from './journal.controller';
+import { JournalController } from './journal.controller';
 
-import {
-  JournalEnrichmentService,
-} from './journal-enrichment.service';
+import { JournalEnrichmentService } from './journal-enrichment.service';
 
-import {
-  JournalService,
-} from './journal.service';
+import { JournalService } from './journal.service';
 
 import {
   JournalEntry,
@@ -39,11 +23,9 @@ import {
   imports: [
     MongooseModule.forFeature([
       {
-        name:
-          JournalEntry.name,
+        name: JournalEntry.name,
 
-        schema:
-          JournalEntrySchema,
+        schema: JournalEntrySchema,
       },
     ]),
 
@@ -54,20 +36,10 @@ import {
     NowModule,
   ],
 
-  controllers: [
-    JournalController,
-  ],
+  controllers: [JournalController],
 
-  providers: [
-    JournalService,
+  providers: [JournalService, JournalEnrichmentService],
 
-    JournalEnrichmentService,
-  ],
-
-  exports: [
-    JournalService,
-
-    JournalEnrichmentService,
-  ],
+  exports: [JournalService, JournalEnrichmentService],
 })
 export class JournalModule {}

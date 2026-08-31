@@ -7,7 +7,9 @@ describe('CompaniesController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CompaniesController],
-    }).compile();
+    })
+      .useMocker(() => ({ get: jest.fn() }))
+      .compile();
 
     controller = module.get<CompaniesController>(CompaniesController);
   });

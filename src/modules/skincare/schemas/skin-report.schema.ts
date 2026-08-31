@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type SkinReportDocument =
-  HydratedDocument<SkinReport>;
+export type SkinReportDocument = HydratedDocument<SkinReport>;
 
 export enum SkinReportType {
   WEEKLY = 'weekly',
@@ -141,14 +136,6 @@ export const SkinRecommendationSchema =
   collection: 'skin_reports',
 })
 export class SkinReport {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   @Prop({
     type: String,
     enum: SkinReportType,
@@ -291,12 +278,10 @@ export class SkinReport {
   isActive: boolean;
 }
 
-export const SkinReportSchema =
-  SchemaFactory.createForClass(SkinReport);
+export const SkinReportSchema = SchemaFactory.createForClass(SkinReport);
 
 SkinReportSchema.index(
   {
-    userId: 1,
     reportType: 1,
     periodStart: 1,
     periodEnd: 1,
@@ -307,6 +292,5 @@ SkinReportSchema.index(
 );
 
 SkinReportSchema.index({
-  userId: 1,
   periodEnd: -1,
 });

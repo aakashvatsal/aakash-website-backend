@@ -26,22 +26,15 @@ import {
 export class IntimateCareService {
   constructor(
     @InjectModel(IntimateCareProduct.name)
-    private readonly productModel:
-      Model<IntimateCareProductDocument>,
+    private readonly productModel: Model<IntimateCareProductDocument>,
 
     @InjectModel(DailyIntimateCareLog.name)
-    private readonly dailyLogModel:
-      Model<DailyIntimateCareLogDocument>,
+    private readonly dailyLogModel: Model<DailyIntimateCareLogDocument>,
   ) {}
 
-  async createProduct(
-    dto: CreateIntimateCareProductDto,
-  ) {
-    this.validateObjectId(dto.userId, 'user ID');
-
+  async createProduct(dto: CreateIntimateCareProductDto) {
     return this.productModel.create({
       ...dto,
-      userId: new Types.ObjectId(dto.userId),
       schedule: {
         ...dto.schedule,
         startDate: dto.schedule.startDate
@@ -51,20 +44,12 @@ export class IntimateCareService {
           ? new Date(dto.schedule.endDate)
           : undefined,
       },
-      patchTestAt: dto.patchTestAt
-        ? new Date(dto.patchTestAt)
-        : undefined,
+      patchTestAt: dto.patchTestAt ? new Date(dto.patchTestAt) : undefined,
     });
   }
 
-  async findProducts(
-    userId: string,
-    status?: IntimateCareProductStatus,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async findProducts(status?: IntimateCareProductStatus) {
     const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
       isActive: true,
     };
 
@@ -72,25 +57,15 @@ export class IntimateCareService {
       filter.status = status;
     }
 
-    return this.productModel
-      .find(filter)
-      .sort({ category: 1, name: 1 })
-      .lean();
+    return this.productModel.find(filter).sort({ category: 1, name: 1 }).lean();
   }
 
-  async updateProduct(
-    productId: string,
-    userId: string,
-    dto: UpdateIntimateCareProductDto,
-  ) {
+  async updateProduct(productId: string, dto: UpdateIntimateCareProductDto) {
     this.validateObjectId(productId, 'product ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {
       ...dto,
     };
-
-    delete updateData.userId;
 
     if (dto.schedule) {
       updateData.schedule = {
@@ -108,7 +83,6 @@ export class IntimateCareService {
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(productId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -122,25 +96,15 @@ export class IntimateCareService {
       .lean();
 
     if (!updated) {
-      throw new NotFoundException(
-        'Intimate-care product not found.',
-      );
+      throw new NotFoundException('Intimate-care product not found.');
     }
 
     return updated;
   }
 
-  async generateDailyLog(
-    userId: string,
-    dateValue: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async generateDailyLog(dateValue: string) {
     const date = this.normalizeDate(dateValue);
-    const objectUserId = new Types.ObjectId(userId);
-
     const existing = await this.dailyLogModel.findOne({
-      userId: objectUserId,
       date,
       isActive: true,
     });
@@ -151,41 +115,34 @@ export class IntimateCareService {
 
     const products = await this.productModel
       .find({
-        userId: objectUserId,
         status: IntimateCareProductStatus.ACTIVE,
         isActive: true,
       })
       .lean();
 
-    const applicableProducts = products.filter(
-      (product) =>
-        this.shouldUseOnDate(product, date),
+    const applicableProducts = products.filter((product) =>
+      this.shouldUseOnDate(product, date),
     );
 
-    const routineItems = applicableProducts.flatMap(
-      (product) => {
-        const times =
-          product.schedule.timesOfDay?.length
-            ? product.schedule.timesOfDay
-            : [IntimateCareTimeOfDay.AS_NEEDED];
+    const routineItems = applicableProducts.flatMap((product) => {
+      const times = product.schedule.timesOfDay?.length
+        ? product.schedule.timesOfDay
+        : [IntimateCareTimeOfDay.AS_NEEDED];
 
-        return times.map((timeOfDay) => ({
-          productId: product._id,
-          productName: product.name,
-          category: product.category,
-          timeOfDay,
-          applicationAreas:
-            product.applicationAreas,
-          status: IntimateCareLogStatus.PENDING,
-          amountUnit: product.amountUnit,
-          completionPercentage: 0,
-          reactions: [],
-        }));
-      },
-    );
+      return times.map((timeOfDay) => ({
+        productId: product._id,
+        productName: product.name,
+        category: product.category,
+        timeOfDay,
+        applicationAreas: product.applicationAreas,
+        status: IntimateCareLogStatus.PENDING,
+        amountUnit: product.amountUnit,
+        completionPercentage: 0,
+        reactions: [],
+      }));
+    });
 
     return this.dailyLogModel.create({
-      userId: objectUserId,
       date,
       routineItems,
       totalScheduled: routineItems.length,
@@ -197,24 +154,16 @@ export class IntimateCareService {
     });
   }
 
-  async getDailyLog(
-    userId: string,
-    dateValue: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async getDailyLog(dateValue: string) {
     const log = await this.dailyLogModel
       .findOne({
-        userId: new Types.ObjectId(userId),
         date: this.normalizeDate(dateValue),
         isActive: true,
       })
       .lean();
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily intimate-care log not found.',
-      );
+      throw new NotFoundException('Daily intimate-care log not found.');
     }
 
     return log;
@@ -222,40 +171,31 @@ export class IntimateCareService {
 
   async updateRoutineItem(
     logId: string,
-    userId: string,
     itemIndex: number,
     dto: UpdateIntimateCareLogItemDto,
   ) {
     this.validateObjectId(logId, 'log ID');
-    this.validateObjectId(userId, 'user ID');
 
     const log = await this.dailyLogModel.findOne({
       _id: new Types.ObjectId(logId),
-      userId: new Types.ObjectId(userId),
       isActive: true,
     });
 
     if (!log) {
-      throw new NotFoundException(
-        'Daily intimate-care log not found.',
-      );
+      throw new NotFoundException('Daily intimate-care log not found.');
     }
 
     const item = log.routineItems[itemIndex];
 
     if (!item) {
-      throw new BadRequestException(
-        'Invalid routine item index.',
-      );
+      throw new BadRequestException('Invalid routine item index.');
     }
 
     item.status = dto.status;
 
     if (dto.appliedAt) {
       item.appliedAt = new Date(dto.appliedAt);
-    } else if (
-      dto.status === IntimateCareLogStatus.APPLIED
-    ) {
+    } else if (dto.status === IntimateCareLogStatus.APPLIED) {
       item.appliedAt = new Date();
     }
 
@@ -268,8 +208,7 @@ export class IntimateCareService {
     }
 
     if (dto.reactionSeverity !== undefined) {
-      item.reactionSeverity =
-        dto.reactionSeverity;
+      item.reactionSeverity = dto.reactionSeverity;
     }
 
     if (dto.reactionNotes !== undefined) {
@@ -284,8 +223,7 @@ export class IntimateCareService {
       item.notes = dto.notes;
     }
 
-    item.completionPercentage =
-      this.getCompletionPercentage(dto.status);
+    item.completionPercentage = this.getCompletionPercentage(dto.status);
 
     this.recalculateLog(log);
 
@@ -296,7 +234,6 @@ export class IntimateCareService {
 
   async updateObservation(
     logId: string,
-    userId: string,
     data: {
       observation?: Record<string, unknown>;
       hygiene?: Record<string, unknown>;
@@ -304,7 +241,6 @@ export class IntimateCareService {
     },
   ) {
     this.validateObjectId(logId, 'log ID');
-    this.validateObjectId(userId, 'user ID');
 
     const updateData: Record<string, unknown> = {};
 
@@ -324,7 +260,6 @@ export class IntimateCareService {
       .findOneAndUpdate(
         {
           _id: new Types.ObjectId(logId),
-          userId: new Types.ObjectId(userId),
           isActive: true,
         },
         {
@@ -338,9 +273,7 @@ export class IntimateCareService {
       .lean();
 
     if (!updated) {
-      throw new NotFoundException(
-        'Daily intimate-care log not found.',
-      );
+      throw new NotFoundException('Daily intimate-care log not found.');
     }
 
     return updated;
@@ -352,110 +285,70 @@ export class IntimateCareService {
   ): boolean {
     const schedule = product.schedule;
 
-    if (
-      schedule.frequency ===
-      IntimateCareFrequency.AS_NEEDED
-    ) {
+    if (schedule.frequency === IntimateCareFrequency.AS_NEEDED) {
       return false;
     }
 
     if (
-      schedule.frequency ===
-        IntimateCareFrequency.DAILY ||
-      schedule.frequency ===
-        IntimateCareFrequency.TWICE_DAILY
+      schedule.frequency === IntimateCareFrequency.DAILY ||
+      schedule.frequency === IntimateCareFrequency.TWICE_DAILY
     ) {
       return true;
     }
 
-    if (
-      schedule.frequency ===
-      IntimateCareFrequency.WEEKLY
-    ) {
-      return schedule.daysOfWeek?.includes(
-        date.getDay(),
-      );
+    if (schedule.frequency === IntimateCareFrequency.WEEKLY) {
+      return schedule.daysOfWeek?.includes(date.getDay());
     }
 
-    const start = schedule.startDate
-      ? new Date(schedule.startDate)
-      : date;
+    const start = schedule.startDate ? new Date(schedule.startDate) : date;
 
     start.setHours(0, 0, 0, 0);
 
     const differenceInDays = Math.floor(
-      (date.getTime() - start.getTime()) /
-        (1000 * 60 * 60 * 24),
+      (date.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
     );
 
-    if (
-      schedule.frequency ===
-      IntimateCareFrequency.ALTERNATE_DAYS
-    ) {
+    if (schedule.frequency === IntimateCareFrequency.ALTERNATE_DAYS) {
       return differenceInDays % 2 === 0;
     }
 
     if (
-      schedule.frequency ===
-        IntimateCareFrequency.CUSTOM &&
+      schedule.frequency === IntimateCareFrequency.CUSTOM &&
       schedule.intervalDays
     ) {
-      return (
-        differenceInDays %
-          schedule.intervalDays ===
-        0
-      );
+      return differenceInDays % schedule.intervalDays === 0;
     }
 
     return false;
   }
 
-  private recalculateLog(
-    log: DailyIntimateCareLogDocument,
-  ) {
+  private recalculateLog(log: DailyIntimateCareLogDocument) {
     log.totalScheduled = log.routineItems.length;
 
     log.totalApplied = log.routineItems.filter(
-      (item) =>
-        item.status ===
-        IntimateCareLogStatus.APPLIED,
+      (item) => item.status === IntimateCareLogStatus.APPLIED,
     ).length;
 
     log.totalMissed = log.routineItems.filter(
-      (item) =>
-        item.status ===
-        IntimateCareLogStatus.MISSED,
+      (item) => item.status === IntimateCareLogStatus.MISSED,
     ).length;
 
     log.totalSkipped = log.routineItems.filter(
-      (item) =>
-        item.status ===
-        IntimateCareLogStatus.SKIPPED,
+      (item) => item.status === IntimateCareLogStatus.SKIPPED,
     ).length;
 
     const partial = log.routineItems.filter(
-      (item) =>
-        item.status ===
-        IntimateCareLogStatus.PARTIAL,
+      (item) => item.status === IntimateCareLogStatus.PARTIAL,
     ).length;
 
-    const completedUnits =
-      log.totalApplied + partial * 0.5;
+    const completedUnits = log.totalApplied + partial * 0.5;
 
     log.adherencePercentage = log.totalScheduled
-      ? Number(
-          (
-            (completedUnits /
-              log.totalScheduled) *
-            100
-          ).toFixed(2),
-        )
+      ? Number(((completedUnits / log.totalScheduled) * 100).toFixed(2))
       : 0;
   }
 
-  private getCompletionPercentage(
-    status: IntimateCareLogStatus,
-  ) {
+  private getCompletionPercentage(status: IntimateCareLogStatus) {
     if (status === IntimateCareLogStatus.APPLIED) {
       return 100;
     }
@@ -471,9 +364,7 @@ export class IntimateCareService {
     const date = new Date(value);
 
     if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException(
-        'Invalid date.',
-      );
+      throw new BadRequestException('Invalid date.');
     }
 
     date.setHours(0, 0, 0, 0);
@@ -481,14 +372,9 @@ export class IntimateCareService {
     return date;
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ) {
+  private validateObjectId(value: string, fieldName: string) {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
   }
 }

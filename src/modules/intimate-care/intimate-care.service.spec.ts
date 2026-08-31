@@ -7,7 +7,9 @@ describe('IntimateCareService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [IntimateCareService],
-    }).compile();
+    })
+      .useMocker(() => ({ get: jest.fn() }))
+      .compile();
 
     service = module.get<IntimateCareService>(IntimateCareService);
   });

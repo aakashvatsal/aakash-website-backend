@@ -7,7 +7,9 @@ describe('IntegrationsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IntegrationsController],
-    }).compile();
+    })
+      .useMocker(() => ({ get: jest.fn() }))
+      .compile();
 
     controller = module.get<IntegrationsController>(IntegrationsController);
   });

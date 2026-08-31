@@ -5,7 +5,6 @@ import {
   IsDateString,
   IsEmail,
   IsEnum,
-  IsMongoId,
   IsNotEmpty,
   IsNumber,
   IsObject,
@@ -100,7 +99,6 @@ class CompanyGoalDto {
 
 export class CreateCompanyDto {
   // @IsMongoId()
-  // userId: string;
 
   @IsString()
   @IsNotEmpty()

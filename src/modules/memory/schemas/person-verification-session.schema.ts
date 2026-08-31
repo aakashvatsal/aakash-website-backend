@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type PersonVerificationSessionDocument =
   HydratedDocument<PersonVerificationSession>;
@@ -26,14 +22,6 @@ export enum VerificationSessionStatus {
   collection: 'person_verification_sessions',
 })
 export class PersonVerificationSession {
-  // @Prop({
-  //   type: SchemaTypes.ObjectId,
-  //   ref: 'User',
-  //   required: true,
-  //   index: true,
-  // })
-  // ownerUserId: Types.ObjectId;
-
   @Prop({
     type: SchemaTypes.ObjectId,
     ref: 'MemoryPerson',
@@ -123,13 +111,11 @@ export class PersonVerificationSession {
   accessCount: number;
 }
 
-export const PersonVerificationSessionSchema =
-  SchemaFactory.createForClass(
-    PersonVerificationSession,
-  );
+export const PersonVerificationSessionSchema = SchemaFactory.createForClass(
+  PersonVerificationSession,
+);
 
 PersonVerificationSessionSchema.index({
-  ownerUserId: 1,
   personId: 1,
   status: 1,
 });

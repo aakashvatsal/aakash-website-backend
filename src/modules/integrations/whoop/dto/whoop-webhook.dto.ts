@@ -1,32 +1,19 @@
-import {
-  IsEnum,
-  IsInt,
-  IsNotEmpty,
-  IsString,
-} from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsString } from 'class-validator';
 
-import {
-  WhoopWebhookEventType,
-} from '../schemas/whoop-webhook-event.schema';
+import { WhoopWebhookEventType } from '../schemas/whoop-webhook-event.schema';
 
 export class WhoopWebhookDto {
   @IsInt()
-  user_id:
-    number;
+  user_id: number;
 
   @IsString()
   @IsNotEmpty()
-  id:
-    string;
+  id: string;
 
-  @IsEnum(
-    WhoopWebhookEventType,
-  )
-  type:
-    WhoopWebhookEventType;
+  @IsEnum(WhoopWebhookEventType)
+  type: WhoopWebhookEventType;
 
   @IsString()
   @IsNotEmpty()
-  trace_id:
-    string;
+  trace_id: string;
 }

@@ -1,18 +1,24 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type MemoryPersonDocument =
-  HydratedDocument<MemoryPerson>;
+export type MemoryPersonDocument = HydratedDocument<MemoryPerson>;
 
 export enum PersonIdentityStatus {
   UNVERIFIED = 'unverified',
   PARTIALLY_VERIFIED = 'partially_verified',
   VERIFIED = 'verified',
   BLOCKED = 'blocked',
+}
+
+export enum PersonContactReferenceSource {
+  MANUAL = 'manual',
+  GOOGLE_CONTACTS = 'google_contacts',
+  GMAIL = 'gmail',
+  CALENDAR = 'calendar',
+  WHATSAPP = 'whatsapp',
+  LINKEDIN = 'linkedin',
+  SLACK = 'slack',
+  OTHER = 'other',
 }
 
 export enum PersonRelationshipType {
@@ -88,22 +94,34 @@ export class PersonPhoneIdentity {
 export const PersonPhoneIdentitySchema =
   SchemaFactory.createForClass(PersonPhoneIdentity);
 
+@Schema({ _id: false })
+export class PersonContactReference {
+  @Prop({
+    type: String,
+    enum: PersonContactReferenceSource,
+    default: PersonContactReferenceSource.MANUAL,
+  })
+  source: PersonContactReferenceSource;
+
+  @Prop({ trim: true })
+  externalId?: string;
+
+  @Prop({ trim: true })
+  label?: string;
+
+  @Prop({ trim: true })
+  url?: string;
+}
+
+export const PersonContactReferenceSchema = SchemaFactory.createForClass(
+  PersonContactReference,
+);
+
 @Schema({
   timestamps: true,
   collection: 'memory_people',
 })
 export class MemoryPerson {
-  /**
-   * Registered owner of the HSAKAA instance.
-   */
-  // @Prop({
-  //   type: SchemaTypes.ObjectId,
-  //   ref: 'User',
-  //   required: true,
-  //   index: true,
-  // })
-  // ownerUserId: Types.ObjectId;
-
   /**
    * Optional platform account if this person registers later.
    */
@@ -111,7 +129,6 @@ export class MemoryPerson {
     type: SchemaTypes.ObjectId,
     ref: 'User',
     default: null,
-    index: true,
   })
   linkedUserId?: Types.ObjectId | null;
 
@@ -190,6 +207,33 @@ export class MemoryPerson {
   })
   tags: string[];
 
+  @Prop({ trim: true, index: true })
+  organizationName?: string;
+
+  @Prop({ trim: true })
+  roleTitle?: string;
+
+  @Prop({ trim: true })
+  department?: string;
+
+  @Prop({ trim: true })
+  location?: string;
+
+  @Prop({ min: 1, max: 5, default: 3, index: true })
+  importance: number;
+
+  @Prop()
+  firstMetAt?: Date;
+
+  @Prop({ index: true })
+  lastInteractionAt?: Date;
+
+  @Prop({
+    type: [PersonContactReferenceSchema],
+    default: [],
+  })
+  contactReferences: PersonContactReference[];
+
   @Prop({
     trim: true,
   })
@@ -242,33 +286,37 @@ export class MemoryPerson {
   isActive: boolean;
 }
 
-export const MemoryPersonSchema =
-  SchemaFactory.createForClass(MemoryPerson);
+export const MemoryPersonSchema = SchemaFactory.createForClass(MemoryPerson);
 
 MemoryPersonSchema.index({
-  ownerUserId: 1,
   identityStatus: 1,
   isActive: 1,
 });
 
-MemoryPersonSchema.index({
-  ownerUserId: 1,
-  linkedUserId: 1,
-});
+MemoryPersonSchema.index(
+  {
+    linkedUserId: 1,
+  },
+  {
+    name: 'memory_people_linked_user_active_unique',
+    unique: true,
+    partialFilterExpression: {
+      linkedUserId: { $type: 'objectId' },
+      isActive: true,
+    },
+  },
+);
 
 MemoryPersonSchema.index({
-  ownerUserId: 1,
   relationship: 1,
   isActive: 1,
 });
 
 MemoryPersonSchema.index({
-  ownerUserId: 1,
   'emails.email': 1,
 });
 
 MemoryPersonSchema.index({
-  ownerUserId: 1,
   'phoneNumbers.phoneNumber': 1,
 });
 
@@ -277,4 +325,13 @@ MemoryPersonSchema.index({
   preferredName: 'text',
   aliases: 'text',
   tags: 'text',
+  organizationName: 'text',
+  roleTitle: 'text',
+  department: 'text',
+  location: 'text',
+});
+MemoryPersonSchema.index({
+  importance: -1,
+  lastInteractionAt: -1,
+  name: 1,
 });

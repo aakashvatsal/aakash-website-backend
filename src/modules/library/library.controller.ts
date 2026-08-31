@@ -7,12 +7,9 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 
-import {
-  AdminGuard,
-} from '../../common/guards/admin.guard';
+import { Public } from '../../common/decorators/public.decorator';
 
 import { AddLibraryTextItemDto } from './dto/add-library-text-item.dto';
 import { CreateLibraryItemDto } from './dto/create-library-item.dto';
@@ -27,20 +24,14 @@ import { LibraryService } from './library.service';
 
 @Controller('library')
 export class LibraryController {
-  constructor(
-    private readonly libraryService:
-      LibraryService,
-  ) {}
+  constructor(private readonly libraryService: LibraryService) {}
 
   @Post()
-  @UseGuards(AdminGuard)
   create(
     @Body()
     dto: CreateLibraryItemDto,
   ) {
-    return this.libraryService.create(
-      dto,
-    );
+    return this.libraryService.create(dto);
   }
 
   @Post('apple-books/sync')
@@ -48,9 +39,34 @@ export class LibraryController {
     @Body()
     dto: SyncAppleBooksDto,
   ) {
-    return this.libraryService.syncAppleBooks(
-      dto,
-    );
+    return this.libraryService.syncAppleBooks(dto);
+  }
+
+  @Get('public')
+  @Public()
+  findPublic(
+    @Query()
+    query: LibraryQueryDto,
+  ) {
+    return this.libraryService.findAll(query, true);
+  }
+
+  @Get('public/slug/:slug')
+  @Public()
+  findPublicViaSlug(
+    @Param('slug')
+    slug: string,
+  ) {
+    return this.libraryService.findOneViaSlug(slug, true);
+  }
+
+  @Get('public/:libraryItemId/highlights')
+  @Public()
+  getPublicHighlights(
+    @Param('libraryItemId')
+    libraryItemId: string,
+  ) {
+    return this.libraryService.getHighlights(libraryItemId, true);
   }
 
   @Get()
@@ -58,9 +74,7 @@ export class LibraryController {
     @Query()
     query: LibraryQueryDto,
   ) {
-    return this.libraryService.findAll(
-      query,
-    );
+    return this.libraryService.findAll(query);
   }
 
   @Get('summary')
@@ -73,11 +87,7 @@ export class LibraryController {
     @Query('limit')
     limit?: string,
   ) {
-    return this.libraryService.getRecentActivity(
-      limit
-        ? Number(limit)
-        : 10,
-    );
+    return this.libraryService.getRecentActivity(limit ? Number(limit) : 10);
   }
 
   @Get('slug/:slug')
@@ -85,33 +95,23 @@ export class LibraryController {
     @Param('slug')
     slug: string,
   ) {
-    return this.libraryService.findOneViaSlug(
-      slug,
-    );
+    return this.libraryService.findOneViaSlug(slug);
   }
 
-  @Post(
-    'apple-books/highlights/sync',
-  )
+  @Post('apple-books/highlights/sync')
   syncAppleBooksHighlights(
     @Body()
     dto: SyncAppleBooksHighlightsDto,
   ) {
-    return this.libraryService.syncAppleBooksHighlights(
-      dto,
-    );
+    return this.libraryService.syncAppleBooksHighlights(dto);
   }
 
-  @Get(
-    ':libraryItemId/highlights',
-  )
+  @Get(':libraryItemId/highlights')
   getHighlights(
     @Param('libraryItemId')
     libraryItemId: string,
   ) {
-    return this.libraryService.getHighlights(
-      libraryItemId,
-    );
+    return this.libraryService.getHighlights(libraryItemId);
   }
 
   @Get(':libraryItemId')
@@ -119,19 +119,15 @@ export class LibraryController {
     @Param('libraryItemId')
     libraryItemId: string,
   ) {
-    return this.libraryService.findOne(
-      libraryItemId,
-    );
+    return this.libraryService.findOne(libraryItemId);
   }
 
   @Post('covers/update')
-  @UseGuards(AdminGuard)
   updateMissingCoverImages() {
     return this.libraryService.updateMissingCoverImages();
   }
 
   @Patch(':libraryItemId')
-  @UseGuards(AdminGuard)
   update(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -139,16 +135,10 @@ export class LibraryController {
     @Body()
     dto: UpdateLibraryItemDto,
   ) {
-    return this.libraryService.update(
-      libraryItemId,
-      dto,
-    );
+    return this.libraryService.update(libraryItemId, dto);
   }
 
-  @Patch(
-    ':libraryItemId/progress',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/progress')
   updateProgress(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -156,16 +146,10 @@ export class LibraryController {
     @Body()
     dto: UpdateLibraryProgressDto,
   ) {
-    return this.libraryService.updateProgress(
-      libraryItemId,
-      dto,
-    );
+    return this.libraryService.updateProgress(libraryItemId, dto);
   }
 
-  @Patch(
-    ':libraryItemId/status',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/status')
   updateStatus(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -173,16 +157,10 @@ export class LibraryController {
     @Body()
     dto: UpdateLibraryStatusDto,
   ) {
-    return this.libraryService.updateStatus(
-      libraryItemId,
-      dto,
-    );
+    return this.libraryService.updateStatus(libraryItemId, dto);
   }
 
-  @Patch(
-    ':libraryItemId/rating',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/rating')
   rate(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -190,29 +168,18 @@ export class LibraryController {
     @Body()
     dto: RateLibraryItemDto,
   ) {
-    return this.libraryService.rate(
-      libraryItemId,
-      dto,
-    );
+    return this.libraryService.rate(libraryItemId, dto);
   }
 
-  @Patch(
-    ':libraryItemId/favourite/toggle',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/favourite/toggle')
   toggleFavourite(
     @Param('libraryItemId')
     libraryItemId: string,
   ) {
-    return this.libraryService.toggleFavourite(
-      libraryItemId,
-    );
+    return this.libraryService.toggleFavourite(libraryItemId);
   }
 
-  @Patch(
-    ':libraryItemId/favourite',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/favourite')
   setFavourite(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -222,16 +189,10 @@ export class LibraryController {
       isFavourite: boolean;
     },
   ) {
-    return this.libraryService.setFavourite(
-      libraryItemId,
-      body.isFavourite,
-    );
+    return this.libraryService.setFavourite(libraryItemId, body.isFavourite);
   }
 
-  @Post(
-    ':libraryItemId/takeaways',
-  )
-  @UseGuards(AdminGuard)
+  @Post(':libraryItemId/takeaways')
   addTakeaway(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -239,16 +200,10 @@ export class LibraryController {
     @Body()
     dto: AddLibraryTextItemDto,
   ) {
-    return this.libraryService.addTakeaway(
-      libraryItemId,
-      dto.value,
-    );
+    return this.libraryService.addTakeaway(libraryItemId, dto.value);
   }
 
-  @Delete(
-    ':libraryItemId/takeaways',
-  )
-  @UseGuards(AdminGuard)
+  @Delete(':libraryItemId/takeaways')
   removeTakeaway(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -256,16 +211,10 @@ export class LibraryController {
     @Body()
     dto: AddLibraryTextItemDto,
   ) {
-    return this.libraryService.removeTakeaway(
-      libraryItemId,
-      dto.value,
-    );
+    return this.libraryService.removeTakeaway(libraryItemId, dto.value);
   }
 
-  @Post(
-    ':libraryItemId/quotes',
-  )
-  @UseGuards(AdminGuard)
+  @Post(':libraryItemId/quotes')
   addQuote(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -273,16 +222,10 @@ export class LibraryController {
     @Body()
     dto: AddLibraryTextItemDto,
   ) {
-    return this.libraryService.addQuote(
-      libraryItemId,
-      dto.value,
-    );
+    return this.libraryService.addQuote(libraryItemId, dto.value);
   }
 
-  @Delete(
-    ':libraryItemId/quotes',
-  )
-  @UseGuards(AdminGuard)
+  @Delete(':libraryItemId/quotes')
   removeQuote(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -290,16 +233,10 @@ export class LibraryController {
     @Body()
     dto: AddLibraryTextItemDto,
   ) {
-    return this.libraryService.removeQuote(
-      libraryItemId,
-      dto.value,
-    );
+    return this.libraryService.removeQuote(libraryItemId, dto.value);
   }
 
-  @Patch(
-    ':libraryItemId/summary',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/summary')
   updateSummary(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -309,16 +246,10 @@ export class LibraryController {
       summary: string;
     },
   ) {
-    return this.libraryService.updateSummary(
-      libraryItemId,
-      body.summary,
-    );
+    return this.libraryService.updateSummary(libraryItemId, body.summary);
   }
 
-  @Patch(
-    ':libraryItemId/notes',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/notes')
   updateNotes(
     @Param('libraryItemId')
     libraryItemId: string,
@@ -328,46 +259,30 @@ export class LibraryController {
       notes: string;
     },
   ) {
-    return this.libraryService.updateNotes(
-      libraryItemId,
-      body.notes,
-    );
+    return this.libraryService.updateNotes(libraryItemId, body.notes);
   }
 
-  @Patch(
-    ':libraryItemId/archive',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/archive')
   archive(
     @Param('libraryItemId')
     libraryItemId: string,
   ) {
-    return this.libraryService.archive(
-      libraryItemId,
-    );
+    return this.libraryService.archive(libraryItemId);
   }
 
-  @Patch(
-    ':libraryItemId/restore',
-  )
-  @UseGuards(AdminGuard)
+  @Patch(':libraryItemId/restore')
   restore(
     @Param('libraryItemId')
     libraryItemId: string,
   ) {
-    return this.libraryService.restore(
-      libraryItemId,
-    );
+    return this.libraryService.restore(libraryItemId);
   }
 
   @Delete(':libraryItemId')
-  @UseGuards(AdminGuard)
   remove(
     @Param('libraryItemId')
     libraryItemId: string,
   ) {
-    return this.libraryService.remove(
-      libraryItemId,
-    );
+    return this.libraryService.remove(libraryItemId);
   }
 }

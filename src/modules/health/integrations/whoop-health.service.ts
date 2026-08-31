@@ -4,13 +4,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-import {
-  InjectModel,
-} from '@nestjs/mongoose';
+import { InjectModel } from '@nestjs/mongoose';
 
-import {
-  Model,
-} from 'mongoose';
+import { Model } from 'mongoose';
 
 import {
   HealthDataSource,
@@ -37,10 +33,7 @@ interface WhoopCycle {
 
   timezone_offset: string;
 
-  score_state:
-    | 'SCORED'
-    | 'PENDING_SCORE'
-    | 'UNSCORABLE';
+  score_state: 'SCORED' | 'PENDING_SCORE' | 'UNSCORABLE';
 
   score?: {
     strain?: number;
@@ -63,10 +56,7 @@ interface WhoopRecovery {
   created_at: string;
   updated_at: string;
 
-  score_state:
-    | 'SCORED'
-    | 'PENDING_SCORE'
-    | 'UNSCORABLE';
+  score_state: 'SCORED' | 'PENDING_SCORE' | 'UNSCORABLE';
 
   score?: {
     user_calibrating?: boolean;
@@ -100,10 +90,7 @@ interface WhoopSleep {
 
   nap: boolean;
 
-  score_state:
-    | 'SCORED'
-    | 'PENDING_SCORE'
-    | 'UNSCORABLE';
+  score_state: 'SCORED' | 'PENDING_SCORE' | 'UNSCORABLE';
 
   score?: {
     stage_summary?: {
@@ -161,10 +148,7 @@ interface WhoopWorkout {
 
   sport_id?: number;
 
-  score_state:
-    | 'SCORED'
-    | 'PENDING_SCORE'
-    | 'UNSCORABLE';
+  score_state: 'SCORED' | 'PENDING_SCORE' | 'UNSCORABLE';
 
   score?: {
     strain?: number;
@@ -183,24 +167,17 @@ interface WhoopWorkout {
 
     altitude_change_meter?: number;
 
-    zone_durations?: Record<
-      string,
-      number
-    >;
+    zone_durations?: Record<string, number>;
   };
 }
 
 @Injectable()
 export class WhoopHealthService {
-  private readonly whoopBaseUrl =
-    'https://api.prod.whoop.com/developer/v2';
+  private readonly whoopBaseUrl = 'https://api.prod.whoop.com/developer/v2';
 
   constructor(
-    @InjectModel(
-      HealthEntry.name,
-    )
-    private readonly healthEntryModel:
-      Model<HealthEntryDocument>,
+    @InjectModel(HealthEntry.name)
+    private readonly healthEntryModel: Model<HealthEntryDocument>,
   ) {}
 
   async sync(
@@ -210,361 +187,178 @@ export class WhoopHealthService {
       endDate?: string;
     },
   ) {
-    if (
-      !accessToken?.trim()
-    ) {
-      throw new UnauthorizedException(
-        'WHOOP access token is required.',
-      );
+    if (!accessToken?.trim()) {
+      throw new UnauthorizedException('WHOOP access token is required.');
     }
 
-    const start =
-      options?.startDate
-        ? this.toWhoopStartDate(
-            options.startDate,
-          )
-        : undefined;
+    const start = options?.startDate
+      ? this.toWhoopStartDate(options.startDate)
+      : undefined;
 
-    const end =
-      options?.endDate
-        ? this.toWhoopEndDate(
-            options.endDate,
-          )
-        : undefined;
+    const end = options?.endDate
+      ? this.toWhoopEndDate(options.endDate)
+      : undefined;
 
-    const [
-      cycles,
-      recoveries,
-      sleeps,
-      workouts,
-    ] =
-      await Promise.all([
-        this.fetchAll<
-          WhoopCycle
-        >(
-          '/cycle',
-          accessToken,
-          start,
-          end,
-        ),
+    const [cycles, recoveries, sleeps, workouts] = await Promise.all([
+      this.fetchAll<WhoopCycle>('/cycle', accessToken, start, end),
 
-        this.fetchAll<
-          WhoopRecovery
-        >(
-          '/recovery',
-          accessToken,
-          start,
-          end,
-        ),
+      this.fetchAll<WhoopRecovery>('/recovery', accessToken, start, end),
 
-        this.fetchAll<
-          WhoopSleep
-        >(
-          '/activity/sleep',
-          accessToken,
-          start,
-          end,
-        ),
+      this.fetchAll<WhoopSleep>('/activity/sleep', accessToken, start, end),
 
-        this.fetchAll<
-          WhoopWorkout
-        >(
-          '/activity/workout',
-          accessToken,
-          start,
-          end,
-        ),
-      ]);
+      this.fetchAll<WhoopWorkout>('/activity/workout', accessToken, start, end),
+    ]);
 
-    const cycleMap =
-      new Map(
-        cycles.map(
-          (cycle) => [
-            cycle.id,
-            cycle,
-          ],
-        ),
-      );
+    const cycleMap = new Map(cycles.map((cycle) => [cycle.id, cycle]));
 
-    const sleepsByCycle =
-      new Map<
-        number,
-        WhoopSleep[]
-      >();
+    const sleepsByCycle = new Map<number, WhoopSleep[]>();
 
-    for (
-      const sleep of sleeps
-    ) {
-      const existing =
-        sleepsByCycle.get(
-          sleep.cycle_id,
-        ) ?? [];
+    for (const sleep of sleeps) {
+      const existing = sleepsByCycle.get(sleep.cycle_id) ?? [];
 
-      existing.push(
-        sleep,
-      );
+      existing.push(sleep);
 
-      sleepsByCycle.set(
-        sleep.cycle_id,
-        existing,
-      );
+      sleepsByCycle.set(sleep.cycle_id, existing);
     }
 
-    const recoveryByCycle =
-      new Map(
-        recoveries.map(
-          (recovery) => [
-            recovery.cycle_id,
-            recovery,
-          ],
-        ),
-      );
+    const recoveryByCycle = new Map(
+      recoveries.map((recovery) => [recovery.cycle_id, recovery]),
+    );
 
-    let dailyEntriesUpdated =
-      0;
+    let dailyEntriesUpdated = 0;
 
-    for (
-      const cycle of cycles
-    ) {
-      const dateKey =
-        this.getDateKey(
-          cycle.start,
-        );
+    for (const cycle of cycles) {
+      const dateKey = this.getDateKey(cycle.start);
 
-      const recovery =
-        recoveryByCycle.get(
-          cycle.id,
-        );
+      const recovery = recoveryByCycle.get(cycle.id);
 
-      const cycleSleeps =
-        sleepsByCycle.get(
-          cycle.id,
-        ) ?? [];
+      const cycleSleeps = sleepsByCycle.get(cycle.id) ?? [];
 
-      const mainSleep =
-        cycleSleeps.find(
-          (sleep) =>
-            sleep.nap ===
-            false,
-        );
+      const mainSleep = cycleSleeps.find((sleep) => sleep.nap === false);
 
-      const naps =
-        cycleSleeps.filter(
-          (sleep) =>
-            sleep.nap ===
-            true,
-        );
+      const naps = cycleSleeps.filter((sleep) => sleep.nap === true);
 
-      const setData:
-        Record<
-          string,
-          unknown
-        > = {};
+      const setData: Record<string, unknown> = {};
 
-      if (
-        cycle.score_state ===
-          'SCORED' &&
-        cycle.score
-      ) {
-        if (
-          cycle.score
-            .strain !==
-          undefined
-        ) {
-          setData.strainScore =
-            cycle.score.strain;
+      if (cycle.score_state === 'SCORED' && cycle.score) {
+        if (cycle.score.strain !== undefined) {
+          setData.strainScore = cycle.score.strain;
         }
 
-        if (
-          cycle.score
-            .kilojoule !==
-          undefined
-        ) {
-          setData.totalCaloriesBurned =
-            this.kilojouleToCalories(
-              cycle.score
-                .kilojoule,
-            );
+        if (cycle.score.kilojoule !== undefined) {
+          setData.totalCaloriesBurned = this.kilojouleToCalories(
+            cycle.score.kilojoule,
+          );
         }
       }
 
-      if (
-        recovery
-          ?.score_state ===
-          'SCORED' &&
-        recovery.score
-      ) {
+      if (recovery?.score_state === 'SCORED' && recovery.score) {
         setData.recovery = {
-          recoveryScore:
-            recovery.score
-              .recovery_score,
+          recoveryScore: recovery.score.recovery_score,
 
-          restingHeartRateBpm:
-            recovery.score
-              .resting_heart_rate,
+          restingHeartRateBpm: recovery.score.resting_heart_rate,
 
-          heartRateVariabilityMs:
-            recovery.score
-              .hrv_rmssd_milli,
+          heartRateVariabilityMs: recovery.score.hrv_rmssd_milli,
 
-          bloodOxygenPercentage:
-            recovery.score
-              .spo2_percentage,
+          bloodOxygenPercentage: recovery.score.spo2_percentage,
 
-          skinTemperatureCelsius:
-            recovery.score
-              .skin_temp_celsius,
+          skinTemperatureCelsius: recovery.score.skin_temp_celsius,
 
-          respiratoryRateBreathsPerMinute:
-            mainSleep?.score
-              ?.respiratory_rate,
+          respiratoryRateBreathsPerMinute: mainSleep?.score?.respiratory_rate,
         };
       }
 
-      if (
-        mainSleep
-          ?.score_state ===
-          'SCORED'
-      ) {
-        setData.sleep =
-          this.mapSleep(
-            mainSleep,
-            naps,
-          );
+      if (mainSleep?.score_state === 'SCORED') {
+        setData.sleep = this.mapSleep(mainSleep, naps);
       }
 
-      setData[
-        'wearableData.whoop.cycle'
-      ] =
-        cycle;
+      setData['wearableData.whoop.cycle'] = cycle;
 
       if (recovery) {
-        setData[
-          'wearableData.whoop.recovery'
-        ] =
-          recovery;
+        setData['wearableData.whoop.recovery'] = recovery;
       }
 
       if (mainSleep) {
-        setData[
-          'wearableData.whoop.sleep'
-        ] =
-          mainSleep;
+        setData['wearableData.whoop.sleep'] = mainSleep;
       }
 
-      if (
-        naps.length >
-        0
-      ) {
-        setData[
-          'wearableData.whoop.naps'
-        ] =
-          naps;
+      if (naps.length > 0) {
+        setData['wearableData.whoop.naps'] = naps;
       }
 
-      await this.healthEntryModel
-        .findOneAndUpdate(
-          {
+      await this.healthEntryModel.findOneAndUpdate(
+        {
+          dateKey,
+        },
+        {
+          $set: setData,
+
+          $setOnInsert: {
+            date: this.getHealthDate(dateKey),
+
             dateKey,
+
+            slug: `health-${dateKey}`,
+
+            workouts: [],
+
+            habits: [],
+
+            painEntries: [],
+
+            symptoms: [],
+
+            achievements: [],
+
+            goals: [],
+
+            memoryIds: [],
+
+            isArchived: false,
+
+            isActive: true,
           },
-          {
-            $set:
-              setData,
 
-            $setOnInsert: {
-              date:
-                this.getHealthDate(
-                  dateKey,
-                ),
-
-              dateKey,
-
-              slug:
-                `health-${dateKey}`,
-
-              workouts: [],
-
-              habits: [],
-
-              painEntries: [],
-
-              symptoms: [],
-
-              achievements:
-                [],
-
-              goals: [],
-
-              memoryIds: [],
-
-              isArchived:
-                false,
-
-              isActive:
-                true,
-            },
-
-            $addToSet: {
-              sources:
-                HealthDataSource.WHOOP,
-            },
+          $addToSet: {
+            sources: HealthDataSource.WHOOP,
           },
-          {
-            upsert: true,
-            new: true,
+        },
+        {
+          upsert: true,
+          new: true,
 
-            setDefaultsOnInsert:
-              true,
-          },
-        );
+          setDefaultsOnInsert: true,
+        },
+      );
 
       dailyEntriesUpdated++;
     }
 
-    let workoutsCreated =
-      0;
+    let workoutsCreated = 0;
 
-    let workoutsUpdated =
-      0;
+    let workoutsUpdated = 0;
 
-    for (
-      const workout of
-      workouts
-    ) {
-      const result =
-        await this.syncWorkout(
-          workout,
-        );
+    for (const workout of workouts) {
+      const result = await this.syncWorkout(workout);
 
-      if (
-        result ===
-        'created'
-      ) {
+      if (result === 'created') {
         workoutsCreated++;
-      } else if (
-        result ===
-        'updated'
-      ) {
+      } else if (result === 'updated') {
         workoutsUpdated++;
       }
     }
 
     return {
-      message:
-        'WHOOP health synchronization completed.',
+      message: 'WHOOP health synchronization completed.',
 
       data: {
-        cycles:
-          cycles.length,
+        cycles: cycles.length,
 
-        recoveries:
-          recoveries.length,
+        recoveries: recoveries.length,
 
-        sleeps:
-          sleeps.length,
+        sleeps: sleeps.length,
 
-        workouts:
-          workouts.length,
+        workouts: workouts.length,
 
         dailyEntriesUpdated,
 
@@ -577,71 +371,53 @@ export class WhoopHealthService {
 
   private async syncWorkout(
     workout: WhoopWorkout,
-  ): Promise<
-    'created' |
-    'updated'
-  > {
-    const dateKey =
-      this.getDateKey(
-        workout.start,
-      );
+  ): Promise<'created' | 'updated'> {
+    const dateKey = this.getDateKey(workout.start);
 
-    const entry =
-      await this.healthEntryModel
-        .findOneAndUpdate(
-          {
-            dateKey,
-          },
-          {
-            $setOnInsert: {
-              date:
-                this.getHealthDate(
-                  dateKey,
-                ),
+    const entry = await this.healthEntryModel.findOneAndUpdate(
+      {
+        dateKey,
+      },
+      {
+        $setOnInsert: {
+          date: this.getHealthDate(dateKey),
 
-              dateKey,
+          dateKey,
 
-              slug:
-                `health-${dateKey}`,
+          slug: `health-${dateKey}`,
 
-              workouts: [],
+          workouts: [],
 
-              habits: [],
+          habits: [],
 
-              painEntries: [],
+          painEntries: [],
 
-              symptoms: [],
+          symptoms: [],
 
-              achievements:
-                [],
+          achievements: [],
 
-              goals: [],
+          goals: [],
 
-              wearableData:
-                {},
+          wearableData: {},
 
-              memoryIds: [],
+          memoryIds: [],
 
-              isArchived:
-                false,
+          isArchived: false,
 
-              isActive:
-                true,
-            },
+          isActive: true,
+        },
 
-            $addToSet: {
-              sources:
-                HealthDataSource.WHOOP,
-            },
-          },
-          {
-            upsert: true,
-            new: true,
+        $addToSet: {
+          sources: HealthDataSource.WHOOP,
+        },
+      },
+      {
+        upsert: true,
+        new: true,
 
-            setDefaultsOnInsert:
-              true,
-          },
-        );
+        setDefaultsOnInsert: true,
+      },
+    );
 
     if (!entry) {
       throw new BadRequestException(
@@ -649,275 +425,151 @@ export class WhoopHealthService {
       );
     }
 
-    const existingIndex =
-      entry.workouts.findIndex(
-        (existing) =>
-          existing.source ===
-            HealthDataSource.WHOOP &&
-          existing.externalId ===
-            workout.id,
-      );
+    const existingIndex = entry.workouts.findIndex(
+      (existing) =>
+        existing.source === HealthDataSource.WHOOP &&
+        existing.externalId === workout.id,
+    );
 
-    const mapped =
-      this.mapWorkout(
-        workout,
-      );
+    const mapped = this.mapWorkout(workout);
 
-    if (
-      existingIndex >= 0
-    ) {
-      entry.workouts[
-        existingIndex
-      ] =
-        mapped as any;
+    if (existingIndex >= 0) {
+      entry.workouts[existingIndex] = mapped;
 
-      entry.markModified(
-        'workouts',
-      );
+      entry.markModified('workouts');
 
       await entry.save();
 
       return 'updated';
     }
 
-    entry.workouts.push(
-      mapped as any,
-    );
+    entry.workouts.push(mapped);
 
-    entry.markModified(
-      'workouts',
-    );
+    entry.markModified('workouts');
 
     await entry.save();
 
     return 'created';
   }
 
-  private mapWorkout(
-    workout: WhoopWorkout,
-  ) {
-    const durationMinutes =
-      this.durationMinutes(
-        workout.start,
-        workout.end,
-      );
+  private mapWorkout(workout: WhoopWorkout) {
+    const durationMinutes = this.durationMinutes(workout.start, workout.end);
 
-    const score =
-      workout.score;
+    const score = workout.score;
 
-    const type =
-      this.mapWorkoutType(
-        workout.sport_name,
-      );
+    const type = this.mapWorkoutType(workout.sport_name);
 
-    const intensity =
-      this.getWorkoutIntensity(
-        score?.strain,
-      );
+    const intensity = this.getWorkoutIntensity(score?.strain);
 
     return {
       type,
 
-      title:
-        workout.sport_name ??
-        'WHOOP Workout',
+      title: workout.sport_name ?? 'WHOOP Workout',
 
       intensity,
 
-      source:
-        HealthDataSource.WHOOP,
+      source: HealthDataSource.WHOOP,
 
-      externalId:
-        workout.id,
+      externalId: workout.id,
 
       durationMinutes,
 
       caloriesBurned:
-        score?.kilojoule !==
-        undefined
-          ? this.kilojouleToCalories(
-              score.kilojoule,
-            )
+        score?.kilojoule !== undefined
+          ? this.kilojouleToCalories(score.kilojoule)
           : undefined,
 
-      averageHeartRateBpm:
-        score?.average_heart_rate,
+      averageHeartRateBpm: score?.average_heart_rate,
 
-      maximumHeartRateBpm:
-        score?.max_heart_rate,
+      maximumHeartRateBpm: score?.max_heart_rate,
 
-      strainScore:
-        score?.strain,
+      strainScore: score?.strain,
 
       exercises: [],
 
       cardio: {
         distanceKm:
-          score?.distance_meter !==
-          undefined
-            ? Number(
-                (
-                  score.distance_meter /
-                  1000
-                ).toFixed(
-                  3,
-                ),
-              )
+          score?.distance_meter !== undefined
+            ? Number((score.distance_meter / 1000).toFixed(3))
             : undefined,
 
         durationMinutes,
 
-        averageHeartRateBpm:
-          score?.average_heart_rate,
+        averageHeartRateBpm: score?.average_heart_rate,
 
-        maximumHeartRateBpm:
-          score?.max_heart_rate,
+        maximumHeartRateBpm: score?.max_heart_rate,
 
         caloriesBurned:
-          score?.kilojoule !==
-          undefined
-            ? this.kilojouleToCalories(
-                score.kilojoule,
-              )
+          score?.kilojoule !== undefined
+            ? this.kilojouleToCalories(score.kilojoule)
             : undefined,
 
-        elevationGainMetres:
-          score?.altitude_gain_meter,
+        elevationGainMetres: score?.altitude_gain_meter,
       },
 
-      completed:
-        true,
+      completed: true,
 
-      startedAt:
-        new Date(
-          workout.start,
-        ),
+      startedAt: new Date(workout.start),
 
-      completedAt:
-        new Date(
-          workout.end,
-        ),
+      completedAt: new Date(workout.end),
 
-      notes:
-        undefined,
+      notes: undefined,
     };
   }
 
-  private mapSleep(
-    sleep: WhoopSleep,
-    naps: WhoopSleep[],
-  ) {
-    const stage =
-      sleep.score
-        ?.stage_summary;
+  private mapSleep(sleep: WhoopSleep, naps: WhoopSleep[]) {
+    const stage = sleep.score?.stage_summary;
 
-    const needed =
-      sleep.score
-        ?.sleep_needed;
+    const needed = sleep.score?.sleep_needed;
 
-    const lightSleepMinutes =
-      this.millisecondsToMinutes(
-        stage?.total_light_sleep_time_milli,
-      );
+    const lightSleepMinutes = this.millisecondsToMinutes(
+      stage?.total_light_sleep_time_milli,
+    );
 
-    const deepSleepMinutes =
-      this.millisecondsToMinutes(
-        stage?.total_slow_wave_sleep_time_milli,
-      );
+    const deepSleepMinutes = this.millisecondsToMinutes(
+      stage?.total_slow_wave_sleep_time_milli,
+    );
 
-    const remSleepMinutes =
-      this.millisecondsToMinutes(
-        stage?.total_rem_sleep_time_milli,
-      );
+    const remSleepMinutes = this.millisecondsToMinutes(
+      stage?.total_rem_sleep_time_milli,
+    );
 
-    const awakeMinutes =
-      this.millisecondsToMinutes(
-        stage?.total_awake_time_milli,
-      );
+    const awakeMinutes = this.millisecondsToMinutes(
+      stage?.total_awake_time_milli,
+    );
 
     const durationMinutes =
-      lightSleepMinutes +
-      deepSleepMinutes +
-      remSleepMinutes;
+      lightSleepMinutes + deepSleepMinutes + remSleepMinutes;
 
-    const timeInBedMinutes =
-      this.millisecondsToMinutes(
-        stage?.total_in_bed_time_milli,
+    const timeInBedMinutes = this.millisecondsToMinutes(
+      stage?.total_in_bed_time_milli,
+    );
+
+    const napMinutes = naps.reduce((total, nap) => {
+      const napStage = nap.score?.stage_summary;
+
+      return (
+        total +
+        this.millisecondsToMinutes(napStage?.total_light_sleep_time_milli) +
+        this.millisecondsToMinutes(napStage?.total_slow_wave_sleep_time_milli) +
+        this.millisecondsToMinutes(napStage?.total_rem_sleep_time_milli)
       );
-
-    const napMinutes =
-      naps.reduce(
-        (
-          total,
-          nap,
-        ) => {
-          const napStage =
-            nap.score
-              ?.stage_summary;
-
-          return (
-            total +
-            this.millisecondsToMinutes(
-              napStage
-                ?.total_light_sleep_time_milli,
-            ) +
-            this.millisecondsToMinutes(
-              napStage
-                ?.total_slow_wave_sleep_time_milli,
-            ) +
-            this.millisecondsToMinutes(
-              napStage
-                ?.total_rem_sleep_time_milli,
-            )
-          );
-        },
-        0,
-      );
+    }, 0);
 
     const sleepNeedMinutes =
-      this.millisecondsToMinutes(
-        needed?.baseline_milli,
-      ) +
-      this.millisecondsToMinutes(
-        needed?.need_from_sleep_debt_milli,
-      ) +
-      this.millisecondsToMinutes(
-        needed?.need_from_recent_strain_milli,
-      ) +
-      this.millisecondsToMinutes(
-        needed?.need_from_recent_nap_milli,
-      );
+      this.millisecondsToMinutes(needed?.baseline_milli) +
+      this.millisecondsToMinutes(needed?.need_from_sleep_debt_milli) +
+      this.millisecondsToMinutes(needed?.need_from_recent_strain_milli) +
+      this.millisecondsToMinutes(needed?.need_from_recent_nap_milli);
 
     return {
-      sleepAt:
-        new Date(
-          sleep.start,
-        ),
+      sleepAt: new Date(sleep.start),
 
-      wakeAt:
-        new Date(
-          sleep.end,
-        ),
+      wakeAt: new Date(sleep.end),
 
-      durationHours:
-        Number(
-          (
-            durationMinutes /
-            60
-          ).toFixed(
-            2,
-          ),
-        ),
+      durationHours: Number((durationMinutes / 60).toFixed(2)),
 
-      timeInBedHours:
-        Number(
-          (
-            timeInBedMinutes /
-            60
-          ).toFixed(
-            2,
-          ),
-        ),
+      timeInBedHours: Number((timeInBedMinutes / 60).toFixed(2)),
 
       lightSleepMinutes,
 
@@ -927,31 +579,21 @@ export class WhoopHealthService {
 
       awakeMinutes,
 
-      disturbances:
-        stage?.disturbance_count,
+      disturbances: stage?.disturbance_count,
 
       sleepNeedMinutes,
 
-      sleepDebtMinutes:
-        this.millisecondsToMinutes(
-          needed?.need_from_sleep_debt_milli,
-        ),
+      sleepDebtMinutes: this.millisecondsToMinutes(
+        needed?.need_from_sleep_debt_milli,
+      ),
 
-      sleepPerformancePercentage:
-        sleep.score
-          ?.sleep_performance_percentage,
+      sleepPerformancePercentage: sleep.score?.sleep_performance_percentage,
 
-      sleepEfficiencyPercentage:
-        sleep.score
-          ?.sleep_efficiency_percentage,
+      sleepEfficiencyPercentage: sleep.score?.sleep_efficiency_percentage,
 
-      sleepConsistencyPercentage:
-        sleep.score
-          ?.sleep_consistency_percentage,
+      sleepConsistencyPercentage: sleep.score?.sleep_consistency_percentage,
 
-      napTaken:
-        naps.length >
-        0,
+      napTaken: naps.length > 0,
 
       napMinutes,
     };
@@ -963,182 +605,99 @@ export class WhoopHealthService {
     start?: string,
     end?: string,
   ): Promise<T[]> {
-    const records:
-      T[] = [];
+    const records: T[] = [];
 
-    let nextToken:
-      string |
-      undefined;
+    let nextToken: string | undefined;
 
     do {
-      const params =
-        new URLSearchParams();
+      const params = new URLSearchParams();
 
-      params.set(
-        'limit',
-        '25',
-      );
+      params.set('limit', '25');
 
       if (start) {
-        params.set(
-          'start',
-          start,
-        );
+        params.set('start', start);
       }
 
       if (end) {
-        params.set(
-          'end',
-          end,
-        );
+        params.set('end', end);
       }
 
       if (nextToken) {
-        params.set(
-          'nextToken',
-          nextToken,
-        );
+        params.set('nextToken', nextToken);
       }
 
-      const response =
-        await fetch(
-          `${this.whoopBaseUrl}${endpoint}?${params.toString()}`,
-          {
-            method:
-              'GET',
+      const response = await fetch(
+        `${this.whoopBaseUrl}${endpoint}?${params.toString()}`,
+        {
+          method: 'GET',
 
-            headers: {
-              Authorization:
-                `Bearer ${accessToken}`,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
 
-              Accept:
-                'application/json',
-            },
+            Accept: 'application/json',
           },
-        );
+        },
+      );
 
-      if (
-        response.status ===
-        401
-      ) {
+      if (response.status === 401) {
         throw new UnauthorizedException(
           'WHOOP access token is invalid or expired.',
         );
       }
 
-      if (
-        response.status ===
-        429
-      ) {
-        throw new BadRequestException(
-          'WHOOP rate limit exceeded.',
-        );
+      if (response.status === 429) {
+        throw new BadRequestException('WHOOP rate limit exceeded.');
       }
 
-      if (
-        !response.ok
-      ) {
-        const body =
-          await response.text();
+      if (!response.ok) {
+        const body = await response.text();
 
         throw new BadRequestException(
           `WHOOP request failed: ${response.status} ${body}`,
         );
       }
 
-      const result =
-        (await response.json()) as
-          WhoopCollectionResponse<T>;
+      const result = (await response.json()) as WhoopCollectionResponse<T>;
 
-      records.push(
-        ...(
-          result.records ??
-          []
-        ),
-      );
+      records.push(...(result.records ?? []));
 
-      nextToken =
-        result.next_token;
-    } while (
-      nextToken
-    );
+      nextToken = result.next_token;
+    } while (nextToken);
 
     return records;
   }
 
-  private mapWorkoutType(
-    sportName?: string,
-  ): WorkoutType {
-    const value =
-      sportName
-        ?.trim()
-        .toLowerCase() ??
-      '';
+  private mapWorkoutType(sportName?: string): WorkoutType {
+    const value = sportName?.trim().toLowerCase() ?? '';
 
-    if (
-      value.includes(
-        'run',
-      )
-    ) {
+    if (value.includes('run')) {
       return WorkoutType.RUN;
     }
 
-    if (
-      value.includes(
-        'walk',
-      )
-    ) {
+    if (value.includes('walk')) {
       return WorkoutType.WALK;
     }
 
-    if (
-      value.includes(
-        'cycl',
-      ) ||
-      value.includes(
-        'bike',
-      )
-    ) {
+    if (value.includes('cycl') || value.includes('bike')) {
       return WorkoutType.CYCLING;
     }
 
-    if (
-      value.includes(
-        'swim',
-      )
-    ) {
+    if (value.includes('swim')) {
       return WorkoutType.SWIMMING;
     }
 
-    if (
-      value.includes(
-        'yoga',
-      )
-    ) {
+    if (value.includes('yoga')) {
       return WorkoutType.YOGA;
     }
 
-    if (
-      value.includes(
-        'mobility',
-      ) ||
-      value.includes(
-        'stretch',
-      )
-    ) {
+    if (value.includes('mobility') || value.includes('stretch')) {
       return WorkoutType.MOBILITY;
     }
 
     if (
-      value.includes(
-        'strength',
-      ) ||
-      value.includes(
-        'weight',
-      ) ||
-      value.includes(
-        'functional',
-      )
+      value.includes('strength') ||
+      value.includes('weight') ||
+      value.includes('functional')
     ) {
       return WorkoutType.FULL_BODY;
     }
@@ -1146,187 +705,83 @@ export class WhoopHealthService {
     return WorkoutType.OTHER;
   }
 
-  private getWorkoutIntensity(
-    strain?: number,
-  ): WorkoutIntensity {
-    if (
-      strain ===
-      undefined
-    ) {
+  private getWorkoutIntensity(strain?: number): WorkoutIntensity {
+    if (strain === undefined) {
       return WorkoutIntensity.MODERATE;
     }
 
-    if (
-      strain <
-      8
-    ) {
+    if (strain < 8) {
       return WorkoutIntensity.LOW;
     }
 
-    if (
-      strain <
-      14
-    ) {
+    if (strain < 14) {
       return WorkoutIntensity.MODERATE;
     }
 
     return WorkoutIntensity.HIGH;
   }
 
-  private kilojouleToCalories(
-    kilojoule: number,
-  ) {
-    return Number(
-      (
-        kilojoule /
-        4.184
-      ).toFixed(
-        2,
-      ),
-    );
+  private kilojouleToCalories(kilojoule: number) {
+    return Number((kilojoule / 4.184).toFixed(2));
   }
 
-  private millisecondsToMinutes(
-    value?: number,
-  ) {
-    if (
-      value ===
-      undefined ||
-      value ===
-      null
-    ) {
+  private millisecondsToMinutes(value?: number) {
+    if (value === undefined || value === null) {
       return 0;
     }
 
-    return Number(
-      (
-        value /
-        60000
-      ).toFixed(
-        2,
-      ),
-    );
+    return Number((value / 60000).toFixed(2));
   }
 
-  private durationMinutes(
-    start: string,
-    end: string,
-  ) {
-    const startDate =
-      new Date(
-        start,
-      );
+  private durationMinutes(start: string, end: string) {
+    const startDate = new Date(start);
 
-    const endDate =
-      new Date(
-        end,
-      );
+    const endDate = new Date(end);
 
-    if (
-      Number.isNaN(
-        startDate.getTime(),
-      ) ||
-      Number.isNaN(
-        endDate.getTime(),
-      )
-    ) {
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return undefined;
     }
 
     return Number(
-      (
-        (endDate.getTime() -
-          startDate.getTime()) /
-        60000
-      ).toFixed(
-        2,
-      ),
+      ((endDate.getTime() - startDate.getTime()) / 60000).toFixed(2),
     );
   }
 
-  private getDateKey(
-    value: string,
-  ) {
-    const date =
-      new Date(
-        value,
-      );
+  private getDateKey(value: string) {
+    const date = new Date(value);
 
-    if (
-      Number.isNaN(
-        date.getTime(),
-      )
-    ) {
-      throw new BadRequestException(
-        'Invalid WHOOP date.',
-      );
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('Invalid WHOOP date.');
     }
 
-    const parts =
-      new Intl.DateTimeFormat(
-        'en-US',
-        {
-          timeZone:
-            'Asia/Kolkata',
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
 
-          year:
-            'numeric',
+      year: 'numeric',
 
-          month:
-            '2-digit',
+      month: '2-digit',
 
-          day:
-            '2-digit',
-        },
-      ).formatToParts(
-        date,
-      );
+      day: '2-digit',
+    }).formatToParts(date);
 
-    const year =
-      parts.find(
-        (part) =>
-          part.type ===
-          'year',
-      )?.value;
+    const year = parts.find((part) => part.type === 'year')?.value;
 
-    const month =
-      parts.find(
-        (part) =>
-          part.type ===
-          'month',
-      )?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
 
-    const day =
-      parts.find(
-        (part) =>
-          part.type ===
-          'day',
-      )?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
 
     return `${year}-${month}-${day}`;
   }
 
-  private getHealthDate(
-    dateKey: string,
-  ) {
-    return new Date(
-      `${dateKey}T00:00:00.000+05:30`,
-    );
+  private getHealthDate(dateKey: string) {
+    return new Date(`${dateKey}T00:00:00.000+05:30`);
   }
 
-  private toWhoopStartDate(
-    date: string,
-  ) {
-    return new Date(
-      `${date}T00:00:00.000+05:30`,
-    ).toISOString();
+  private toWhoopStartDate(date: string) {
+    return new Date(`${date}T00:00:00.000+05:30`).toISOString();
   }
 
-  private toWhoopEndDate(
-    date: string,
-  ) {
-    return new Date(
-      `${date}T23:59:59.999+05:30`,
-    ).toISOString();
+  private toWhoopEndDate(date: string) {
+    return new Date(`${date}T23:59:59.999+05:30`).toISOString();
   }
 }

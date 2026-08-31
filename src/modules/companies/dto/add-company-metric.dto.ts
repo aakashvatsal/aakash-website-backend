@@ -1,9 +1,4 @@
-import {
-  IsDateString,
-  IsDefined,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsDateString, IsDefined, IsOptional, IsString } from 'class-validator';
 
 export class AddCompanyMetricDto {
   @IsString()

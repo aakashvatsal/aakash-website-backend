@@ -18,83 +18,49 @@ import { SkincareService } from './skincare.service';
 
 @Controller('skincare')
 export class SkincareController {
-  constructor(
-    private readonly skincareService: SkincareService,
-  ) {}
+  constructor(private readonly skincareService: SkincareService) {}
 
   @Post('products')
-  createProduct(
-    @Body() dto: CreateSkincareProductDto,
-  ) {
+  createProduct(@Body() dto: CreateSkincareProductDto) {
     return this.skincareService.createProduct(dto);
   }
 
   @Get('products')
-  findProducts(
-    @Query('userId') userId: string,
-    @Query('status') status?: SkincareProductStatus,
-  ) {
-    return this.skincareService.findProducts(
-      userId,
-      status,
-    );
+  findProducts(@Query('status') status?: SkincareProductStatus) {
+    return this.skincareService.findProducts(status);
   }
 
   @Patch('products/:productId')
   updateProduct(
     @Param('productId') productId: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateSkincareProductDto,
   ) {
-    return this.skincareService.updateProduct(
-      productId,
-      userId,
-      dto,
-    );
+    return this.skincareService.updateProduct(productId, dto);
   }
 
   @Delete('products/:productId')
-  removeProduct(
-    @Param('productId') productId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.skincareService.removeProduct(
-      productId,
-      userId,
-    );
+  removeProduct(@Param('productId') productId: string) {
+    return this.skincareService.removeProduct(productId);
   }
 
   @Post('logs/generate')
-  generateDailyLog(
-    @Body() dto: GenerateDailySkincareLogDto,
-  ) {
-    return this.skincareService.generateDailyLog(
-      dto.userId,
-      dto.date,
-    );
+  generateDailyLog(@Body() dto: GenerateDailySkincareLogDto) {
+    return this.skincareService.generateDailyLog(dto.date);
   }
 
   @Get('logs/daily')
-  getDailyLog(
-    @Query('userId') userId: string,
-    @Query('date') date: string,
-  ) {
-    return this.skincareService.getDailyLog(
-      userId,
-      date,
-    );
+  getDailyLog(@Query('date') date: string) {
+    return this.skincareService.getDailyLog(date);
   }
 
   @Patch('logs/:logId/items/:itemIndex')
   updateRoutineItem(
     @Param('logId') logId: string,
     @Param('itemIndex') itemIndex: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateSkincareLogItemDto,
   ) {
     return this.skincareService.updateRoutineItem(
       logId,
-      userId,
       Number(itemIndex),
       dto,
     );
@@ -103,7 +69,6 @@ export class SkincareController {
   @Patch('logs/:logId/observation')
   updateObservation(
     @Param('logId') logId: string,
-    @Query('userId') userId: string,
     @Body()
     body: {
       observation?: Record<string, unknown>;
@@ -112,10 +77,6 @@ export class SkincareController {
       notes?: string;
     },
   ) {
-    return this.skincareService.updateObservation(
-      logId,
-      userId,
-      body,
-    );
+    return this.skincareService.updateObservation(logId, body);
   }
 }

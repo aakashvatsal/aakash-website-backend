@@ -10,15 +10,9 @@ import {
   Min,
 } from 'class-validator';
 
-import {
-  CompanyStage,
-  CompanyStatus,
-} from '../schemas/company.schema';
+import { CompanyStage, CompanyStatus } from '../schemas/company.schema';
 
 export class CompanyQueryDto {
-  // @IsMongoId()
-  // userId: string;
-
   @IsOptional()
   @IsEnum(CompanyStatus)
   status?: CompanyStatus;
@@ -45,13 +39,13 @@ export class CompanyQueryDto {
 
   @IsOptional()
   @Transform(({ value }) => {
-  if (value === 'true' || value === true) {
-    return true;
-  }
-  if (value === 'false' || value === false) {
-    return false;
-  }
-  return value;
+    if (value === 'true' || value === true) {
+      return true;
+    }
+    if (value === 'false' || value === false) {
+      return false;
+    }
+    return value;
   })
   @IsBoolean()
   isFeatured?: boolean;

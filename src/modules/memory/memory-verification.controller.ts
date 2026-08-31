@@ -1,22 +1,17 @@
-import {
-  Body,
-  Controller,
-  Headers,
-  Ip,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Headers, Ip, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
+
+import { Public } from '../../common/decorators/public.decorator';
 
 import { RequestPersonOtpDto } from './dto/request-person-otp.dto';
 import { VerifyPersonOtpDto } from './dto/verify-person-otp.dto';
 import { MemoryVerificationService } from './memory-verification.service';
 
 @Controller('memory-verification')
+@Public()
 export class MemoryVerificationController {
   constructor(
-    private readonly verificationService:
-      MemoryVerificationService,
+    private readonly verificationService: MemoryVerificationService,
   ) {}
 
   @Post('request-otp')
@@ -34,9 +29,7 @@ export class MemoryVerificationController {
   }
 
   @Post('verify-otp')
-  verifyOtp(
-    @Body() dto: VerifyPersonOtpDto,
-  ) {
+  verifyOtp(@Body() dto: VerifyPersonOtpDto) {
     return this.verificationService.verifyOtp(
       dto.verificationSessionId,
       dto.otp,
@@ -48,8 +41,6 @@ export class MemoryVerificationController {
     @Headers('x-memory-session')
     sessionToken: string,
   ) {
-    return this.verificationService.revokeSession(
-      sessionToken,
-    );
+    return this.verificationService.revokeSession(sessionToken);
   }
 }

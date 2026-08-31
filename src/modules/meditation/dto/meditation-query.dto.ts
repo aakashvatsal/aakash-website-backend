@@ -3,7 +3,6 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
-  IsMongoId,
   IsNumber,
   IsOptional,
   IsString,
@@ -16,11 +15,7 @@ import {
   MeditationType,
 } from '../schemas/meditation-entry.schema';
 
-const transformBoolean = ({
-  value,
-}: {
-  value: unknown;
-}) => {
+const transformBoolean = ({ value }: { value: unknown }) => {
   if (value === true || value === 'true') {
     return true;
   }
@@ -33,9 +28,6 @@ const transformBoolean = ({
 };
 
 export class MeditationQueryDto {
-  @IsMongoId()
-  userId: string;
-
   @IsOptional()
   @IsDateString()
   startDate?: string;

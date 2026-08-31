@@ -3,23 +3,15 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
-  IsMongoId,
   IsNumber,
   IsOptional,
   Max,
   Min,
 } from 'class-validator';
 
-import {
-  HealthMood,
-  WorkoutType,
-} from '../schemas/health-entry.schema';
+import { HealthMood, WorkoutType } from '../schemas/health-entry.schema';
 
-const stringToBoolean = ({
-  value,
-}: {
-  value: unknown;
-}) => {
+const stringToBoolean = ({ value }: { value: unknown }) => {
   if (value === 'true' || value === true) {
     return true;
   }
@@ -32,9 +24,6 @@ const stringToBoolean = ({
 };
 
 export class HealthQueryDto {
-  // @IsMongoId()
-  // userId: string;
-
   @IsOptional()
   @IsDateString()
   startDate?: string;

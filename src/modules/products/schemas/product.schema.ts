@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type ProductDocument =
-  HydratedDocument<Product>;
+export type ProductDocument = HydratedDocument<Product>;
 
 export enum ProductCategory {
   SKINCARE = 'skincare',
@@ -140,8 +135,7 @@ export class ProductUsage {
   lastUpdatedAt?: Date;
 }
 
-export const ProductUsageSchema =
-  SchemaFactory.createForClass(ProductUsage);
+export const ProductUsageSchema = SchemaFactory.createForClass(ProductUsage);
 
 @Schema({ _id: false })
 export class ProductPurchase {
@@ -195,14 +189,6 @@ export const ProductPurchaseSchema =
   collection: 'products',
 })
 export class Product {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   @Prop({
     required: true,
     trim: true,
@@ -411,42 +397,35 @@ export class Product {
   isActive: boolean;
 }
 
-export const ProductSchema =
-  SchemaFactory.createForClass(Product);
+export const ProductSchema = SchemaFactory.createForClass(Product);
 
 ProductSchema.index({
-  userId: 1,
   category: 1,
   status: 1,
   isActive: 1,
 });
 
 ProductSchema.index({
-  userId: 1,
   productType: 1,
   status: 1,
 });
 
 ProductSchema.index({
-  userId: 1,
   'usage.estimatedFinishAt': 1,
   status: 1,
 });
 
 ProductSchema.index({
-  userId: 1,
   repurchaseStatus: 1,
   status: 1,
 });
 
 ProductSchema.index({
-  userId: 1,
   expiresAt: 1,
   status: 1,
 });
 
 ProductSchema.index({
-  userId: 1,
   isFavourite: 1,
   isArchived: 1,
 });

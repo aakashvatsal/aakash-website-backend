@@ -5,21 +5,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-import {
-  ConfigService,
-} from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 
-import {
-  InjectModel,
-} from '@nestjs/mongoose';
+import { InjectModel } from '@nestjs/mongoose';
 
-import {
-  Model,
-} from 'mongoose';
+import { Model } from 'mongoose';
 
-import {
-  randomBytes,
-} from 'crypto';
+import { randomBytes } from 'crypto';
 
 import {
   Integration,
@@ -28,9 +20,7 @@ import {
   IntegrationStatus,
 } from '../schemas/integration.schema';
 
-import {
-  WhoopHealthService,
-} from '../../health/integrations/whoop-health.service';
+import { WhoopHealthService } from '../../health/integrations/whoop-health.service';
 
 interface WhoopTokenResponse {
   access_token: string;
@@ -168,14 +158,11 @@ export interface WhoopSleep {
 
 @Injectable()
 export class WhoopService {
-  private readonly authUrl =
-    'https://api.prod.whoop.com/oauth/oauth2/auth';
+  private readonly authUrl = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 
-  private readonly tokenUrl =
-    'https://api.prod.whoop.com/oauth/oauth2/token';
+  private readonly tokenUrl = 'https://api.prod.whoop.com/oauth/oauth2/token';
 
-  private readonly apiUrl =
-    'https://api.prod.whoop.com/developer/v2';
+  private readonly apiUrl = 'https://api.prod.whoop.com/developer/v2';
 
   /**
    * WHOOP requires manually-generated OAuth state
@@ -187,39 +174,33 @@ export class WhoopService {
    * Key   = state
    * Value = creation timestamp
    */
-  private readonly oauthStates =
-    new Map<string, number>();
+  private readonly oauthStates = new Map<string, number>();
 
   /**
    * OAuth authorization window.
    */
-  private readonly oauthStateMaxAgeMs =
-    10 * 60 * 1000;
+  private readonly oauthStateMaxAgeMs = 10 * 60 * 1000;
+
+  /**
+   * Prevent multiple requests inside this
+   * Node process from refreshing the same
+   * WHOOP refresh token at the same time.
+   */
+  private refreshPromise: Promise<string> | null = null;
 
   constructor(
-    @InjectModel(
-      Integration.name,
-    )
-    private readonly integrationModel:
-      Model<IntegrationDocument>,
+    @InjectModel(Integration.name)
+    private readonly integrationModel: Model<IntegrationDocument>,
 
-    private readonly configService:
-      ConfigService,
+    private readonly configService: ConfigService,
 
-    private readonly whoopHealthService:
-      WhoopHealthService,
+    private readonly whoopHealthService: WhoopHealthService,
   ) {}
 
   getAuthorizationUrl() {
-    const clientId =
-      this.getConfig(
-        'WHOOP_CLIENT_ID',
-      );
+    const clientId = this.getConfig('WHOOP_CLIENT_ID');
 
-    const redirectUri =
-      this.getConfig(
-        'WHOOP_REDIRECT_URI',
-      );
+    const redirectUri = this.getConfig('WHOOP_REDIRECT_URI');
 
     /**
      * Remove expired OAuth states before
@@ -227,8 +208,7 @@ export class WhoopService {
      */
     this.cleanupExpiredStates();
 
-    const state =
-      this.createState();
+    const state = this.createState();
 
     const scopes = [
       'offline',
@@ -240,28 +220,20 @@ export class WhoopService {
       'read:workout',
     ];
 
-    const params =
-      new URLSearchParams({
-        client_id:
-          clientId,
+    const params = new URLSearchParams({
+      client_id: clientId,
 
-        redirect_uri:
-          redirectUri,
+      redirect_uri: redirectUri,
 
-        response_type:
-          'code',
+      response_type: 'code',
 
-        scope:
-          scopes.join(
-            ' ',
-          ),
+      scope: scopes.join(' '),
 
-        state,
-      });
+      state,
+    });
 
     return {
-      authorizationUrl:
-        `${this.authUrl}?${params.toString()}`,
+      authorizationUrl: `${this.authUrl}?${params.toString()}`,
     };
   }
 
@@ -273,207 +245,138 @@ export class WhoopService {
   ) {
     if (error) {
       throw new BadRequestException(
-        errorDescription ||
-          `WHOOP authorization failed: ${error}`,
+        errorDescription || `WHOOP authorization failed: ${error}`,
       );
     }
 
     if (!code) {
-      throw new BadRequestException(
-        'WHOOP authorization code is missing.',
-      );
+      throw new BadRequestException('WHOOP authorization code is missing.');
     }
 
     if (!state) {
-      throw new BadRequestException(
-        'WHOOP OAuth state is missing.',
-      );
+      throw new BadRequestException('WHOOP OAuth state is missing.');
     }
 
     /**
      * Validate state BEFORE exchanging the
      * authorization code.
      */
-    this.verifyState(
-      state,
-    );
+    this.verifyState(state);
 
-    const token =
-      await this.exchangeCode(
-        code,
-      );
+    const token = await this.exchangeCode(code);
 
-    const profile =
-      await this.fetchProfile(
-        token.access_token,
-      );
+    const profile = await this.fetchProfile(token.access_token);
 
-    const expiresAt =
-      new Date(
-        Date.now() +
-          token.expires_in *
-            1000,
-      );
+    const expiresAt = new Date(Date.now() + token.expires_in * 1000);
 
-    const scopes =
-      token.scope
-        ?.split(' ')
-        .filter(Boolean) ??
-      [];
+    const scopes = token.scope?.split(' ').filter(Boolean) ?? [];
 
-    const updateData:
-      Record<
-        string,
-        unknown
-      > = {
-      status:
-        IntegrationStatus.CONNECTED,
+    const updateData: Record<string, unknown> = {
+      status: IntegrationStatus.CONNECTED,
 
-      accessToken:
-        token.access_token,
+      accessToken: token.access_token,
 
-      accessTokenExpiresAt:
-        expiresAt,
+      accessTokenExpiresAt: expiresAt,
 
       scopes,
 
-      externalUserId:
-        String(
-          profile.user_id,
-        ),
+      externalUserId: String(profile.user_id),
 
-      connectedAt:
-        new Date(),
+      connectedAt: new Date(),
 
-      lastRefreshedAt:
-        new Date(),
+      lastRefreshedAt: new Date(),
 
-      lastSyncError:
-        null,
+      lastSyncError: null,
 
       metadata: {
-        email:
-          profile.email,
+        email: profile.email,
 
-        firstName:
-          profile.first_name,
+        firstName: profile.first_name,
 
-        lastName:
-          profile.last_name,
+        lastName: profile.last_name,
       },
 
-      isActive:
-        true,
+      isActive: true,
     };
 
     /**
      * offline scope should make WHOOP
      * return a refresh token.
      */
-    if (
-      token.refresh_token
-    ) {
-      updateData.refreshToken =
-        token.refresh_token;
+    if (token.refresh_token) {
+      updateData.refreshToken = token.refresh_token;
     }
 
-    const integration =
-      await this.integrationModel
-        .findOneAndUpdate(
-          {
-            provider:
-              IntegrationProvider.WHOOP,
-          },
-          {
-            $set:
-              updateData,
-          },
-          {
-            upsert: true,
+    const integration = await this.integrationModel
+      .findOneAndUpdate(
+        {
+          provider: IntegrationProvider.WHOOP,
+        },
+        {
+          $set: updateData,
+        },
+        {
+          upsert: true,
 
-            new: true,
+          new: true,
 
-            setDefaultsOnInsert:
-              true,
-          },
-        )
-        .lean();
+          setDefaultsOnInsert: true,
+        },
+      )
+      .lean();
 
     if (!integration) {
-      throw new BadRequestException(
-        'Unable to save WHOOP integration.',
-      );
+      throw new BadRequestException('Unable to save WHOOP integration.');
     }
 
     return {
-      message:
-        'WHOOP connected successfully.',
+      message: 'WHOOP connected successfully.',
 
       data: {
-        provider:
-          integration.provider,
+        provider: integration.provider,
 
-        status:
-          integration.status,
+        status: integration.status,
 
-        externalUserId:
-          integration.externalUserId,
+        externalUserId: integration.externalUserId,
 
-        scopes:
-          integration.scopes,
+        scopes: integration.scopes,
 
-        connectedAt:
-          integration.connectedAt,
+        connectedAt: integration.connectedAt,
 
-        accessTokenExpiresAt:
-          integration.accessTokenExpiresAt,
+        accessTokenExpiresAt: integration.accessTokenExpiresAt,
       },
     };
   }
 
-  async syncHealth(
-    options?: {
-      startDate?: string;
+  async syncHealth(options?: {
+    startDate?: string;
 
-      endDate?: string;
-    },
-  ) {
-    const integration =
-      await this.getWhoopIntegration();
+    endDate?: string;
+  }) {
+    const integration = await this.getWhoopIntegration();
 
     try {
-      const accessToken =
-        await this.getValidAccessToken();
+      const accessToken = await this.getValidAccessToken();
 
-      const result =
-        await this.whoopHealthService.sync(
-          accessToken,
-          options,
-        );
+      const result = await this.whoopHealthService.sync(accessToken, options);
 
       await this.integrationModel.updateOne(
         {
-          _id:
-            integration._id,
+          _id: integration._id,
         },
         {
           $set: {
-            lastSyncedAt:
-              new Date(),
+            lastSyncedAt: new Date(),
 
-            lastSyncError:
-              null,
+            lastSyncError: null,
 
-            status:
-              IntegrationStatus.CONNECTED,
+            status: IntegrationStatus.CONNECTED,
           },
         },
       );
 
       return result;
-    } catch (
-      error
-    ) {
+    } catch (error) {
       const message =
         error instanceof Error
           ? error.message
@@ -481,16 +384,13 @@ export class WhoopService {
 
       await this.integrationModel.updateOne(
         {
-          _id:
-            integration._id,
+          _id: integration._id,
         },
         {
           $set: {
-            lastSyncError:
-              message,
+            lastSyncError: message,
 
-            status:
-              IntegrationStatus.ERROR,
+            status: IntegrationStatus.ERROR,
           },
         },
       );
@@ -499,192 +399,263 @@ export class WhoopService {
     }
   }
 
-  async getValidAccessToken() {
-    const integration =
-      await this.getWhoopIntegration();
+  async getValidAccessToken(): Promise<string> {
+    const integration = await this.getWhoopIntegration();
 
     /**
      * Reuse the existing access token
      * while it still has more than
      * 5 minutes remaining.
      */
-    if (
-      integration.accessToken &&
-      integration.accessTokenExpiresAt
-    ) {
-      const refreshAt =
-        Date.now() +
-        5 * 60 * 1000;
-
-      if (
-        integration.accessTokenExpiresAt.getTime() >
-        refreshAt
-      ) {
-        return integration.accessToken;
-      }
+    if (this.hasUsableAccessToken(integration)) {
+      return integration.accessToken!;
     }
 
-    if (
-      !integration.refreshToken
-    ) {
+    /**
+     * If another request inside this same
+     * Node/Nest process is already refreshing
+     * WHOOP, wait for that refresh instead of
+     * sending the same refresh token again.
+     */
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    const refreshPromise = this.performTokenRefresh();
+
+    this.refreshPromise = refreshPromise;
+
+    try {
+      return await refreshPromise;
+    } finally {
+      /**
+       * Only clear our own promise.
+       *
+       * This guards against accidentally
+       * clearing a newer refresh operation.
+       */
+      if (this.refreshPromise === refreshPromise) {
+        this.refreshPromise = null;
+      }
+    }
+  }
+
+  private hasUsableAccessToken(integration: IntegrationDocument): boolean {
+    if (!integration.accessToken || !integration.accessTokenExpiresAt) {
+      return false;
+    }
+
+    /**
+     * Refresh 5 minutes before actual expiry.
+     */
+    const refreshAt = Date.now() + 5 * 60 * 1000;
+
+    return integration.accessTokenExpiresAt.getTime() > refreshAt;
+  }
+
+  private async performTokenRefresh(): Promise<string> {
+    /**
+     * Re-read Mongo after obtaining the
+     * in-process refresh lock.
+     *
+     * Something may have refreshed WHOOP
+     * between the original check and here.
+     */
+    const integration = await this.getWhoopIntegration();
+
+    /**
+     * Someone else may already have refreshed
+     * the token while we were waiting.
+     */
+    if (this.hasUsableAccessToken(integration)) {
+      return integration.accessToken!;
+    }
+
+    if (!integration.refreshToken) {
       throw new UnauthorizedException(
         'WHOOP refresh token is missing. Please reconnect WHOOP.',
       );
     }
 
-    try {
-      const token =
-        await this.refreshAccessToken(
-          integration.refreshToken,
-        );
+    /**
+     * Preserve the exact token used for this
+     * refresh attempt.
+     *
+     * It is also used as a compare-and-set
+     * condition when saving the rotated token.
+     */
+    const refreshToken = integration.refreshToken;
 
-      integration.accessToken =
-        token.access_token;
+    try {
+      const token = await this.refreshAccessToken(refreshToken);
+
+      const accessTokenExpiresAt = new Date(
+        Date.now() + token.expires_in * 1000,
+      );
+
+      const updateData: Record<string, unknown> = {
+        accessToken: token.access_token,
+
+        accessTokenExpiresAt,
+
+        lastRefreshedAt: new Date(),
+
+        status: IntegrationStatus.CONNECTED,
+
+        lastSyncError: null,
+      };
 
       /**
        * WHOOP rotates refresh tokens.
-       * Always persist the new one when
-       * returned.
+       * Always persist the new token when
+       * WHOOP returns one.
        */
-      if (
-        token.refresh_token
-      ) {
-        integration.refreshToken =
-          token.refresh_token;
+      if (token.refresh_token) {
+        updateData.refreshToken = token.refresh_token;
       }
 
-      integration.accessTokenExpiresAt =
-        new Date(
-          Date.now() +
-            token.expires_in *
-              1000,
-        );
-
-      integration.lastRefreshedAt =
-        new Date();
-
-      integration.status =
-        IntegrationStatus.CONNECTED;
-
-      integration.lastSyncError =
-        undefined;
-
-      if (
-        token.scope
-      ) {
-        integration.scopes =
-          token.scope
-            .split(' ')
-            .filter(
-              Boolean,
-            );
+      if (token.scope) {
+        updateData.scopes = token.scope.split(' ').filter(Boolean);
       }
 
-      await integration.save();
+      /**
+       * Compare-and-set:
+       *
+       * Only update if Mongo still contains
+       * the refresh token used for this request.
+       * This prevents a stale process from
+       * overwriting newer credentials.
+       */
+      const updateResult = await this.integrationModel.updateOne(
+        {
+          _id: integration._id,
 
-      return integration.accessToken;
-    } catch (
-      error
-    ) {
-      integration.status =
-        IntegrationStatus.EXPIRED;
+          refreshToken,
+        },
+        {
+          $set: updateData,
+        },
+      );
 
-      integration.lastSyncError =
+      if (updateResult.matchedCount === 1) {
+        return token.access_token;
+      }
+
+      /**
+       * Another process may have rotated and
+       * persisted the token before this save.
+       * Re-read and use the newest valid token.
+       */
+      const latestIntegration = await this.getWhoopIntegration();
+
+      if (this.hasUsableAccessToken(latestIntegration)) {
+        return latestIntegration.accessToken!;
+      }
+
+      throw new UnauthorizedException(
+        'WHOOP token changed during refresh. Please retry the sync.',
+      );
+    } catch (error) {
+      /**
+       * Another PM2 process may have completed
+       * the refresh while this process received
+       * an OAuth error. Check Mongo before
+       * marking the integration expired.
+       */
+      const latestIntegration = await this.getWhoopIntegration();
+
+      const tokenWasRotatedElsewhere = Boolean(
+        latestIntegration.refreshToken &&
+        latestIntegration.refreshToken !== refreshToken,
+      );
+
+      if (
+        tokenWasRotatedElsewhere &&
+        this.hasUsableAccessToken(latestIntegration)
+      ) {
+        return latestIntegration.accessToken!;
+      }
+
+      const message =
         error instanceof Error
           ? error.message
           : 'Unable to refresh WHOOP token.';
 
-      await integration.save();
+      /**
+       * Only mark the integration expired when
+       * Mongo still contains the refresh token
+       * that actually failed.
+       */
+      await this.integrationModel.updateOne(
+        {
+          _id: integration._id,
+
+          refreshToken,
+        },
+        {
+          $set: {
+            status: IntegrationStatus.EXPIRED,
+
+            lastSyncError: message,
+          },
+        },
+      );
 
       throw error;
     }
   }
 
   async getStatus() {
-    const integration =
-      await this.integrationModel
-        .findOne({
-          provider:
-            IntegrationProvider.WHOOP,
+    const integration = await this.integrationModel
+      .findOne({
+        provider: IntegrationProvider.WHOOP,
 
-          isActive:
-            true,
-        })
-        .select({
-          accessToken: 0,
+        isActive: true,
+      })
+      .select({
+        accessToken: 0,
 
-          refreshToken: 0,
-        })
-        .lean();
+        refreshToken: 0,
+      })
+      .lean();
 
     if (!integration) {
       return {
-        provider:
-          IntegrationProvider.WHOOP,
+        provider: IntegrationProvider.WHOOP,
 
-        connected:
-          false,
+        connected: false,
       };
     }
 
     return {
-      provider:
-        integration.provider,
+      provider: integration.provider,
 
-      connected:
-        integration.status ===
-        IntegrationStatus.CONNECTED,
+      connected: integration.status === IntegrationStatus.CONNECTED,
 
-      status:
-        integration.status,
+      status: integration.status,
 
-      scopes:
-        integration.scopes,
+      scopes: integration.scopes,
 
-      externalUserId:
-        integration.externalUserId,
+      externalUserId: integration.externalUserId,
 
-      connectedAt:
-        integration.connectedAt,
+      connectedAt: integration.connectedAt,
 
-      lastRefreshedAt:
-        integration.lastRefreshedAt,
+      lastRefreshedAt: integration.lastRefreshedAt,
 
-      lastSyncedAt:
-        integration.lastSyncedAt,
+      lastSyncedAt: integration.lastSyncedAt,
 
-      lastSyncError:
-        integration.lastSyncError,
+      lastSyncError: integration.lastSyncError,
 
-      accessTokenExpiresAt:
-        integration.accessTokenExpiresAt,
+      accessTokenExpiresAt: integration.accessTokenExpiresAt,
     };
   }
 
-  async syncRecentHealth(
-    days = 3,
-  ) {
-    const safeDays =
-      Math.min(
-        Math.max(
-          Math.floor(
-            days,
-          ),
-          1,
-        ),
-        30,
-      );
+  async syncRecentHealth(days = 3) {
+    const safeDays = Math.min(Math.max(Math.floor(days), 1), 30);
 
-    const endDate =
-      this.getDateKey(
-        new Date(),
-      );
+    const endDate = this.getDateKey(new Date());
 
-    const startDate =
-      this.addDaysToDateKey(
-        endDate,
-        -(safeDays - 1),
-      );
+    const startDate = this.addDaysToDateKey(endDate, -(safeDays - 1));
 
     return this.syncHealth({
       startDate,
@@ -693,52 +664,31 @@ export class WhoopService {
     });
   }
 
-  async backfillHealth(
-    startDate: string,
-    endDate: string,
-  ) {
-    const startDateKey =
-      this.validateDateKey(
-        startDate,
-      );
+  async backfillHealth(startDate: string, endDate: string) {
+    const startDateKey = this.validateDateKey(startDate);
 
-    const endDateKey =
-      this.validateDateKey(
-        endDate,
-      );
+    const endDateKey = this.validateDateKey(endDate);
 
-    if (
-      startDateKey >
-      endDateKey
-    ) {
+    if (startDateKey > endDateKey) {
       throw new BadRequestException(
         'startDate must be before or equal to endDate.',
       );
     }
 
-    const totalDays =
-      this.getDaysBetween(
-        startDateKey,
-        endDateKey,
-      ) + 1;
+    const totalDays = this.getDaysBetween(startDateKey, endDateKey) + 1;
 
     /**
      * Safety limit.
      */
-    if (
-      totalDays >
-      730
-    ) {
+    if (totalDays > 730) {
       throw new BadRequestException(
         'WHOOP backfill cannot exceed 730 days in one request.',
       );
     }
 
-    const chunkSizeDays =
-      7;
+    const chunkSizeDays = 7;
 
-    let currentStart =
-      startDateKey;
+    let currentStart = startDateKey;
 
     const chunks: Array<{
       startDate: string;
@@ -769,122 +719,79 @@ export class WhoopService {
 
       workouts: 0,
 
-      dailyEntriesUpdated:
-        0,
+      dailyEntriesUpdated: 0,
 
       workoutsCreated: 0,
 
       workoutsUpdated: 0,
     };
 
-    while (
-      currentStart <=
-      endDateKey
-    ) {
-      const candidateEnd =
-        this.addDaysToDateKey(
-          currentStart,
-          chunkSizeDays -
-            1,
-        );
+    while (currentStart <= endDateKey) {
+      const candidateEnd = this.addDaysToDateKey(
+        currentStart,
+        chunkSizeDays - 1,
+      );
 
-      const currentEnd =
-        candidateEnd >
-        endDateKey
-          ? endDateKey
-          : candidateEnd;
+      const currentEnd = candidateEnd > endDateKey ? endDateKey : candidateEnd;
 
-      const result =
-        await this.syncHealth({
-          startDate:
-            currentStart,
+      const result = await this.syncHealth({
+        startDate: currentStart,
 
-          endDate:
-            currentEnd,
-        });
-
-      const data =
-        result.data;
-
-      chunks.push({
-        startDate:
-          currentStart,
-
-        endDate:
-          currentEnd,
-
-        cycles:
-          data.cycles,
-
-        recoveries:
-          data.recoveries,
-
-        sleeps:
-          data.sleeps,
-
-        workouts:
-          data.workouts,
-
-        dailyEntriesUpdated:
-          data.dailyEntriesUpdated,
-
-        workoutsCreated:
-          data.workoutsCreated,
-
-        workoutsUpdated:
-          data.workoutsUpdated,
+        endDate: currentEnd,
       });
 
-      totals.cycles +=
-        data.cycles;
+      const data = result.data;
 
-      totals.recoveries +=
-        data.recoveries;
+      chunks.push({
+        startDate: currentStart,
 
-      totals.sleeps +=
-        data.sleeps;
+        endDate: currentEnd,
 
-      totals.workouts +=
-        data.workouts;
+        cycles: data.cycles,
 
-      totals.dailyEntriesUpdated +=
-        data.dailyEntriesUpdated;
+        recoveries: data.recoveries,
 
-      totals.workoutsCreated +=
-        data.workoutsCreated;
+        sleeps: data.sleeps,
 
-      totals.workoutsUpdated +=
-        data.workoutsUpdated;
+        workouts: data.workouts,
 
-      currentStart =
-        this.addDaysToDateKey(
-          currentEnd,
-          1,
-        );
+        dailyEntriesUpdated: data.dailyEntriesUpdated,
 
-      if (
-        currentStart <=
-        endDateKey
-      ) {
-        await this.sleep(
-          500,
-        );
+        workoutsCreated: data.workoutsCreated,
+
+        workoutsUpdated: data.workoutsUpdated,
+      });
+
+      totals.cycles += data.cycles;
+
+      totals.recoveries += data.recoveries;
+
+      totals.sleeps += data.sleeps;
+
+      totals.workouts += data.workouts;
+
+      totals.dailyEntriesUpdated += data.dailyEntriesUpdated;
+
+      totals.workoutsCreated += data.workoutsCreated;
+
+      totals.workoutsUpdated += data.workoutsUpdated;
+
+      currentStart = this.addDaysToDateKey(currentEnd, 1);
+
+      if (currentStart <= endDateKey) {
+        await this.sleep(500);
       }
     }
 
     return {
-      message:
-        'WHOOP historical backfill completed.',
+      message: 'WHOOP historical backfill completed.',
 
       period: {
-        startDate:
-          startDateKey,
+        startDate: startDateKey,
 
-        endDate:
-          endDateKey,
+        endDate: endDateKey,
 
-        days:
-          totalDays,
+        days: totalDays,
       },
 
       totals,
@@ -893,30 +800,20 @@ export class WhoopService {
     };
   }
 
-  async getWorkoutById(
-    workoutId: string,
-  ): Promise<WhoopWorkout> {
-    const accessToken =
-      await this.getValidAccessToken();
+  async getWorkoutById(workoutId: string): Promise<WhoopWorkout> {
+    const accessToken = await this.getValidAccessToken();
 
     return this.whoopApiGet<WhoopWorkout>(
-      `/activity/workout/${encodeURIComponent(
-        workoutId,
-      )}`,
+      `/activity/workout/${encodeURIComponent(workoutId)}`,
       accessToken,
     );
   }
 
-  async getSleepById(
-    sleepId: string,
-  ): Promise<WhoopSleep> {
-    const accessToken =
-      await this.getValidAccessToken();
+  async getSleepById(sleepId: string): Promise<WhoopSleep> {
+    const accessToken = await this.getValidAccessToken();
 
     return this.whoopApiGet<WhoopSleep>(
-      `/activity/sleep/${encodeURIComponent(
-        sleepId,
-      )}`,
+      `/activity/sleep/${encodeURIComponent(sleepId)}`,
       accessToken,
     );
   }
@@ -926,35 +823,20 @@ export class WhoopService {
    * received from WHOOP for an access
    * token + refresh token.
    */
-  private async exchangeCode(
-    code: string,
-  ) {
-    const body =
-      new URLSearchParams({
-        grant_type:
-          'authorization_code',
+  private async exchangeCode(code: string) {
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
 
-        code,
+      code,
 
-        client_id:
-          this.getConfig(
-            'WHOOP_CLIENT_ID',
-          ),
+      client_id: this.getConfig('WHOOP_CLIENT_ID'),
 
-        client_secret:
-          this.getConfig(
-            'WHOOP_CLIENT_SECRET',
-          ),
+      client_secret: this.getConfig('WHOOP_CLIENT_SECRET'),
 
-        redirect_uri:
-          this.getConfig(
-            'WHOOP_REDIRECT_URI',
-          ),
-      });
+      redirect_uri: this.getConfig('WHOOP_REDIRECT_URI'),
+    });
 
-    return this.requestToken(
-      body,
-    );
+    return this.requestToken(body);
   }
 
   /**
@@ -963,142 +845,121 @@ export class WhoopService {
    */
   private async refreshAccessToken(
     refreshToken: string,
-  ) {
-    const body =
-      new URLSearchParams({
-        grant_type:
-          'refresh_token',
+  ): Promise<WhoopTokenResponse> {
+    const normalizedRefreshToken = refreshToken?.trim();
 
-        refresh_token:
-          refreshToken,
+    if (!normalizedRefreshToken) {
+      throw new UnauthorizedException(
+        'WHOOP refresh token is missing. Please reconnect WHOOP.',
+      );
+    }
 
-        client_id:
-          this.getConfig(
-            'WHOOP_CLIENT_ID',
-          ),
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
 
-        client_secret:
-          this.getConfig(
-            'WHOOP_CLIENT_SECRET',
-          ),
+      refresh_token: normalizedRefreshToken,
 
-        scope:
-          'offline',
-      });
+      client_id: this.getConfig('WHOOP_CLIENT_ID'),
 
-    return this.requestToken(
-      body,
-    );
+      client_secret: this.getConfig('WHOOP_CLIENT_SECRET'),
+
+      scope: 'offline',
+    });
+
+    return this.requestToken(body);
   }
 
   private async requestToken(
     body: URLSearchParams,
   ): Promise<WhoopTokenResponse> {
-    const response =
-      await fetch(
-        this.tokenUrl,
-        {
-          method:
-            'POST',
+    const grantType = body.get('grant_type');
 
-          headers: {
-            'Content-Type':
-              'application/x-www-form-urlencoded',
+    const response = await fetch(this.tokenUrl, {
+      method: 'POST',
 
-            Accept:
-              'application/json',
-          },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
 
-          body:
-            body.toString(),
-        },
-      );
+        Accept: 'application/json',
+      },
 
-    if (
-      !response.ok
-    ) {
-      const responseBody =
-        await response.text();
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      const responseBody = await response.text();
+
+      /**
+       * Do not automatically retry WHOOP
+       * refresh-token requests. Refresh tokens
+       * rotate, so an uncertain refresh result
+       * must not be replayed blindly.
+       */
+      if (grantType === 'refresh_token' && response.status === 400) {
+        throw new UnauthorizedException(
+          `WHOOP rejected the refresh token. ` +
+            `The stored OAuth token may no longer be valid. ` +
+            `Please reconnect WHOOP. ` +
+            `WHOOP response: ${responseBody}`,
+        );
+      }
+
+      if (grantType === 'refresh_token' && response.status >= 500) {
+        throw new UnauthorizedException(
+          `WHOOP token endpoint failed during refresh: ` +
+            `${response.status} ${responseBody}`,
+        );
+      }
 
       throw new UnauthorizedException(
         `WHOOP token request failed: ${response.status} ${responseBody}`,
       );
     }
 
-    const result =
-      (await response.json()) as
-        WhoopTokenResponse;
+    const result = (await response.json()) as WhoopTokenResponse;
 
-    if (
-      !result.access_token
-    ) {
-      throw new UnauthorizedException(
-        'WHOOP did not return an access token.',
-      );
+    if (!result.access_token) {
+      throw new UnauthorizedException('WHOOP did not return an access token.');
     }
 
     return result;
   }
 
-  private async fetchProfile(
-    accessToken: string,
-  ): Promise<WhoopProfile> {
-    const response =
-      await fetch(
-        `${this.apiUrl}/user/profile/basic`,
-        {
-          method:
-            'GET',
+  private async fetchProfile(accessToken: string): Promise<WhoopProfile> {
+    const response = await fetch(`${this.apiUrl}/user/profile/basic`, {
+      method: 'GET',
 
-          headers: {
-            Authorization:
-              `Bearer ${accessToken}`,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
 
-            Accept:
-              'application/json',
-          },
-        },
-      );
+        Accept: 'application/json',
+      },
+    });
 
-    if (
-      response.status ===
-      401
-    ) {
-      throw new UnauthorizedException(
-        'WHOOP access token is invalid.',
-      );
+    if (response.status === 401) {
+      throw new UnauthorizedException('WHOOP access token is invalid.');
     }
 
-    if (
-      !response.ok
-    ) {
-      const body =
-        await response.text();
+    if (!response.ok) {
+      const body = await response.text();
 
       throw new BadRequestException(
         `Unable to fetch WHOOP profile: ${response.status} ${body}`,
       );
     }
 
-    return (
-      await response.json()
-    ) as WhoopProfile;
+    return (await response.json()) as WhoopProfile;
   }
 
   private async getWhoopIntegration() {
-    const integration =
-      await this.integrationModel.findOne({
-        provider:
-          IntegrationProvider.WHOOP,
+    const integration = await this.integrationModel.findOne({
+      provider: IntegrationProvider.WHOOP,
 
-        isActive:
-          true,
-      });
+      isActive: true,
+    });
 
     if (!integration) {
-      throw new NotFoundException(
-        'WHOOP is not connected.',
-      );
+      throw new NotFoundException('WHOOP is not connected.');
     }
 
     return integration;
@@ -1117,22 +978,10 @@ export class WhoopService {
        * Six random bytes produce eight
        * base64url characters.
        */
-      state =
-        randomBytes(
-          6,
-        ).toString(
-          'base64url',
-        );
-    } while (
-      this.oauthStates.has(
-        state,
-      )
-    );
+      state = randomBytes(6).toString('base64url');
+    } while (this.oauthStates.has(state));
 
-    this.oauthStates.set(
-      state,
-      Date.now(),
-    );
+    this.oauthStates.set(state, Date.now());
 
     return state;
   }
@@ -1147,21 +996,12 @@ export class WhoopService {
    * State is single-use and removed
    * after validation.
    */
-  private verifyState(
-    state: string,
-  ) {
-    if (
-      state.length !== 8
-    ) {
-      throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
-      );
+  private verifyState(state: string) {
+    if (state.length !== 8) {
+      throw new BadRequestException('Invalid WHOOP OAuth state.');
     }
 
-    const createdAt =
-      this.oauthStates.get(
-        state,
-      );
+    const createdAt = this.oauthStates.get(state);
 
     if (!createdAt) {
       throw new BadRequestException(
@@ -1173,342 +1013,150 @@ export class WhoopService {
      * Delete immediately to make
      * the state single-use.
      */
-    this.oauthStates.delete(
-      state,
-    );
+    this.oauthStates.delete(state);
 
-    const age =
-      Date.now() -
-      createdAt;
+    const age = Date.now() - createdAt;
 
-    if (
-      age >
-      this.oauthStateMaxAgeMs
-    ) {
+    if (age > this.oauthStateMaxAgeMs) {
       throw new BadRequestException(
         'WHOOP OAuth state has expired. Please reconnect.',
       );
     }
 
-    if (
-      age < 0
-    ) {
-      throw new BadRequestException(
-        'Invalid WHOOP OAuth state.',
-      );
+    if (age < 0) {
+      throw new BadRequestException('Invalid WHOOP OAuth state.');
     }
   }
 
   private cleanupExpiredStates() {
-    const now =
-      Date.now();
+    const now = Date.now();
 
-    for (
-      const [
-        state,
-        createdAt,
-      ] of this.oauthStates
-    ) {
-      if (
-        now -
-          createdAt >
-        this.oauthStateMaxAgeMs
-      ) {
-        this.oauthStates.delete(
-          state,
-        );
+    for (const [state, createdAt] of this.oauthStates) {
+      if (now - createdAt > this.oauthStateMaxAgeMs) {
+        this.oauthStates.delete(state);
       }
     }
   }
 
-  private getConfig(
-    key: string,
-  ) {
-    const value =
-      this.configService
-        .get<string>(
-          key,
-        )
-        ?.trim();
+  private getConfig(key: string) {
+    const value = this.configService.get<string>(key)?.trim();
 
     if (!value) {
-      throw new BadRequestException(
-        `${key} is not configured.`,
-      );
+      throw new BadRequestException(`${key} is not configured.`);
     }
 
     return value;
   }
 
-  private validateDateKey(
-    value: string,
-  ) {
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(
-        value,
-      )
-    ) {
-      throw new BadRequestException(
-        'Date must use YYYY-MM-DD format.',
-      );
+  private validateDateKey(value: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      throw new BadRequestException('Date must use YYYY-MM-DD format.');
     }
 
-    const [
-      year,
-      month,
-      day,
-    ] =
-      value
-        .split('-')
-        .map(Number);
+    const [year, month, day] = value.split('-').map(Number);
 
-    const date =
-      new Date(
-        Date.UTC(
-          year,
-          month - 1,
-          day,
-        ),
-      );
+    const date = new Date(Date.UTC(year, month - 1, day));
 
     if (
-      date.getUTCFullYear() !==
-        year ||
-      date.getUTCMonth() !==
-        month - 1 ||
-      date.getUTCDate() !==
-        day
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
     ) {
-      throw new BadRequestException(
-        `Invalid date: ${value}.`,
-      );
+      throw new BadRequestException(`Invalid date: ${value}.`);
     }
 
     return value;
   }
 
-  private getDateKey(
-    date: Date,
-  ) {
-    const parts =
-      new Intl.DateTimeFormat(
-        'en-US',
-        {
-          timeZone:
-            'Asia/Kolkata',
+  private getDateKey(date: Date) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
 
-          year:
-            'numeric',
+      year: 'numeric',
 
-          month:
-            '2-digit',
+      month: '2-digit',
 
-          day:
-            '2-digit',
-        },
-      ).formatToParts(
-        date,
-      );
+      day: '2-digit',
+    }).formatToParts(date);
 
-    const year =
-      parts.find(
-        (
-          part,
-        ) =>
-          part.type ===
-          'year',
-      )?.value;
+    const year = parts.find((part) => part.type === 'year')?.value;
 
-    const month =
-      parts.find(
-        (
-          part,
-        ) =>
-          part.type ===
-          'month',
-      )?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
 
-    const day =
-      parts.find(
-        (
-          part,
-        ) =>
-          part.type ===
-          'day',
-      )?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
 
-    if (
-      !year ||
-      !month ||
-      !day
-    ) {
-      throw new BadRequestException(
-        'Unable to determine date.',
-      );
+    if (!year || !month || !day) {
+      throw new BadRequestException('Unable to determine date.');
     }
 
     return `${year}-${month}-${day}`;
   }
 
-  private addDaysToDateKey(
-    dateKey: string,
-    days: number,
-  ) {
-    const validDate =
-      this.validateDateKey(
-        dateKey,
-      );
+  private addDaysToDateKey(dateKey: string, days: number) {
+    const validDate = this.validateDateKey(dateKey);
 
-    const [
-      year,
-      month,
-      day,
-    ] =
-      validDate
-        .split('-')
-        .map(Number);
+    const [year, month, day] = validDate.split('-').map(Number);
 
-    const date =
-      new Date(
-        Date.UTC(
-          year,
-          month - 1,
-          day,
-        ),
-      );
+    const date = new Date(Date.UTC(year, month - 1, day));
 
-    date.setUTCDate(
-      date.getUTCDate() +
-        days,
-    );
+    date.setUTCDate(date.getUTCDate() + days);
 
     return [
       date.getUTCFullYear(),
 
-      String(
-        date.getUTCMonth() +
-          1,
-      ).padStart(
-        2,
-        '0',
-      ),
+      String(date.getUTCMonth() + 1).padStart(2, '0'),
 
-      String(
-        date.getUTCDate(),
-      ).padStart(
-        2,
-        '0',
-      ),
-    ].join(
-      '-',
-    );
+      String(date.getUTCDate()).padStart(2, '0'),
+    ].join('-');
   }
 
-  private getDaysBetween(
-    startDate: string,
-    endDate: string,
-  ) {
-    const [
-      startYear,
-      startMonth,
-      startDay,
-    ] =
-      this.validateDateKey(
-        startDate,
-      )
-        .split('-')
-        .map(Number);
+  private getDaysBetween(startDate: string, endDate: string) {
+    const [startYear, startMonth, startDay] = this.validateDateKey(startDate)
+      .split('-')
+      .map(Number);
 
-    const [
-      endYear,
-      endMonth,
-      endDay,
-    ] =
-      this.validateDateKey(
-        endDate,
-      )
-        .split('-')
-        .map(Number);
+    const [endYear, endMonth, endDay] = this.validateDateKey(endDate)
+      .split('-')
+      .map(Number);
 
-    const start =
-      Date.UTC(
-        startYear,
-        startMonth - 1,
-        startDay,
-      );
+    const start = Date.UTC(startYear, startMonth - 1, startDay);
 
-    const end =
-      Date.UTC(
-        endYear,
-        endMonth - 1,
-        endDay,
-      );
+    const end = Date.UTC(endYear, endMonth - 1, endDay);
 
-    return Math.floor(
-      (end -
-        start) /
-        86400000,
-    );
+    return Math.floor((end - start) / 86400000);
   }
 
-  private async whoopApiGet<T>(
-    path: string,
-    accessToken: string,
-  ): Promise<T> {
-    const response =
-      await fetch(
-        `${this.apiUrl}${path}`,
-        {
-          method:
-            'GET',
+  private async whoopApiGet<T>(path: string, accessToken: string): Promise<T> {
+    const response = await fetch(`${this.apiUrl}${path}`, {
+      method: 'GET',
 
-          headers: {
-            Authorization:
-              `Bearer ${accessToken}`,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
 
-            Accept:
-              'application/json',
-          },
-        },
-      );
+        Accept: 'application/json',
+      },
+    });
 
-    if (
-      response.status ===
-      401
-    ) {
+    if (response.status === 401) {
       throw new UnauthorizedException(
         'WHOOP access token is invalid or expired.',
       );
     }
 
-    if (
-      !response.ok
-    ) {
-      const body =
-        await response.text();
+    if (!response.ok) {
+      const body = await response.text();
 
       throw new BadRequestException(
         `WHOOP API request failed: ${response.status} ${body}`,
       );
     }
 
-    return (
-      await response.json()
-    ) as T;
+    return (await response.json()) as T;
   }
 
-  private sleep(
-    milliseconds: number,
-  ) {
-    return new Promise<void>(
-      (
-        resolve,
-      ) => {
-        setTimeout(
-          resolve,
-          milliseconds,
-        );
-      },
-    );
+  private sleep(milliseconds: number) {
+    return new Promise<void>((resolve) => {
+      setTimeout(resolve, milliseconds);
+    });
   }
 }

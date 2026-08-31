@@ -1,17 +1,8 @@
-import {
-  Prop,
-  Schema,
-  SchemaFactory,
-} from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type NowStatusDocument =
-  HydratedDocument<NowStatus>;
+export type NowStatusDocument = HydratedDocument<NowStatus>;
 
 export enum NowActivityType {
   WORKING = 'working',
@@ -88,14 +79,11 @@ export enum NowSource {
 })
 export class NowCompanyReference {
   @Prop({
-    type:
-      SchemaTypes.ObjectId,
+    type: SchemaTypes.ObjectId,
 
-    ref:
-      'Company',
+    ref: 'Company',
   })
-  companyId?:
-    Types.ObjectId;
+  companyId?: Types.ObjectId;
 
   @Prop({
     trim: true,
@@ -114,23 +102,18 @@ export class NowCompanyReference {
 }
 
 export const NowCompanyReferenceSchema =
-  SchemaFactory.createForClass(
-    NowCompanyReference,
-  );
+  SchemaFactory.createForClass(NowCompanyReference);
 
 @Schema({
   _id: false,
 })
 export class NowReadingReference {
   @Prop({
-    type:
-      SchemaTypes.ObjectId,
+    type: SchemaTypes.ObjectId,
 
-    ref:
-      'LibraryItem',
+    ref: 'LibraryItem',
   })
-  libraryItemId?:
-    Types.ObjectId;
+  libraryItemId?: Types.ObjectId;
 
   @Prop({
     trim: true,
@@ -156,9 +139,7 @@ export class NowReadingReference {
 }
 
 export const NowReadingReferenceSchema =
-  SchemaFactory.createForClass(
-    NowReadingReference,
-  );
+  SchemaFactory.createForClass(NowReadingReference);
 
 @Schema({
   _id: false,
@@ -224,15 +205,12 @@ export class NowHealthReference {
 }
 
 export const NowHealthReferenceSchema =
-  SchemaFactory.createForClass(
-    NowHealthReference,
-  );
+  SchemaFactory.createForClass(NowHealthReference);
 
 @Schema({
   timestamps: true,
 
-  collection:
-    'now_statuses',
+  collection: 'now_statuses',
 })
 export class NowStatus {
   /**
@@ -241,23 +219,19 @@ export class NowStatus {
    */
   @Prop({
     default: true,
-
-    index: true,
   })
   isCurrent: boolean;
 
   @Prop({
     type: String,
 
-    enum:
-      NowActivityType,
+    enum: NowActivityType,
 
     required: true,
 
     index: true,
   })
-  activityType:
-    NowActivityType;
+  activityType: NowActivityType;
 
   /**
    * Human readable activity:
@@ -305,22 +279,18 @@ export class NowStatus {
   @Prop({
     type: String,
 
-    enum:
-      NowAvailability,
+    enum: NowAvailability,
 
-    default:
-      NowAvailability.FOCUSED,
+    default: NowAvailability.FOCUSED,
 
     index: true,
   })
-  availability:
-    NowAvailability;
+  availability: NowAvailability;
 
   @Prop({
     type: String,
 
-    enum:
-      NowMood,
+    enum: NowMood,
   })
   mood?: NowMood;
 
@@ -359,24 +329,18 @@ export class NowStatus {
   locationType?: string;
 
   @Prop({
-    type:
-      NowCompanyReferenceSchema,
+    type: NowCompanyReferenceSchema,
 
-    default:
-      undefined,
+    default: undefined,
   })
-  building?:
-    NowCompanyReference;
+  building?: NowCompanyReference;
 
   @Prop({
-    type:
-      NowReadingReferenceSchema,
+    type: NowReadingReferenceSchema,
 
-    default:
-      undefined,
+    default: undefined,
   })
-  reading?:
-    NowReadingReference;
+  reading?: NowReadingReference;
 
   @Prop({
     trim: true,
@@ -389,14 +353,11 @@ export class NowStatus {
   writing?: string;
 
   @Prop({
-    type:
-      NowHealthReferenceSchema,
+    type: NowHealthReferenceSchema,
 
-    default:
-      undefined,
+    default: undefined,
   })
-  health?:
-    NowHealthReference;
+  health?: NowHealthReference;
 
   @Prop({
     type: [String],
@@ -408,16 +369,13 @@ export class NowStatus {
   @Prop({
     type: String,
 
-    enum:
-      NowVisibility,
+    enum: NowVisibility,
 
-    default:
-      NowVisibility.PUBLIC,
+    default: NowVisibility.PUBLIC,
 
     index: true,
   })
-  visibility:
-    NowVisibility;
+  visibility: NowVisibility;
 
   @Prop({
     default: false,
@@ -442,8 +400,7 @@ export class NowStatus {
   @Prop({
     required: true,
 
-    default:
-      Date.now,
+    default: Date.now,
 
     index: true,
   })
@@ -458,9 +415,7 @@ export class NowStatus {
    * If expiresAt < now then this status
    * should no longer be considered live.
    */
-  @Prop({
-    index: true,
-  })
+  @Prop()
   expiresAt?: Date;
 
   /**
@@ -473,11 +428,9 @@ export class NowStatus {
   @Prop({
     type: String,
 
-    enum:
-      NowSource,
+    enum: NowSource,
 
-    default:
-      NowSource.MANUAL,
+    default: NowSource.MANUAL,
 
     index: true,
   })
@@ -498,16 +451,11 @@ export class NowStatus {
   sourceExternalId?: string;
 
   @Prop({
-    type:
-      SchemaTypes.Mixed,
+    type: SchemaTypes.Mixed,
 
     default: {},
   })
-  metadata:
-    Record<
-      string,
-      unknown
-    >;
+  metadata: Record<string, unknown>;
 
   @Prop({
     default: false,
@@ -520,10 +468,7 @@ export class NowStatus {
   isActive: boolean;
 }
 
-export const NowStatusSchema =
-  SchemaFactory.createForClass(
-    NowStatus,
-  );
+export const NowStatusSchema = SchemaFactory.createForClass(NowStatus);
 
 /**
  * Query current status quickly.

@@ -8,7 +8,6 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-
 import { CreateMeditationEntryDto } from './dto/create-meditation-entry.dto';
 import { MeditationQueryDto } from './dto/meditation-query.dto';
 import { UpdateMeditationEntryDto } from './dto/update-meditation-entry.dto';
@@ -18,225 +17,89 @@ import { MeditationService } from './meditation.service';
 
 @Controller('meditation')
 export class MeditationController {
-  constructor(
-    private readonly meditationService:
-      MeditationService,
-  ) {}
-
-  @Post()
-  create(
-    @Body() dto: CreateMeditationEntryDto,
-  ) {
+  constructor(private readonly meditationService: MeditationService) {}
+  @Post() create(@Body() dto: CreateMeditationEntryDto) {
     return this.meditationService.create(dto);
   }
-
-  @Get()
-  findAll(
-    @Query() query: MeditationQueryDto,
-  ) {
+  @Get() findAll(@Query() query: MeditationQueryDto) {
     return this.meditationService.findAll(query);
   }
-
-  @Get('summary')
-  getSummary(
-    @Query('userId') userId: string,
+  @Get('summary') getSummary(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
   ) {
-    return this.meditationService.getSummary(
-      userId,
-      startDate,
-      endDate,
-    );
+    return this.meditationService.getSummary(startDate, endDate);
   }
-
-  @Get(':meditationEntryId')
-  findOne(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.meditationService.findOne(
-      meditationEntryId,
-      userId,
-    );
+  @Get(':meditationEntryId') findOne(@Param('meditationEntryId') id: string) {
+    return this.meditationService.findOne(id);
   }
-
-  @Patch(':meditationEntryId')
-  update(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId') update(
+    @Param('meditationEntryId') id: string,
     @Body() dto: UpdateMeditationEntryDto,
   ) {
-    return this.meditationService.update(
-      meditationEntryId,
-      userId,
-      dto,
-    );
+    return this.meditationService.update(id, dto);
   }
-
-  @Patch(':meditationEntryId/status')
-  updateStatus(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId/status') updateStatus(
+    @Param('meditationEntryId') id: string,
     @Body() dto: UpdateMeditationStatusDto,
   ) {
-    return this.meditationService.updateStatus(
-      meditationEntryId,
-      userId,
-      dto,
-    );
+    return this.meditationService.updateStatus(id, dto);
   }
-
-  @Patch(':meditationEntryId/start')
-  start(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId/start') start(
+    @Param('meditationEntryId') id: string,
   ) {
-    return this.meditationService.start(
-      meditationEntryId,
-      userId,
-    );
+    return this.meditationService.start(id);
   }
-
-  @Patch(':meditationEntryId/pause')
-  pause(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId/pause') pause(
+    @Param('meditationEntryId') id: string,
   ) {
-    return this.meditationService.pause(
-      meditationEntryId,
-      userId,
-    );
+    return this.meditationService.pause(id);
   }
-
-  @Patch(':meditationEntryId/resume')
-  resume(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId/resume') resume(
+    @Param('meditationEntryId') id: string,
   ) {
-    return this.meditationService.resume(
-      meditationEntryId,
-      userId,
-    );
+    return this.meditationService.resume(id);
   }
-
-  @Patch(':meditationEntryId/complete')
-  complete(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
-    @Body()
-    body: {
-      actualDurationMinutes?: number;
-    },
+  @Patch(':meditationEntryId/complete') complete(
+    @Param('meditationEntryId') id: string,
+    @Body() body: { actualDurationMinutes?: number },
   ) {
-    return this.meditationService.complete(
-      meditationEntryId,
-      userId,
-      body.actualDurationMinutes,
-    );
+    return this.meditationService.complete(id, body.actualDurationMinutes);
   }
-
-  @Patch(':meditationEntryId/skip')
-  skip(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
-    @Body()
-    body: {
-      reason?: string;
-    },
+  @Patch(':meditationEntryId/skip') skip(
+    @Param('meditationEntryId') id: string,
+    @Body() body: { reason?: string },
   ) {
-    return this.meditationService.skip(
-      meditationEntryId,
-      userId,
-      body.reason,
-    );
+    return this.meditationService.skip(id, body.reason);
   }
-
-  @Patch(':meditationEntryId/abandon')
-  abandon(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
-    @Body()
-    body: {
-      reason?: string;
-    },
+  @Patch(':meditationEntryId/abandon') abandon(
+    @Param('meditationEntryId') id: string,
+    @Body() body: { reason?: string },
   ) {
-    return this.meditationService.abandon(
-      meditationEntryId,
-      userId,
-      body.reason,
-    );
+    return this.meditationService.abandon(id, body.reason);
   }
-
-  @Patch(':meditationEntryId/reflection')
-  updateReflection(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
-    @Body()
-    dto: UpdateMeditationReflectionDto,
+  @Patch(':meditationEntryId/reflection') updateReflection(
+    @Param('meditationEntryId') id: string,
+    @Body() dto: UpdateMeditationReflectionDto,
   ) {
-    return this.meditationService.updateReflection(
-      meditationEntryId,
-      userId,
-      dto,
-    );
+    return this.meditationService.updateReflection(id, dto);
   }
-
-  @Patch(':meditationEntryId/favourite/toggle')
-  toggleFavourite(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId/favourite/toggle') toggleFavourite(
+    @Param('meditationEntryId') id: string,
   ) {
-    return this.meditationService.toggleFavourite(
-      meditationEntryId,
-      userId,
-    );
+    return this.meditationService.toggleFavourite(id);
   }
-
-  @Patch(':meditationEntryId/archive')
-  archive(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId/archive') archive(
+    @Param('meditationEntryId') id: string,
   ) {
-    return this.meditationService.archive(
-      meditationEntryId,
-      userId,
-    );
+    return this.meditationService.archive(id);
   }
-
-  @Patch(':meditationEntryId/restore')
-  restore(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
+  @Patch(':meditationEntryId/restore') restore(
+    @Param('meditationEntryId') id: string,
   ) {
-    return this.meditationService.restore(
-      meditationEntryId,
-      userId,
-    );
+    return this.meditationService.restore(id);
   }
-
-  @Delete(':meditationEntryId')
-  remove(
-    @Param('meditationEntryId')
-    meditationEntryId: string,
-    @Query('userId') userId: string,
-  ) {
-    return this.meditationService.remove(
-      meditationEntryId,
-      userId,
-    );
+  @Delete(':meditationEntryId') remove(@Param('meditationEntryId') id: string) {
+    return this.meditationService.remove(id);
   }
 }

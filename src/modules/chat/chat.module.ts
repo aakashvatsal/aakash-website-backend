@@ -28,5 +28,6 @@ import { MemoryModule } from '../memory/memory.module';
   ],
   controllers: [ChatController],
   providers: [ChatService],
+  exports: [ChatService],
 })
 export class ChatModule {}

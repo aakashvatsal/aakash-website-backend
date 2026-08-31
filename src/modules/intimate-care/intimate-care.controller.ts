@@ -17,76 +17,47 @@ import { IntimateCareService } from './intimate-care.service';
 
 @Controller('intimate-care')
 export class IntimateCareController {
-  constructor(
-    private readonly intimateCareService:
-      IntimateCareService,
-  ) {}
+  constructor(private readonly intimateCareService: IntimateCareService) {}
 
   @Post('products')
-  createProduct(
-    @Body() dto: CreateIntimateCareProductDto,
-  ) {
-    return this.intimateCareService.createProduct(
-      dto,
-    );
+  createProduct(@Body() dto: CreateIntimateCareProductDto) {
+    return this.intimateCareService.createProduct(dto);
   }
 
   @Get('products')
   findProducts(
-    @Query('userId') userId: string,
     @Query('status')
     status?: IntimateCareProductStatus,
   ) {
-    return this.intimateCareService.findProducts(
-      userId,
-      status,
-    );
+    return this.intimateCareService.findProducts(status);
   }
 
   @Patch('products/:productId')
   updateProduct(
     @Param('productId') productId: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateIntimateCareProductDto,
   ) {
-    return this.intimateCareService.updateProduct(
-      productId,
-      userId,
-      dto,
-    );
+    return this.intimateCareService.updateProduct(productId, dto);
   }
 
   @Post('logs/generate')
-  generateDailyLog(
-    @Body() dto: GenerateDailyIntimateCareLogDto,
-  ) {
-    return this.intimateCareService.generateDailyLog(
-      dto.userId,
-      dto.date,
-    );
+  generateDailyLog(@Body() dto: GenerateDailyIntimateCareLogDto) {
+    return this.intimateCareService.generateDailyLog(dto.date);
   }
 
   @Get('logs/daily')
-  getDailyLog(
-    @Query('userId') userId: string,
-    @Query('date') date: string,
-  ) {
-    return this.intimateCareService.getDailyLog(
-      userId,
-      date,
-    );
+  getDailyLog(@Query('date') date: string) {
+    return this.intimateCareService.getDailyLog(date);
   }
 
   @Patch('logs/:logId/items/:itemIndex')
   updateRoutineItem(
     @Param('logId') logId: string,
     @Param('itemIndex') itemIndex: string,
-    @Query('userId') userId: string,
     @Body() dto: UpdateIntimateCareLogItemDto,
   ) {
     return this.intimateCareService.updateRoutineItem(
       logId,
-      userId,
       Number(itemIndex),
       dto,
     );
@@ -95,7 +66,6 @@ export class IntimateCareController {
   @Patch('logs/:logId/observation')
   updateObservation(
     @Param('logId') logId: string,
-    @Query('userId') userId: string,
     @Body()
     body: {
       observation?: Record<string, unknown>;
@@ -103,10 +73,6 @@ export class IntimateCareController {
       notes?: string;
     },
   ) {
-    return this.intimateCareService.updateObservation(
-      logId,
-      userId,
-      body,
-    );
+    return this.intimateCareService.updateObservation(logId, body);
   }
 }

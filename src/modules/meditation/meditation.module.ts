@@ -19,9 +19,6 @@ import {
   ],
   controllers: [MeditationController],
   providers: [MeditationService],
-  exports: [
-    MeditationService,
-    MongooseModule,
-  ],
+  exports: [MeditationService, MongooseModule],
 })
 export class MeditationModule {}

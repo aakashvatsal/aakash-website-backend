@@ -9,7 +9,9 @@ describe('HsakaaController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HsakaaController],
       providers: [HsakaaService],
-    }).compile();
+    })
+      .useMocker(() => ({ get: jest.fn() }))
+      .compile();
 
     controller = module.get<HsakaaController>(HsakaaController);
   });

@@ -7,7 +7,9 @@ describe('HealthReportsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HealthReportsController],
-    }).compile();
+    })
+      .useMocker(() => ({ get: jest.fn() }))
+      .compile();
 
     controller = module.get<HealthReportsController>(HealthReportsController);
   });

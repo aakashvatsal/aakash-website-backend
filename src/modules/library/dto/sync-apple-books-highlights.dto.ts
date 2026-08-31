@@ -72,12 +72,8 @@ export class SyncAppleBooksHighlightsDto {
   @ValidateNested({
     each: true,
   })
-  @Type(
-    () =>
-      SyncAppleBookHighlightDto,
-  )
-  highlights:
-    SyncAppleBookHighlightDto[];
+  @Type(() => SyncAppleBookHighlightDto)
+  highlights: SyncAppleBookHighlightDto[];
 
   @IsOptional()
   @IsDateString()

@@ -9,10 +9,7 @@ import {
   SkincareProduct,
   SkincareProductSchema,
 } from './schemas/skincare-product.schema';
-import {
-  SkinReport,
-  SkinReportSchema,
-} from './schemas/skin-report.schema';
+import { SkinReport, SkinReportSchema } from './schemas/skin-report.schema';
 import { SkincareController } from './skincare.controller';
 import { SkincareService } from './skincare.service';
 

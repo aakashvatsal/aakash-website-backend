@@ -1,10 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-} from 'mongoose';
+import { HydratedDocument } from 'mongoose';
 
-export type LibraryItemDocument =
-  HydratedDocument<LibraryItem>;
+export type LibraryItemDocument = HydratedDocument<LibraryItem>;
 
 export enum LibraryItemType {
   BOOK = 'book',
@@ -34,16 +31,6 @@ export enum LibraryItemSource {
   collection: 'library_items',
 })
 export class LibraryItem {
-  // Enable this when multiple users will own library items.
-  //
-  // @Prop({
-  //   type: SchemaTypes.ObjectId,
-  //   ref: 'User',
-  //   required: true,
-  //   index: true,
-  // })
-  // userId: Types.ObjectId;
-
   @Prop({
     required: true,
     trim: true,
@@ -294,8 +281,7 @@ export class LibraryItem {
   isActive: boolean;
 }
 
-export const LibraryItemSchema =
-  SchemaFactory.createForClass(LibraryItem);
+export const LibraryItemSchema = SchemaFactory.createForClass(LibraryItem);
 
 /**
  * Prevent duplicate slugs while allowing items without a slug.

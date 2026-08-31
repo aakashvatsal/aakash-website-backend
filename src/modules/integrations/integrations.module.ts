@@ -1,48 +1,31 @@
-import {
-  Module,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
 
-import {
-  ConfigModule,
-} from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 
-import {
-  MongooseModule,
-} from '@nestjs/mongoose';
+import { MongooseModule } from '@nestjs/mongoose';
 
-import {
-  HealthModule,
-} from '../health/health.module';
+import { HealthModule } from '../health/health.module';
 
-import {
-  NowModule,
-} from '../now/now.module';
+import { NowModule } from '../now/now.module';
 
-import {
-  IntegrationsController,
-} from './integrations.controller';
+import { MediaModule } from '../media/media.module';
 
-import {
-  Integration,
-  IntegrationSchema,
-} from './schemas/integration.schema';
+import { IntegrationsController } from './integrations.controller';
+
+import { IntegrationsService } from './integrations.service';
+
+import { Integration, IntegrationSchema } from './schemas/integration.schema';
 
 import {
   WhoopWebhookEvent,
   WhoopWebhookEventSchema,
 } from './whoop/schemas/whoop-webhook-event.schema';
 
-import {
-  WhoopService,
-} from './whoop/whoop.service';
+import { WhoopService } from './whoop/whoop.service';
 
-import {
-  WhoopSyncScheduler,
-} from './whoop/whoop-sync.scheduler';
+import { WhoopSyncScheduler } from './whoop/whoop-sync.scheduler';
 
-import {
-  WhoopWebhookService,
-} from './whoop/whoop-webhook.service';
+import { WhoopWebhookService } from './whoop/whoop-webhook.service';
 
 @Module({
   imports: [
@@ -52,30 +35,28 @@ import {
 
     NowModule,
 
+    MediaModule,
+
     MongooseModule.forFeature([
       {
-        name:
-          Integration.name,
+        name: Integration.name,
 
-        schema:
-          IntegrationSchema,
+        schema: IntegrationSchema,
       },
 
       {
-        name:
-          WhoopWebhookEvent.name,
+        name: WhoopWebhookEvent.name,
 
-        schema:
-          WhoopWebhookEventSchema,
+        schema: WhoopWebhookEventSchema,
       },
     ]),
   ],
 
-  controllers: [
-    IntegrationsController,
-  ],
+  controllers: [IntegrationsController],
 
   providers: [
+    IntegrationsService,
+
     WhoopService,
 
     WhoopSyncScheduler,
@@ -83,8 +64,6 @@ import {
     WhoopWebhookService,
   ],
 
-  exports: [
-    WhoopService,
-  ],
+  exports: [IntegrationsService, WhoopService],
 })
 export class IntegrationsModule {}

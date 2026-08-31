@@ -2,7 +2,6 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEnum,
-  IsMongoId,
   IsNumber,
   IsOptional,
   IsString,
@@ -17,11 +16,7 @@ import {
   RepurchaseStatus,
 } from '../schemas/product.schema';
 
-const transformBoolean = ({
-  value,
-}: {
-  value: unknown;
-}) => {
+const transformBoolean = ({ value }: { value: unknown }) => {
   if (value === true || value === 'true') {
     return true;
   }
@@ -34,9 +29,6 @@ const transformBoolean = ({
 };
 
 export class ProductQueryDto {
-  @IsMongoId()
-  userId: string;
-
   @IsOptional()
   @IsString()
   search?: string;

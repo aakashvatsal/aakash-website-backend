@@ -1,9 +1,6 @@
-import { IsDateString, IsString } from 'class-validator';
+import { IsDateString } from 'class-validator';
 
 export class GenerateDailySkincareLogDto {
-  @IsString()
-  userId: string;
-
   @IsDateString()
   date: string;
 }

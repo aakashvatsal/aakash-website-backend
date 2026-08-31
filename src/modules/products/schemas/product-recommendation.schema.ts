@@ -1,9 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 import { ProductCategory } from './product.schema';
 
@@ -33,14 +29,6 @@ export enum RecommendationStatus {
   collection: 'product_recommendations',
 })
 export class ProductRecommendation {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   @Prop({
     type: SchemaTypes.ObjectId,
     ref: 'Product',
@@ -172,20 +160,17 @@ export class ProductRecommendation {
   isActive: boolean;
 }
 
-export const ProductRecommendationSchema =
-  SchemaFactory.createForClass(
-    ProductRecommendation,
-  );
+export const ProductRecommendationSchema = SchemaFactory.createForClass(
+  ProductRecommendation,
+);
 
 ProductRecommendationSchema.index({
-  userId: 1,
   status: 1,
   priority: -1,
   createdAt: -1,
 });
 
 ProductRecommendationSchema.index({
-  userId: 1,
   category: 1,
   status: 1,
 });
@@ -196,7 +181,6 @@ ProductRecommendationSchema.index({
 });
 
 ProductRecommendationSchema.index({
-  userId: 1,
   suggestedBuyAt: 1,
   status: 1,
 });

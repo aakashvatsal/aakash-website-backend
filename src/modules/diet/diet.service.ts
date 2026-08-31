@@ -25,19 +25,14 @@ export class DietService {
   ) {}
 
   async create(dto: CreateDietEntryDto) {
-    this.validateObjectId(dto.userId, 'user ID');
-
     const date = this.normalizeDate(dto.date);
 
     const exists = await this.dietEntryModel.exists({
-      userId: new Types.ObjectId(dto.userId),
       date,
     });
 
     if (exists) {
-      throw new ConflictException(
-        'Diet entry already exists for this date.',
-      );
+      throw new ConflictException('Diet entry already exists for this date.');
     }
 
     const meals = this.prepareMeals(dto.meals || []);
@@ -46,7 +41,6 @@ export class DietService {
 
     return this.dietEntryModel.create({
       ...dto,
-      userId: new Types.ObjectId(dto.userId),
       date,
       meals,
       actuals: totals.actuals,
@@ -58,15 +52,8 @@ export class DietService {
     });
   }
 
-  async findAll(
-    userId: string,
-    startDate?: string,
-    endDate?: string,
-  ) {
-    this.validateObjectId(userId, 'user ID');
-
+  async findAll(startDate?: string, endDate?: string) {
     const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId),
       isActive: true,
     };
 
@@ -86,20 +73,15 @@ export class DietService {
       filter.date = dateFilter;
     }
 
-    return this.dietEntryModel
-      .find(filter)
-      .sort({ date: -1 })
-      .lean();
+    return this.dietEntryModel.find(filter).sort({ date: -1 }).lean();
   }
 
-  async findOne(dietEntryId: string, userId: string) {
+  async findOne(dietEntryId: string) {
     this.validateObjectId(dietEntryId, 'diet entry ID');
-    this.validateObjectId(userId, 'user ID');
 
     const entry = await this.dietEntryModel
       .findOne({
         _id: new Types.ObjectId(dietEntryId),
-        userId: new Types.ObjectId(userId),
         isActive: true,
       })
       .lean();
@@ -111,17 +93,11 @@ export class DietService {
     return entry;
   }
 
-  async update(
-    dietEntryId: string,
-    userId: string,
-    dto: UpdateDietEntryDto,
-  ) {
+  async update(dietEntryId: string, dto: UpdateDietEntryDto) {
     this.validateObjectId(dietEntryId, 'diet entry ID');
-    this.validateObjectId(userId, 'user ID');
 
     const existing = await this.dietEntryModel.findOne({
       _id: new Types.ObjectId(dietEntryId),
-      userId: new Types.ObjectId(userId),
       isActive: true,
     });
 
@@ -129,9 +105,7 @@ export class DietService {
       throw new NotFoundException('Diet entry not found.');
     }
 
-    const meals = dto.meals
-      ? this.prepareMeals(dto.meals)
-      : existing.meals;
+    const meals = dto.meals ? this.prepareMeals(dto.meals) : existing.meals;
 
     const totals = this.calculateTotals(meals);
 
@@ -143,10 +117,7 @@ export class DietService {
         {
           $set: {
             ...dto,
-            userId: existing.userId,
-            date: dto.date
-              ? this.normalizeDate(dto.date)
-              : existing.date,
+            date: dto.date ? this.normalizeDate(dto.date) : existing.date,
             meals,
             actuals: totals.actuals,
             adherence: this.calculateAdherence({
@@ -168,7 +139,6 @@ export class DietService {
 
   async updateMealStatus(
     dietEntryId: string,
-    userId: string,
     mealIndex: number,
     data: {
       status: MealStatus;
@@ -180,11 +150,9 @@ export class DietService {
     },
   ) {
     this.validateObjectId(dietEntryId, 'diet entry ID');
-    this.validateObjectId(userId, 'user ID');
 
     const entry = await this.dietEntryModel.findOne({
       _id: new Types.ObjectId(dietEntryId),
-      userId: new Types.ObjectId(userId),
       isActive: true,
     });
 
@@ -199,36 +167,32 @@ export class DietService {
     entry.meals[mealIndex].status = data.status;
 
     if (data.consumedAt) {
-      entry.meals[mealIndex].consumedAt =
-        new Date(data.consumedAt);
+      entry.meals[mealIndex].consumedAt = new Date(data.consumedAt);
     }
 
     if (data.consumedItems) {
-      entry.meals[mealIndex].consumedItems =
-        data.consumedItems;
+      entry.meals[mealIndex].consumedItems = data.consumedItems;
     }
 
     if (data.skipReason !== undefined) {
-      entry.meals[mealIndex].skipReason =
-        data.skipReason;
+      entry.meals[mealIndex].skipReason = data.skipReason;
     }
 
     if (data.replacementReason !== undefined) {
-      entry.meals[mealIndex].replacementReason =
-        data.replacementReason;
+      entry.meals[mealIndex].replacementReason = data.replacementReason;
     }
 
     if (data.notes !== undefined) {
       entry.meals[mealIndex].notes = data.notes;
     }
 
-    entry.meals[mealIndex].completionPercentage =
-      this.getCompletionPercentage(data.status);
+    entry.meals[mealIndex].completionPercentage = this.getCompletionPercentage(
+      data.status,
+    );
 
-    entry.meals[mealIndex].actualNutrition =
-      this.sumFoodItems(
-        entry.meals[mealIndex].consumedItems || [],
-      );
+    entry.meals[mealIndex].actualNutrition = this.sumFoodItems(
+      entry.meals[mealIndex].consumedItems || [],
+    );
 
     const totals = this.calculateTotals(entry.meals);
 
@@ -244,14 +208,12 @@ export class DietService {
     return entry;
   }
 
-  async remove(dietEntryId: string, userId: string) {
+  async remove(dietEntryId: string) {
     this.validateObjectId(dietEntryId, 'diet entry ID');
-    this.validateObjectId(userId, 'user ID');
 
     const entry = await this.dietEntryModel.findOneAndUpdate(
       {
         _id: new Types.ObjectId(dietEntryId),
-        userId: new Types.ObjectId(userId),
         isActive: true,
       },
       {
@@ -277,23 +239,13 @@ export class DietService {
   private prepareMeals(meals: any[]): Meal[] {
     return meals.map((meal) => ({
       ...meal,
-      plannedAt: meal.plannedAt
-        ? new Date(meal.plannedAt)
-        : undefined,
-      consumedAt: meal.consumedAt
-        ? new Date(meal.consumedAt)
-        : undefined,
-      plannedNutrition: this.sumFoodItems(
-        meal.plannedItems || [],
-      ),
-      actualNutrition: this.sumFoodItems(
-        meal.consumedItems || [],
-      ),
+      plannedAt: meal.plannedAt ? new Date(meal.plannedAt) : undefined,
+      consumedAt: meal.consumedAt ? new Date(meal.consumedAt) : undefined,
+      plannedNutrition: this.sumFoodItems(meal.plannedItems || []),
+      actualNutrition: this.sumFoodItems(meal.consumedItems || []),
       completionPercentage:
         meal.completionPercentage ??
-        this.getCompletionPercentage(
-          meal.status || MealStatus.PLANNED,
-        ),
+        this.getCompletionPercentage(meal.status || MealStatus.PLANNED),
     })) as Meal[];
   }
 
@@ -305,8 +257,7 @@ export class DietService {
 
     for (const meal of meals) {
       const values =
-        meal.actualNutrition ||
-        this.sumFoodItems(meal.consumedItems || []);
+        meal.actualNutrition || this.sumFoodItems(meal.consumedItems || []);
 
       this.addNutrition(nutrition, values);
 
@@ -339,35 +290,29 @@ export class DietService {
     actuals: any;
     meals: Meal[];
   }) {
-    const targetNutrition =
-      params.targets?.nutrition || {};
+    const targetNutrition = params.targets?.nutrition || {};
 
-    const actualNutrition =
-      params.actuals?.nutrition || {};
+    const actualNutrition = params.actuals?.nutrition || {};
 
-    const calorieTargetPercentage =
-      this.percentage(
-        actualNutrition.calories,
-        targetNutrition.calories,
-      );
+    const calorieTargetPercentage = this.percentage(
+      actualNutrition.calories,
+      targetNutrition.calories,
+    );
 
-    const proteinTargetPercentage =
-      this.percentage(
-        actualNutrition.proteinGrams,
-        targetNutrition.proteinGrams,
-      );
+    const proteinTargetPercentage = this.percentage(
+      actualNutrition.proteinGrams,
+      targetNutrition.proteinGrams,
+    );
 
-    const hydrationTargetPercentage =
-      this.percentage(
-        params.actuals?.waterLitres,
-        params.targets?.waterLitres,
-      );
+    const hydrationTargetPercentage = this.percentage(
+      params.actuals?.waterLitres,
+      params.targets?.waterLitres,
+    );
 
     const totalMeals = params.meals.length;
 
     const mealCompletion = params.meals.reduce(
-      (total, meal) =>
-        total + (meal.completionPercentage || 0),
+      (total, meal) => total + (meal.completionPercentage || 0),
       0,
     );
 
@@ -385,10 +330,8 @@ export class DietService {
     const overallPercentage = validPercentages.length
       ? Number(
           (
-            validPercentages.reduce(
-              (sum, value) => sum + value,
-              0,
-            ) / validPercentages.length
+            validPercentages.reduce((sum, value) => sum + value, 0) /
+            validPercentages.length
           ).toFixed(2),
         )
       : 0;
@@ -399,8 +342,7 @@ export class DietService {
       hydrationTargetPercentage,
       mealPlanCompletionPercentage,
       overallPercentage,
-      followedMealPlan:
-        mealPlanCompletionPercentage >= 90,
+      followedMealPlan: mealPlanCompletionPercentage >= 90,
     };
   }
 
@@ -424,8 +366,7 @@ export class DietService {
   ) {
     total.calories += value.calories || 0;
     total.proteinGrams += value.proteinGrams || 0;
-    total.carbohydratesGrams +=
-      value.carbohydratesGrams || 0;
+    total.carbohydratesGrams += value.carbohydratesGrams || 0;
     total.fatGrams += value.fatGrams || 0;
     total.fibreGrams += value.fibreGrams || 0;
     total.sugarGrams += value.sugarGrams || 0;
@@ -444,23 +385,17 @@ export class DietService {
     };
   }
 
-  private percentage(
-    actual?: number,
-    target?: number,
-  ): number {
+  private percentage(actual?: number, target?: number): number {
     if (!target || target <= 0) {
       return 0;
     }
 
     return Number(
-      Math.min((Number(actual || 0) / target) * 100, 100)
-        .toFixed(2),
+      Math.min((Number(actual || 0) / target) * 100, 100).toFixed(2),
     );
   }
 
-  private getCompletionPercentage(
-    status: MealStatus,
-  ): number {
+  private getCompletionPercentage(status: MealStatus): number {
     switch (status) {
       case MealStatus.COMPLETED:
         return 100;
@@ -490,14 +425,9 @@ export class DietService {
     return date;
   }
 
-  private validateObjectId(
-    value: string,
-    fieldName: string,
-  ) {
+  private validateObjectId(value: string, fieldName: string) {
     if (!Types.ObjectId.isValid(value)) {
-      throw new BadRequestException(
-        `Invalid ${fieldName}.`,
-      );
+      throw new BadRequestException(`Invalid ${fieldName}.`);
     }
   }
 }

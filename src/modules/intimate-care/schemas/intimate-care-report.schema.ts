@@ -1,12 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  SchemaTypes,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
-export type IntimateCareReportDocument =
-  HydratedDocument<IntimateCareReport>;
+export type IntimateCareReportDocument = HydratedDocument<IntimateCareReport>;
 
 export enum IntimateCareReportType {
   WEEKLY = 'weekly',
@@ -61,22 +56,15 @@ export class IntimateCareRecommendation {
   result?: string;
 }
 
-export const IntimateCareRecommendationSchema =
-  SchemaFactory.createForClass(IntimateCareRecommendation);
+export const IntimateCareRecommendationSchema = SchemaFactory.createForClass(
+  IntimateCareRecommendation,
+);
 
 @Schema({
   timestamps: true,
   collection: 'intimate_care_reports',
 })
 export class IntimateCareReport {
-  @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
   @Prop({
     type: String,
     enum: IntimateCareReportType,
@@ -176,7 +164,6 @@ export const IntimateCareReportSchema =
 
 IntimateCareReportSchema.index(
   {
-    userId: 1,
     reportType: 1,
     periodStart: 1,
     periodEnd: 1,

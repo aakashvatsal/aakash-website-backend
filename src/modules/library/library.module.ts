@@ -9,10 +9,7 @@ import {
   LibraryHighlightSchema,
 } from './schemas/library-highlight.schema';
 
-import {
-  LibraryItem,
-  LibraryItemSchema,
-} from './schemas/library-item.schema';
+import { LibraryItem, LibraryItemSchema } from './schemas/library-item.schema';
 
 @Module({
   imports: [
@@ -28,17 +25,10 @@ import {
     ]),
   ],
 
-  controllers: [
-    LibraryController,
-  ],
+  controllers: [LibraryController],
 
-  providers: [
-    LibraryService,
-  ],
+  providers: [LibraryService],
 
-  exports: [
-    LibraryService,
-    MongooseModule,
-  ],
+  exports: [LibraryService, MongooseModule],
 })
 export class LibraryModule {}

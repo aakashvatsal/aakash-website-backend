@@ -24,14 +24,6 @@ export class Message {
   conversationId: Types.ObjectId;
 
   @Prop({
-    type: SchemaTypes.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true,
-  })
-  userId: Types.ObjectId;
-
-  @Prop({
     type: String,
     enum: MessageRole,
     required: true,
@@ -40,6 +32,7 @@ export class Message {
 
   @Prop({
     required: true,
+    trim: true,
   })
   content: string;
 
