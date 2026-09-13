@@ -17,6 +17,7 @@ import {
 import { MediaContentIntelligenceService } from './media-content-intelligence.service';
 import { MediaCoreService } from './media-core.service';
 import { MediaGrowthService } from './media-growth.service';
+import { MediaPresenceService } from './media-presence.service';
 import {
   MediaContentItem,
   MediaContentItemDocument,
@@ -189,6 +190,7 @@ export class MediaContentDirectorService {
     private readonly coreService: MediaCoreService,
     private readonly intelligenceService: MediaContentIntelligenceService,
     private readonly growthService: MediaGrowthService,
+    private readonly presenceService: MediaPresenceService,
   ) {}
 
   async overview() {
@@ -277,17 +279,26 @@ export class MediaContentDirectorService {
       );
     }
 
-    const [recentContent, recentMemories, memoryOverview, growthLearnings] =
-      await Promise.all([
-        this.coreService.listContent(),
-        this.intelligenceService.listMemories({ limit: 40 }),
-        this.intelligenceService.overview(),
-        this.growthService.directorLearningContext(platforms),
-      ]);
+    const [
+      recentContent,
+      recentMemories,
+      memoryOverview,
+      growthLearnings,
+      presenceContext,
+    ] = await Promise.all([
+      this.coreService.listContent(),
+      this.intelligenceService.listMemories({ limit: 40 }),
+      this.intelligenceService.overview(),
+      this.growthService.directorLearningContext(platforms),
+      this.presenceService.directorContext(),
+    ]);
 
     const strategySnapshot = {
       ...this.buildStrategySnapshot(accounts, platforms, dto),
       growthLearnings,
+      presenceStrategy: presenceContext.presenceStrategy,
+      voiceProfile: presenceContext.voiceProfile,
+      mediaWorldContext: presenceContext.worldContext,
     };
     const contextSummary = this.buildContextSummary(
       dto,
@@ -602,6 +613,10 @@ export class MediaContentDirectorService {
         'A canonical content candidate is still a draft. Do not imply it is approved, scheduled or published.',
         'Keep this ideation response compact. The Production Studio can expand accepted ideas later: canonicalBody <= 220 words, story <= 160 words, each caption/description <= 120 words, each script <= 220 words, hashtags <= 8, and slides <= 8 concise strings.',
         'The strategy snapshot may include growthLearnings derived from measured historical performance. Treat high-confidence learnings as evidence, not rigid rules. Preserve novelty by rotating topics, examples, hooks and structures instead of mechanically repeating a winning pattern.',
+        'If a Media Presence Strategy is present, treat its north star, platform roles, narrative balance, reputation goals and Never Become guardrails as the durable strategy layer above this batch.',
+        'If an Aakash Voice Profile is present, follow its communication mechanisms and authenticity checks without mechanically copying signature phrases.',
+        'mediaWorldContext PUBLIC_SAFE items may ground factual content. INTERNAL_SAFE items may shape angle/priority but must not be exposed as facts. NEEDS_REVIEW items must not be used as public facts until owner approval.',
+        'Private-only details are intentionally excluded from Media generation. Never infer or reconstruct them.',
       ].join('\n'),
       input: JSON.stringify({
         brief: input.brief,

@@ -9,6 +9,7 @@ export enum HsakaaAiUsageFeature {
   PROACTIVE_REVIEW = 'proactive_review',
   SEARCH_INDEX_EMBEDDING = 'search_index_embedding',
   SEARCH_QUERY_EMBEDDING = 'search_query_embedding',
+  HEALTH_PLANNER = 'health_planner',
 }
 
 export enum HsakaaAiUsageStatus {

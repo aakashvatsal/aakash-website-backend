@@ -16,6 +16,11 @@ import { Message, MessageRole } from '../modules/chat/schemas/message.schema';
 import { Company } from '../modules/companies/schemas/company.schema';
 import { HealthEntry } from '../modules/health/schemas/health-entry.schema';
 import { JournalEntry } from '../modules/journal/schemas/journal-entry.schema';
+import { Hobby } from '../modules/hobbies/schemas/hobby.schema';
+import {
+  HobbyPracticeSession,
+  HobbyPracticeStatus,
+} from '../modules/hobbies/schemas/hobby-practice-session.schema';
 import { LibraryHighlight } from '../modules/library/schemas/library-highlight.schema';
 import { LibraryItem } from '../modules/library/schemas/library-item.schema';
 import { MediaPost } from '../modules/media/schemas/media-post.schema';
@@ -59,6 +64,9 @@ export class HsakaaDailyContextService {
     private readonly libraryHighlightModel: Model<LibraryHighlight>,
     @InjectModel(HealthEntry.name)
     private readonly healthModel: Model<HealthEntry>,
+    @InjectModel(Hobby.name) private readonly hobbyModel: Model<Hobby>,
+    @InjectModel(HobbyPracticeSession.name)
+    private readonly hobbyPracticeSessionModel: Model<HobbyPracticeSession>,
     @InjectModel(MediaPost.name) private readonly mediaModel: Model<MediaPost>,
     @InjectModel(MediaPublication.name)
     private readonly mediaPublicationModel: Model<MediaPublication>,
@@ -220,6 +228,8 @@ export class HsakaaDailyContextService {
       books,
       highlights,
       health,
+      hobbies,
+      hobbySessions,
       legacyMedia,
       publications,
       personInteractions,
@@ -270,6 +280,22 @@ export class HsakaaDailyContextService {
       this.healthModel
         .find({
           $or: [{ date: range }, { createdAt: range }, { updatedAt: range }],
+        })
+        .lean(),
+      this.hobbyModel
+        .find({
+          isActive: true,
+          $or: [{ createdAt: range }, { updatedAt: range }],
+        })
+        .lean(),
+      this.hobbyPracticeSessionModel
+        .find({
+          $or: [
+            { startedAt: range },
+            { endedAt: range },
+            { createdAt: range },
+            { updatedAt: range },
+          ],
         })
         .lean(),
       this.mediaModel
@@ -372,6 +398,12 @@ export class HsakaaDailyContextService {
       ),
       ...health.map((record) =>
         this.healthItem(record as unknown as LooseRecord),
+      ),
+      ...hobbies.map((record) =>
+        this.hobbyItem(record as unknown as LooseRecord),
+      ),
+      ...hobbySessions.map((record) =>
+        this.hobbyPracticeItem(record as unknown as LooseRecord),
       ),
       ...publications.map((record) =>
         this.publicationItem(record as unknown as LooseRecord),
@@ -509,6 +541,70 @@ export class HsakaaDailyContextService {
         workoutStrainScore:
           this.number(firstWorkout?.strainScore) ??
           this.number(record.strainScore),
+      },
+    );
+  }
+
+  private hobbyItem(record: LooseRecord) {
+    const status = this.text(record.status);
+    const significant = status === 'completed' || status === 'maintenance';
+    return this.makeItem(
+      record,
+      HsakaaDailyContextSource.HOBBY,
+      'hobby_progress',
+      this.text(record.name) || 'Hobby',
+      [
+        status ? `Status ${status}` : '',
+        this.text(record.currentStageKey)
+          ? `stage ${this.text(record.currentStageKey)}`
+          : '',
+        this.text(record.nextAction)
+          ? `next: ${this.text(record.nextAction)}`
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      HsakaaDailyContextPrivacy.INTERNAL_SAFE,
+      significant,
+      {
+        hobbyId: this.id(record._id),
+        status,
+        currentStageKey: this.text(record.currentStageKey),
+        nextAction: this.text(record.nextAction),
+        weeklyTargetMinutes: this.number(record.weeklyTargetMinutes),
+        targetSessionsPerWeek: this.number(record.targetSessionsPerWeek),
+        mediaEligible: record.mediaEligible === true,
+      },
+    );
+  }
+
+  private hobbyPracticeItem(record: LooseRecord) {
+    const duration = this.number(record.durationMinutes);
+    const status = this.text(record.status);
+    const completed = status === String(HobbyPracticeStatus.COMPLETED);
+    return this.makeItem(
+      record,
+      HsakaaDailyContextSource.HOBBY,
+      completed ? 'hobby_practice_completed' : 'hobby_practice',
+      'Hobby practice',
+      [
+        completed ? 'Practice completed' : status || 'Practice activity',
+        duration !== null && duration > 0 ? `${duration} min` : '',
+        this.text(record.focus),
+        this.text(record.reflection),
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      HsakaaDailyContextPrivacy.INTERNAL_SAFE,
+      completed,
+      {
+        hobbyId: this.id(record.hobbyId),
+        durationMinutes: duration,
+        focus: this.text(record.focus),
+        enjoyment: this.number(record.enjoyment),
+        difficulty: this.number(record.difficulty),
+        hasEvidence:
+          Array.isArray(record.evidence) && record.evidence.length > 0,
       },
     );
   }

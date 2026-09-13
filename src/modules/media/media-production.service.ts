@@ -9,6 +9,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
 import { AiService } from '../ai/ai.service';
+import { MediaAssetLibraryService } from './media-asset-library.service';
 import {
   GenerateMediaProductionPackDto,
   UpdateMediaProductionAssetDto,
@@ -75,6 +76,7 @@ export class MediaProductionService {
     @InjectModel(MediaGenerationRun.name)
     private readonly generationRunModel: Model<MediaGenerationRunDocument>,
     private readonly aiService: AiService,
+    private readonly assetLibraryService: MediaAssetLibraryService,
   ) {}
 
   async overview() {
@@ -309,6 +311,72 @@ export class MediaProductionService {
     if (!asset.publicationId) return { asset };
     const pack = await this.refreshReadiness(asset.publicationId.toString());
     return { asset, ...pack };
+  }
+
+  async assetSuggestions(publicationId: string) {
+    const pack = await this.getPack(publicationId);
+    const requirements = pack.assets.filter(
+      (asset) =>
+        asset.isActive &&
+        asset.generatedFromProduction &&
+        asset.status !== MediaAssetStatus.READY,
+    );
+    return Promise.all(
+      requirements.map(async (requirement) => ({
+        requirement,
+        suggestions:
+          await this.assetLibraryService.suggestForRequirement(requirement),
+      })),
+    );
+  }
+
+  async attachLibraryAsset(requirementAssetId: string, libraryAssetId: string) {
+    const requirement = await this.assetModel.findOne({
+      _id: this.objectId(requirementAssetId),
+      isActive: true,
+      generatedFromProduction: true,
+    });
+    if (!requirement) {
+      throw new NotFoundException('Production asset requirement not found.');
+    }
+    const libraryAsset =
+      await this.assetLibraryService.getReusableAsset(libraryAssetId);
+    if (
+      !this.assetLibraryService.isCompatible(
+        requirement.type,
+        libraryAsset.type,
+      )
+    ) {
+      throw new BadRequestException(
+        `A ${libraryAsset.type} library asset cannot satisfy a ${requirement.type} production requirement.`,
+      );
+    }
+
+    requirement.librarySourceAssetId = libraryAsset._id;
+    requirement.storageProvider = libraryAsset.storageProvider;
+    requirement.storageKey = libraryAsset.storageKey;
+    requirement.url = libraryAsset.url;
+    requirement.originalName = libraryAsset.originalName;
+    requirement.mimeType = libraryAsset.mimeType;
+    requirement.sizeBytes = libraryAsset.sizeBytes;
+    requirement.tags = libraryAsset.tags ?? [];
+    requirement.etag = libraryAsset.etag;
+    requirement.uploadedAt = libraryAsset.uploadedAt;
+    requirement.libraryReusable = false;
+    requirement.source = libraryAsset.source;
+    requirement.status = MediaAssetStatus.READY;
+    requirement.metadata = {
+      ...(requirement.metadata ?? {}),
+      librarySourceAssetId: libraryAsset._id.toString(),
+      attachedFromMediaLibraryAt: new Date().toISOString(),
+    };
+    await requirement.save();
+
+    if (!requirement.publicationId) return { asset: requirement };
+    const pack = await this.refreshReadiness(
+      requirement.publicationId.toString(),
+    );
+    return { asset: requirement, ...pack };
   }
 
   async markComplete(publicationId: string) {

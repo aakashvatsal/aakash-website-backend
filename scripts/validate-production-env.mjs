@@ -6,7 +6,8 @@ const requireValue = (key) => {
   if (!value(key)) failures.push(`${key} is required.`);
 };
 const warnMissing = (key, reason) => {
-  if (!value(key)) warnings.push(`${key} is not configured${reason ? ` (${reason})` : ''}.`);
+  if (!value(key))
+    warnings.push(`${key} is not configured${reason ? ` (${reason})` : ''}.`);
 };
 
 if (value('NODE_ENV') !== 'production') {
@@ -21,6 +22,10 @@ for (const key of [
   'ADMIN_SESSION_SECRET',
   'FRONTEND_URL',
   'OPENAI_API_KEY',
+  'HEALTH_STORAGE_S3_BUCKET',
+  'HEALTH_STORAGE_S3_REGION',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY',
 ]) {
   requireValue(key);
 }
@@ -51,7 +56,9 @@ for (const origin of frontendOrigins) {
   try {
     const parsed = new URL(origin);
     if (!['https:', 'http:'].includes(parsed.protocol)) {
-      failures.push(`FRONTEND_URL contains an unsupported origin protocol: ${parsed.protocol}`);
+      failures.push(
+        `FRONTEND_URL contains an unsupported origin protocol: ${parsed.protocol}`,
+      );
     }
     if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
       failures.push(`FRONTEND_URL entries must be origins only: ${origin}`);
@@ -62,22 +69,36 @@ for (const origin of frontendOrigins) {
 }
 
 if (frontendOrigins.some((origin) => origin.startsWith('http://localhost'))) {
-  warnings.push('FRONTEND_URL still contains a localhost origin in production.');
+  warnings.push(
+    'FRONTEND_URL still contains a localhost origin in production.',
+  );
 }
 
 const port = value('PORT');
-if (port && (!Number.isInteger(Number(port)) || Number(port) < 1 || Number(port) > 65535)) {
+if (
+  port &&
+  (!Number.isInteger(Number(port)) || Number(port) < 1 || Number(port) > 65535)
+) {
   failures.push('PORT must be an integer between 1 and 65535.');
 }
 
 for (const [key, reason] of [
   ['OPENAI_MODEL', 'explicit production model selection is recommended'],
-  ['OPENAI_EMBEDDING_MODEL', 'explicit embedding model selection is recommended'],
+  [
+    'OPENAI_EMBEDDING_MODEL',
+    'explicit embedding model selection is recommended',
+  ],
   ['WHOOP_CLIENT_ID', 'WHOOP integration will not be available'],
   ['WHOOP_CLIENT_SECRET', 'WHOOP integration will not be available'],
   ['WHOOP_REDIRECT_URI', 'WHOOP integration will not be available'],
-  ['PERSONAL_OS_BACKUP_STRATEGY', 'Operations will report backup readiness as incomplete'],
-  ['PERSONAL_OS_BACKUP_LAST_VERIFIED_AT', 'Operations cannot verify backup recency'],
+  [
+    'PERSONAL_OS_BACKUP_STRATEGY',
+    'Operations will report backup readiness as incomplete',
+  ],
+  [
+    'PERSONAL_OS_BACKUP_LAST_VERIFIED_AT',
+    'Operations cannot verify backup recency',
+  ],
   ['HSAKAA_AI_HARD_DAILY_TOKENS', 'no hard daily token ceiling is configured'],
 ]) {
   warnMissing(key, reason);
@@ -87,7 +108,8 @@ const redirectUri = value('WHOOP_REDIRECT_URI');
 if (redirectUri) {
   try {
     const parsed = new URL(redirectUri);
-    if (parsed.protocol !== 'https:') warnings.push('WHOOP_REDIRECT_URI should use HTTPS in production.');
+    if (parsed.protocol !== 'https:')
+      warnings.push('WHOOP_REDIRECT_URI should use HTTPS in production.');
   } catch {
     failures.push('WHOOP_REDIRECT_URI is not a valid URL.');
   }
@@ -100,8 +122,12 @@ for (const warning of warnings) console.warn(`WARN ${warning}`);
 for (const failure of failures) console.error(`FAIL ${failure}`);
 
 if (failures.length > 0) {
-  console.error(`Production environment validation failed with ${failures.length} blocking issue(s).`);
+  console.error(
+    `Production environment validation failed with ${failures.length} blocking issue(s).`,
+  );
   process.exit(1);
 }
 
-console.log(`Production environment validation passed${warnings.length ? ` with ${warnings.length} warning(s)` : ''}.`);
+console.log(
+  `Production environment validation passed${warnings.length ? ` with ${warnings.length} warning(s)` : ''}.`,
+);

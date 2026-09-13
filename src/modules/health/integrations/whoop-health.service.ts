@@ -16,6 +16,12 @@ import {
   WorkoutType,
 } from '../schemas/health-entry.schema';
 
+interface WhoopBodyMeasurement {
+  height_meter?: number;
+  weight_kilogram?: number;
+  max_heart_rate?: number;
+}
+
 interface WhoopCollectionResponse<T> {
   records: T[];
   next_token?: string;
@@ -199,15 +205,19 @@ export class WhoopHealthService {
       ? this.toWhoopEndDate(options.endDate)
       : undefined;
 
-    const [cycles, recoveries, sleeps, workouts] = await Promise.all([
-      this.fetchAll<WhoopCycle>('/cycle', accessToken, start, end),
-
-      this.fetchAll<WhoopRecovery>('/recovery', accessToken, start, end),
-
-      this.fetchAll<WhoopSleep>('/activity/sleep', accessToken, start, end),
-
-      this.fetchAll<WhoopWorkout>('/activity/workout', accessToken, start, end),
-    ]);
+    const [cycles, recoveries, sleeps, workouts, bodyMeasurement] =
+      await Promise.all([
+        this.fetchAll<WhoopCycle>('/cycle', accessToken, start, end),
+        this.fetchAll<WhoopRecovery>('/recovery', accessToken, start, end),
+        this.fetchAll<WhoopSleep>('/activity/sleep', accessToken, start, end),
+        this.fetchAll<WhoopWorkout>(
+          '/activity/workout',
+          accessToken,
+          start,
+          end,
+        ),
+        this.fetchBodyMeasurement(accessToken),
+      ]);
 
     const sleepsByCycle = new Map<number, WhoopSleep[]>();
 
@@ -223,18 +233,29 @@ export class WhoopHealthService {
       recoveries.map((recovery) => [recovery.cycle_id, recovery]),
     );
 
+    const sleepsById = new Map(sleeps.map((sleep) => [sleep.id, sleep]));
+
     let dailyEntriesUpdated = 0;
 
     for (const cycle of cycles) {
-      const dateKey = this.getDateKey(cycle.start);
-
       const recovery = recoveryByCycle.get(cycle.id);
 
       const cycleSleeps = sleepsByCycle.get(cycle.id) ?? [];
 
-      const mainSleep = cycleSleeps.find((sleep) => sleep.nap === false);
+      const recoverySleep = recovery
+        ? sleepsById.get(recovery.sleep_id)
+        : undefined;
+
+      const mainSleep =
+        recoverySleep && !recoverySleep.nap
+          ? recoverySleep
+          : this.pickMainSleep(cycleSleeps);
 
       const naps = cycleSleeps.filter((sleep) => sleep.nap === true);
+
+      const dateKey = this.getWhoopDailyDateKey(cycle, mainSleep);
+
+      const legacyDateKey = this.getDateKey(cycle.start);
 
       const setData: Record<string, unknown> = {};
 
@@ -284,6 +305,10 @@ export class WhoopHealthService {
         setData['wearableData.whoop.naps'] = naps;
       }
 
+      setData.isActive = true;
+      setData.isArchived = false;
+      setData['wearableData.whoop.lastSyncedAt'] = new Date();
+
       await this.healthEntryModel.findOneAndUpdate(
         {
           dateKey,
@@ -329,7 +354,54 @@ export class WhoopHealthService {
         },
       );
 
+      if (legacyDateKey !== dateKey) {
+        await this.clearLegacyCyclePlacement(legacyDateKey, cycle.id);
+      }
+
       dailyEntriesUpdated++;
+    }
+
+    if (bodyMeasurement) {
+      const todayKey = this.getDateKey(new Date().toISOString());
+      const bodySet: Record<string, unknown> = {
+        'wearableData.whoop.bodyMeasurement': bodyMeasurement,
+      };
+
+      if (typeof bodyMeasurement.weight_kilogram === 'number') {
+        bodySet['bodyMeasurement.weightKg'] = bodyMeasurement.weight_kilogram;
+      }
+      if (typeof bodyMeasurement.height_meter === 'number') {
+        bodySet['bodyMeasurement.heightCm'] = Number(
+          (bodyMeasurement.height_meter * 100).toFixed(2),
+        );
+      }
+      if (typeof bodyMeasurement.max_heart_rate === 'number') {
+        bodySet['bodyMeasurement.maximumHeartRateBpm'] =
+          bodyMeasurement.max_heart_rate;
+      }
+
+      await this.healthEntryModel.findOneAndUpdate(
+        { dateKey: todayKey },
+        {
+          $set: bodySet,
+          $setOnInsert: {
+            date: this.getHealthDate(todayKey),
+            dateKey: todayKey,
+            slug: `health-${todayKey}`,
+            workouts: [],
+            habits: [],
+            painEntries: [],
+            symptoms: [],
+            achievements: [],
+            goals: [],
+            memoryIds: [],
+            isArchived: false,
+            isActive: true,
+          },
+          $addToSet: { sources: HealthDataSource.WHOOP },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
     }
 
     let workoutsCreated = 0;
@@ -357,6 +429,8 @@ export class WhoopHealthService {
         sleeps: sleeps.length,
 
         workouts: workouts.length,
+
+        bodyMeasurementSynced: Boolean(bodyMeasurement),
 
         dailyEntriesUpdated,
 
@@ -448,6 +522,47 @@ export class WhoopHealthService {
     await entry.save();
 
     return 'created';
+  }
+
+  private pickMainSleep(cycleSleeps: WhoopSleep[]) {
+    return cycleSleeps
+      .filter((sleep) => !sleep.nap)
+      .sort(
+        (left, right) =>
+          new Date(right.end).getTime() - new Date(left.end).getTime(),
+      )[0];
+  }
+
+  private getWhoopDailyDateKey(cycle: WhoopCycle, mainSleep?: WhoopSleep) {
+    // Recovery is a morning readiness signal. Associate it with the calendar
+    // day on which the main sleep ended so Health -> Today receives the
+    // Recovery/Sleep/HRV values for the day the owner woke up.
+    if (mainSleep?.end) {
+      return this.getDateKey(mainSleep.end);
+    }
+
+    return this.getDateKey(cycle.start);
+  }
+
+  private async clearLegacyCyclePlacement(dateKey: string, cycleId: number) {
+    await this.healthEntryModel.updateOne(
+      {
+        dateKey,
+        'wearableData.whoop.cycle.id': cycleId,
+      },
+      {
+        $unset: {
+          strainScore: 1,
+          totalCaloriesBurned: 1,
+          recovery: 1,
+          sleep: 1,
+          'wearableData.whoop.cycle': 1,
+          'wearableData.whoop.recovery': 1,
+          'wearableData.whoop.sleep': 1,
+          'wearableData.whoop.naps': 1,
+        },
+      },
+    );
   }
 
   private mapWorkout(workout: WhoopWorkout) {
@@ -595,6 +710,36 @@ export class WhoopHealthService {
 
       napMinutes,
     };
+  }
+
+  private async fetchBodyMeasurement(
+    accessToken: string,
+  ): Promise<WhoopBodyMeasurement | null> {
+    const response = await fetch(`${this.whoopBaseUrl}/user/measurement/body`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (response.status === 404) return null;
+    if (response.status === 401) {
+      throw new UnauthorizedException(
+        'WHOOP access token is invalid or expired.',
+      );
+    }
+    if (response.status === 429) {
+      throw new BadRequestException('WHOOP rate limit exceeded.');
+    }
+    if (!response.ok) {
+      const body = await response.text();
+      throw new BadRequestException(
+        `WHOOP body measurement request failed: ${response.status} ${body}`,
+      );
+    }
+
+    return (await response.json()) as WhoopBodyMeasurement;
   }
 
   private async fetchAll<T>(

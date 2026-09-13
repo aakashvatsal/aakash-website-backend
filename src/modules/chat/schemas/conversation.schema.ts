@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
 
 export type ConversationDocument = HydratedDocument<Conversation>;
 
@@ -19,6 +19,14 @@ export class Conversation {
     index: true,
   })
   sessionId?: string;
+
+  @Prop({
+    type: SchemaTypes.ObjectId,
+    ref: 'MemoryPerson',
+    default: null,
+    index: true,
+  })
+  personId?: Types.ObjectId | null;
 
   @Prop({
     type: String,
@@ -60,6 +68,13 @@ export const ConversationSchema = SchemaFactory.createForClass(Conversation);
 
 ConversationSchema.index({
   sessionId: 1,
+  channel: 1,
+  isActive: 1,
+  lastMessageAt: -1,
+});
+
+ConversationSchema.index({
+  personId: 1,
   channel: 1,
   isActive: 1,
   lastMessageAt: -1,

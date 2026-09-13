@@ -7,10 +7,12 @@ import { randomUUID } from 'node:crypto';
 
 import { AiAgentResponse, AiService } from '../modules/ai/ai.service';
 import { ChatService } from '../modules/chat/chat.service';
+import { MemoryVerificationService } from '../modules/memory/memory-verification.service';
 import { ConversationQueryDto } from '../modules/chat/dto/conversation-query.dto';
 import { MessageRole } from '../modules/chat/schemas/message.schema';
 import { AskHsakaaDto } from './dto/ask-hsakaa.dto';
 import { AskPrivateHsakaaDto } from './dto/ask-private-hsakaa.dto';
+import { AskVerifiedPersonHsakaaDto } from './dto/ask-verified-person-hsakaa.dto';
 import { AnalyzeHsakaaDecisionDto } from './dto/analyze-hsakaa-decision.dto';
 import {
   EvaluateHsakaaDecisionOutcomeDto,
@@ -48,6 +50,12 @@ import { HsakaaDailyContextService } from './hsakaa-daily-context.service';
 import { HsakaaDailyJournalService } from './hsakaa-daily-journal.service';
 import { HsakaaContextService } from './hsakaa-context.service';
 import { HsakaaToolsService } from './hsakaa-tools.service';
+import { HsakaaVoiceService } from './hsakaa-voice.service';
+import { CreateHsakaaVoiceFeedbackDto } from './dto/hsakaa-voice.dto';
+import {
+  evaluatePublicHsakaaScope,
+  evaluateVerifiedPersonHsakaaScope,
+} from './hsakaa-public-scope';
 
 @Injectable()
 export class HsakaaService {
@@ -57,6 +65,7 @@ export class HsakaaService {
     private readonly aiService: AiService,
     private readonly chatService: ChatService,
     private readonly contextService: HsakaaContextService,
+    private readonly memoryVerificationService: MemoryVerificationService,
     private readonly agentContextService: HsakaaAgentContextService,
     private readonly toolsService: HsakaaToolsService,
     private readonly actionService: HsakaaActionService,
@@ -68,7 +77,135 @@ export class HsakaaService {
     private readonly decisionAnalyticsService: HsakaaDecisionAnalyticsService,
     private readonly dailyContextService: HsakaaDailyContextService,
     private readonly dailyJournalService: HsakaaDailyJournalService,
+    private readonly voiceService: HsakaaVoiceService,
   ) {}
+
+  async askVerifiedPerson(
+    dto: AskVerifiedPersonHsakaaDto,
+    rawSessionToken: string,
+  ) {
+    const message = dto.message.trim();
+    const identity =
+      await this.memoryVerificationService.validateSession(rawSessionToken);
+    const conversation =
+      await this.chatService.getOrCreateVerifiedPersonConversation({
+        conversationId: dto.conversationId,
+        personId: identity.personId,
+        mode: dto.mode,
+        firstMessage: message,
+      });
+
+    const previousMessages =
+      await this.chatService.getRecentVerifiedPersonMessages(
+        conversation._id,
+        identity.personId,
+        12,
+      );
+
+    const scopeDecision = evaluateVerifiedPersonHsakaaScope(
+      dto.mode,
+      message,
+      previousMessages.length > 0,
+    );
+
+    if (!scopeDecision.allowed) {
+      const answer = this.voiceService.sanitizeRenderedText(
+        scopeDecision.answer!,
+      );
+
+      await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.USER,
+        content: message,
+        metadata: {
+          mode: dto.mode,
+          scope: 'verified_person',
+          personId: identity.personId.toString(),
+        },
+      });
+      await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.ASSISTANT,
+        content: answer,
+        metadata: {
+          mode: dto.mode,
+          scope: 'verified_person',
+          personId: identity.personId.toString(),
+          scopeDecision: scopeDecision.scope,
+          retrievedMemoryCount: 0,
+        },
+      });
+
+      return {
+        answer,
+        conversationId: conversation._id.toString(),
+        scope: 'verified_person',
+      };
+    }
+
+    const context = await this.contextService.buildVerifiedPersonContext(
+      dto.mode,
+      message,
+      rawSessionToken,
+    );
+    const voiceContext = await this.voiceService.getRenderContext(
+      dto.mode,
+      message,
+    );
+
+    let answer: string;
+    try {
+      answer = await this.aiService.generateResponse({
+        message,
+        mode: dto.mode,
+        scope: 'verified_person',
+        contextSections: [...context.sections, voiceContext],
+        previousMessages,
+      });
+    } catch {
+      throw new ServiceUnavailableException(
+        'Aakash is temporarily unavailable. Please try again shortly.',
+      );
+    }
+
+    if (!answer) {
+      throw new ServiceUnavailableException(
+        'Aakash did not return a response. Please try again.',
+      );
+    }
+
+    answer = this.voiceService.sanitizeRenderedText(answer);
+
+    await this.chatService.appendMessage({
+      conversationId: conversation._id,
+      role: MessageRole.USER,
+      content: message,
+      metadata: {
+        mode: dto.mode,
+        scope: 'verified_person',
+        personId: identity.personId.toString(),
+      },
+    });
+    await this.chatService.appendMessage({
+      conversationId: conversation._id,
+      role: MessageRole.ASSISTANT,
+      content: answer,
+      memoryIds: context.memoryIds,
+      metadata: {
+        mode: dto.mode,
+        scope: 'verified_person',
+        personId: identity.personId.toString(),
+        retrievedMemoryCount: context.retrievedMemoryCount,
+        personSpecificMemoryEnabled: context.memoryAccessConsentGranted,
+      },
+    });
+
+    return {
+      answer,
+      conversationId: conversation._id.toString(),
+      scope: 'verified_person',
+    };
+  }
 
   async askPrivate(dto: AskPrivateHsakaaDto) {
     const message = dto.message.trim();
@@ -137,6 +274,8 @@ export class HsakaaService {
         'HSAKAA did not return a response. Please try again.',
       );
     }
+
+    answer = this.voiceService.sanitizeRenderedText(answer);
 
     await this.chatService.appendMessage({
       conversationId: conversation._id,
@@ -396,10 +535,56 @@ export class HsakaaService {
       firstMessage: message,
     });
 
-    const [previousMessages, context] = await Promise.all([
-      this.chatService.getRecentMessages(conversation._id, dto.sessionId, 12),
-      this.contextService.buildPublicContext(dto.mode, message),
-    ]);
+    const previousMessages = await this.chatService.getRecentMessages(
+      conversation._id,
+      dto.sessionId,
+      12,
+    );
+
+    const scopeDecision = evaluatePublicHsakaaScope(
+      dto.mode,
+      message,
+      previousMessages.length > 0,
+    );
+
+    if (!scopeDecision.allowed) {
+      const answer = this.voiceService.sanitizeRenderedText(
+        scopeDecision.answer!,
+      );
+
+      await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.USER,
+        content: message,
+        metadata: { mode: dto.mode, scope: 'public' },
+      });
+
+      await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.ASSISTANT,
+        content: answer,
+        metadata: {
+          mode: dto.mode,
+          scope: 'public',
+          scopeDecision: scopeDecision.scope,
+          retrievedMemoryCount: 0,
+        },
+      });
+
+      return {
+        answer,
+        conversationId: conversation._id.toString(),
+      };
+    }
+
+    const context = await this.contextService.buildPublicContext(
+      dto.mode,
+      message,
+    );
+    const voiceContext = await this.voiceService.getRenderContext(
+      dto.mode,
+      message,
+    );
 
     let answer: string;
 
@@ -407,7 +592,7 @@ export class HsakaaService {
       answer = await this.aiService.generateResponse({
         message,
         mode: dto.mode,
-        contextSections: context.sections,
+        contextSections: [...context.sections, voiceContext],
         previousMessages,
       });
     } catch {
@@ -421,6 +606,8 @@ export class HsakaaService {
         'HSAKAA did not return a response. Please try again.',
       );
     }
+
+    answer = this.voiceService.sanitizeRenderedText(answer);
 
     await this.chatService.appendMessage({
       conversationId: conversation._id,
@@ -446,6 +633,18 @@ export class HsakaaService {
       answer,
       conversationId: conversation._id.toString(),
     };
+  }
+
+  getPrivateVoiceProfile() {
+    return this.voiceService.getProfile();
+  }
+
+  refreshPrivateVoiceProfile() {
+    return this.voiceService.refreshProfile();
+  }
+
+  addPrivateVoiceFeedback(dto: CreateHsakaaVoiceFeedbackDto) {
+    return this.voiceService.addFeedback(dto);
   }
 
   private buildPrivateAssistantMetadata(

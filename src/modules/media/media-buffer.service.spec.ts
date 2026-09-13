@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
 
 import { MediaBufferService } from './media-buffer.service';
+import { MediaAssetStorageService } from './media-asset-storage.service';
 import {
   MediaAccountConnectionStatus,
   MediaDeliveryProvider,
@@ -29,10 +30,20 @@ function createService(options?: {
       }),
     }),
   };
+  const assetStorage = {
+    resolveAssetUrl: jest.fn(
+      (asset: { url?: string; storageKey?: string }) =>
+        asset.url ??
+        (asset.storageKey
+          ? `https://signed.example/${asset.storageKey}`
+          : undefined),
+    ),
+  } as unknown as MediaAssetStorageService;
   return new MediaBufferService(
     config,
     accountModel as never,
     assetModel as never,
+    assetStorage,
   );
 }
 

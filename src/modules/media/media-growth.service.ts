@@ -13,6 +13,7 @@ import {
   UpdateMediaGrowthExperimentDto,
 } from './dto/media-core.dto';
 import { MediaAnalyticsService } from './services/media-analytics.service';
+import { MediaBufferService } from './media-buffer.service';
 import {
   MediaAccount,
   MediaAccountDocument,
@@ -107,6 +108,7 @@ export class MediaGrowthService {
     @InjectModel(MediaGrowthExperiment.name)
     private readonly experimentModel: Model<MediaGrowthExperimentDocument>,
     private readonly analyticsService: MediaAnalyticsService,
+    private readonly bufferService: MediaBufferService,
   ) {}
 
   async overview(days = 30) {
@@ -200,13 +202,118 @@ export class MediaGrowthService {
       analyticsProviders: this.analyticsService.getProviderStatus(),
       policy: {
         personalOsOwnsAnalyticsHistory: true,
-        bufferIsDeliveryNotAnalyticsSourceOfTruth: true,
+        bufferCanIngestPostAnalytics: true,
+        personalOsRemainsAnalyticsSourceOfTruth: true,
         comparisonsUseNormalizedPerformanceScores: true,
         learningsRequireMultipleSamples: true,
         learningsAreEvidenceNotHardRules: true,
         directorConsumesHighConfidenceLearnings: true,
       },
     };
+  }
+
+  async lifecycleOverview(limit = 100) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 100), 1), 300);
+    const publications = await this.publicationModel
+      .find({
+        isActive: true,
+        publishedAt: { $type: 'date' },
+        $and: [
+          {
+            $or: [
+              { platformPostId: { $type: 'string', $ne: '' } },
+              { bufferPostId: { $type: 'string', $ne: '' } },
+            ],
+          },
+          {
+            $or: [
+              { status: MediaPostStatus.POSTED },
+              { deliveryStatus: MediaDeliveryStatus.PUBLISHED },
+            ],
+          },
+        ],
+      })
+      .sort({ publishedAt: -1 })
+      .limit(safeLimit)
+      .lean();
+    if (!publications.length) {
+      return { publications: 0, dueSnapshots: 0, due: [], coverage: {} };
+    }
+    const snapshots = await this.metricModel
+      .find({
+        mediaPublicationId: { $in: publications.map((item) => item._id) },
+      })
+      .select({ mediaPublicationId: 1, period: 1 })
+      .lean();
+    const existing = new Map<string, Set<MetricSnapshotPeriod>>();
+    for (const snapshot of snapshots) {
+      const key = snapshot.mediaPublicationId?.toString();
+      if (!key) continue;
+      const set = existing.get(key) ?? new Set<MetricSnapshotPeriod>();
+      set.add(snapshot.period);
+      existing.set(key, set);
+    }
+    const due = publications.flatMap((publication) =>
+      this.dueLifecyclePeriods(
+        publication.publishedAt ?? new Date(),
+        existing.get(publication._id.toString()) ?? new Set(),
+      ).map((period) => ({
+        publicationId: publication._id.toString(),
+        platform: publication.platform,
+        format: publication.format,
+        title: publication.title || publication.hook || 'Untitled publication',
+        publishedAt: publication.publishedAt,
+        period,
+      })),
+    );
+    const lifecyclePeriods = [
+      MetricSnapshotPeriod.ONE_HOUR,
+      MetricSnapshotPeriod.TWENTY_FOUR_HOURS,
+      MetricSnapshotPeriod.SEVENTY_TWO_HOURS,
+      MetricSnapshotPeriod.SEVEN_DAYS,
+      MetricSnapshotPeriod.THIRTY_DAYS,
+    ];
+    const coverage = Object.fromEntries(
+      lifecyclePeriods.map((period) => [
+        period,
+        snapshots.filter((snapshot) => snapshot.period === period).length,
+      ]),
+    );
+    return {
+      publications: publications.length,
+      dueSnapshots: due.length,
+      due,
+      coverage,
+    };
+  }
+
+  async syncLifecycle(limit = 100) {
+    const overview = await this.lifecycleOverview(limit);
+    const synced: Array<{
+      publicationId: string;
+      period: MetricSnapshotPeriod;
+    }> = [];
+    const failures: Array<{
+      publicationId: string;
+      period: MetricSnapshotPeriod;
+      error: string;
+    }> = [];
+    for (const item of overview.due) {
+      try {
+        await this.syncPublicationMetrics(item.publicationId, item.period);
+        synced.push({ publicationId: item.publicationId, period: item.period });
+      } catch (error) {
+        failures.push({
+          publicationId: item.publicationId,
+          period: item.period,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Lifecycle analytics sync failed.',
+        });
+      }
+    }
+    return { attempted: overview.due.length, synced, failures };
   }
 
   async syncPublicationMetrics(
@@ -222,17 +329,24 @@ export class MediaGrowthService {
         'Metrics can only be synced for a published Media publication.',
       );
     }
-    if (!publication.platformPostId?.trim()) {
+    const bufferPostId = publication.bufferPostId?.trim();
+    const platformPostId = publication.platformPostId?.trim();
+    if (!bufferPostId && !platformPostId) {
       throw new BadRequestException(
-        'Platform post ID is required before analytics can be synced.',
+        'A Buffer post ID or platform post ID is required before analytics can be synced.',
       );
     }
 
-    const metrics = await this.analyticsService.getPostMetrics({
-      platform: publication.platform,
-      platformPostId: publication.platformPostId,
-      platformAccountId: publication.accountId?.toString(),
-    });
+    const useBuffer = Boolean(
+      bufferPostId && this.bufferService.isConfigured(),
+    );
+    const metrics = useBuffer
+      ? await this.bufferService.getPostMetrics(bufferPostId!)
+      : await this.analyticsService.getPostMetrics({
+          platform: publication.platform,
+          platformPostId: platformPostId!,
+          platformAccountId: publication.accountId?.toString(),
+        });
     const normalized = metrics.normalized;
     const derived = this.deriveRates(normalized);
 
@@ -252,7 +366,9 @@ export class MediaGrowthService {
             format: publication.format,
             capturedAt: new Date(),
             period,
-            source: MediaAnalyticsSource.DIRECT_PLATFORM,
+            source: useBuffer
+              ? MediaAnalyticsSource.BUFFER
+              : MediaAnalyticsSource.DIRECT_PLATFORM,
             impressions: normalized.impressions || 0,
             reach: normalized.reach || 0,
             views: normalized.views || 0,
@@ -289,10 +405,19 @@ export class MediaGrowthService {
     const publications = await this.publicationModel
       .find({
         isActive: true,
-        platformPostId: { $type: 'string', $ne: '' },
-        $or: [
-          { status: MediaPostStatus.POSTED },
-          { deliveryStatus: MediaDeliveryStatus.PUBLISHED },
+        $and: [
+          {
+            $or: [
+              { platformPostId: { $type: 'string', $ne: '' } },
+              { bufferPostId: { $type: 'string', $ne: '' } },
+            ],
+          },
+          {
+            $or: [
+              { status: MediaPostStatus.POSTED },
+              { deliveryStatus: MediaDeliveryStatus.PUBLISHED },
+            ],
+          },
         ],
       })
       .sort({ publishedAt: -1, updatedAt: -1 })
@@ -738,6 +863,26 @@ export class MediaGrowthService {
     if (!updated)
       throw new NotFoundException('Media growth experiment not found.');
     return updated;
+  }
+
+  private dueLifecyclePeriods(
+    publishedAt: Date,
+    existing: Set<MetricSnapshotPeriod>,
+  ) {
+    const ageMs = Math.max(0, Date.now() - new Date(publishedAt).getTime());
+    const hour = 3_600_000;
+    const thresholds: Array<[MetricSnapshotPeriod, number]> = [
+      [MetricSnapshotPeriod.ONE_HOUR, hour],
+      [MetricSnapshotPeriod.TWENTY_FOUR_HOURS, 24 * hour],
+      [MetricSnapshotPeriod.SEVENTY_TWO_HOURS, 72 * hour],
+      [MetricSnapshotPeriod.SEVEN_DAYS, 7 * 24 * hour],
+      [MetricSnapshotPeriod.THIRTY_DAYS, 30 * 24 * hour],
+    ];
+    return thresholds
+      .filter(
+        ([period, threshold]) => ageMs >= threshold && !existing.has(period),
+      )
+      .map(([period]) => period);
   }
 
   private async getPerformanceSamples(

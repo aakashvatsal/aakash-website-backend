@@ -25,6 +25,13 @@ interface PublicConversationParams {
   firstMessage: string;
 }
 
+interface VerifiedPersonConversationParams {
+  conversationId?: string;
+  personId: Types.ObjectId;
+  mode: string;
+  firstMessage: string;
+}
+
 interface OwnerConversationParams {
   conversationId?: string;
   mode: string;
@@ -78,6 +85,74 @@ export class ChatService {
       lastMessageAt: new Date(),
       messageCount: 0,
     });
+  }
+
+  async getOrCreateVerifiedPersonConversation(
+    params: VerifiedPersonConversationParams,
+  ) {
+    if (params.conversationId) {
+      if (!Types.ObjectId.isValid(params.conversationId)) {
+        throw new BadRequestException('Invalid conversation ID.');
+      }
+
+      const existing = await this.conversationModel.findOne({
+        _id: new Types.ObjectId(params.conversationId),
+        personId: params.personId,
+        channel: ConversationChannel.VERIFIED_PERSON,
+        isActive: true,
+      });
+
+      if (existing) {
+        existing.mode = params.mode;
+        await existing.save();
+        return existing;
+      }
+    }
+
+    return this.conversationModel.create({
+      personId: params.personId,
+      channel: ConversationChannel.VERIFIED_PERSON,
+      mode: params.mode,
+      title: this.createConversationTitle(params.firstMessage),
+      isActive: true,
+      lastMessageAt: new Date(),
+      messageCount: 0,
+    });
+  }
+
+  async getRecentVerifiedPersonMessages(
+    conversationId: Types.ObjectId,
+    personId: Types.ObjectId,
+    limit = 12,
+  ) {
+    const conversationExists = await this.conversationModel.exists({
+      _id: conversationId,
+      personId,
+      channel: ConversationChannel.VERIFIED_PERSON,
+      isActive: true,
+    });
+
+    if (!conversationExists) {
+      return [];
+    }
+
+    const safeLimit = Math.min(Math.max(limit, 1), 20);
+    const messages = await this.messageModel
+      .find({
+        conversationId,
+        role: { $in: [MessageRole.USER, MessageRole.ASSISTANT] },
+      })
+      .sort({ createdAt: -1 })
+      .limit(safeLimit)
+      .lean();
+
+    return messages.reverse().map((message) => ({
+      role:
+        message.role === MessageRole.USER
+          ? ('user' as const)
+          : ('assistant' as const),
+      content: message.content,
+    }));
   }
 
   async getOrCreateOwnerConversation(params: OwnerConversationParams) {

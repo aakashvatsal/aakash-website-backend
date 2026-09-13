@@ -7,8 +7,8 @@ import {
   HsakaaDecisionCaseSchema,
 } from '../../hsakaa/schemas/hsakaa-decision-case.schema';
 import { AiModule } from '../ai/ai.module';
-import { HsakaaRuntimeModule } from '../hsakaa-runtime/hsakaa-runtime.module';
 import { Company, CompanySchema } from '../companies/schemas/company.schema';
+import { HsakaaRuntimeModule } from '../hsakaa-runtime/hsakaa-runtime.module';
 import {
   HealthEntry,
   HealthEntrySchema,
@@ -36,6 +36,11 @@ import {
   PersonGraphEdgeSchema,
 } from '../memory/schemas/person-graph-edge.schema';
 import { Task, TaskSchema } from '../tasks/schemas/task.schema';
+import { HealthKnowledgeGraphIntegrationService } from './health-knowledge-graph-integration.service';
+import {
+  BASE_KNOWLEDGE_GRAPH_SERVICE,
+  IntegratedKnowledgeGraphService,
+} from './integrated-knowledge-graph.service';
 import { KnowledgeGraphController } from './knowledge-graph.controller';
 import { KnowledgeGraphReasoningService } from './knowledge-graph-reasoning.service';
 import { KnowledgeGraphService } from './knowledge-graph.service';
@@ -71,7 +76,16 @@ import {
   controllers: [KnowledgeGraphController],
   providers: [
     HsakaaOwnerSessionGuard,
-    KnowledgeGraphService,
+    {
+      provide: BASE_KNOWLEDGE_GRAPH_SERVICE,
+      useClass: KnowledgeGraphService,
+    },
+    HealthKnowledgeGraphIntegrationService,
+    IntegratedKnowledgeGraphService,
+    {
+      provide: KnowledgeGraphService,
+      useExisting: IntegratedKnowledgeGraphService,
+    },
     KnowledgeGraphReasoningService,
   ],
   exports: [KnowledgeGraphService, KnowledgeGraphReasoningService],

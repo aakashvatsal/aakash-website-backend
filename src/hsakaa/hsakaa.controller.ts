@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
@@ -29,6 +30,8 @@ import {
   UpdateHsakaaDecisionExperimentStatusDto,
 } from './dto/manage-hsakaa-decision-experiment.dto';
 import { AskPrivateHsakaaDto } from './dto/ask-private-hsakaa.dto';
+import { AskVerifiedPersonHsakaaDto } from './dto/ask-verified-person-hsakaa.dto';
+import { CreateHsakaaVoiceFeedbackDto } from './dto/hsakaa-voice.dto';
 import {
   GenerateHsakaaDailyJournalDto,
   HsakaaDailyContextQueryDto,
@@ -47,6 +50,15 @@ export class HsakaaController {
   @Public()
   ask(@Body() dto: AskHsakaaDto) {
     return this.hsakaaService.ask(dto);
+  }
+
+  @Post('person/ask')
+  @Public()
+  askVerifiedPerson(
+    @Body() dto: AskVerifiedPersonHsakaaDto,
+    @Headers('x-memory-session') sessionToken: string,
+  ) {
+    return this.hsakaaService.askVerifiedPerson(dto, sessionToken);
   }
 
   /**
@@ -358,6 +370,24 @@ export class HsakaaController {
   @Post('private/decisions/:decisionId/reanalyze')
   reanalyzePrivateDecision(@Param('decisionId') decisionId: string) {
     return this.hsakaaService.reanalyzePrivateDecision(decisionId);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Get('private/voice')
+  getPrivateVoiceProfile() {
+    return this.hsakaaService.getPrivateVoiceProfile();
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Post('private/voice/refresh')
+  refreshPrivateVoiceProfile() {
+    return this.hsakaaService.refreshPrivateVoiceProfile();
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Post('private/voice/feedback')
+  addPrivateVoiceFeedback(@Body() dto: CreateHsakaaVoiceFeedbackDto) {
+    return this.hsakaaService.addPrivateVoiceFeedback(dto);
   }
 
   @UseGuards(HsakaaOwnerSessionGuard)

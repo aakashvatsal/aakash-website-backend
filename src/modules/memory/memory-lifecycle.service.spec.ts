@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { Types } from 'mongoose';
 
+import { MemoryRecallService } from './memory-recall.service';
 import { MemoryService } from './memory.service';
 import {
   MemoryLifecycleStatus,
@@ -50,6 +51,7 @@ describe('MemoryService lifecycle truth maintenance', () => {
   };
   const memoryPersonModel = {};
   const verificationService = {};
+  const accessPolicyService = {};
   const aiService = { generateEmbedding: jest.fn() };
 
   let service: MemoryService;
@@ -63,7 +65,9 @@ describe('MemoryService lifecycle truth maintenance', () => {
       memoryModel as never,
       memoryPersonModel as never,
       verificationService as never,
+      accessPolicyService as never,
       aiService as never,
+      new MemoryRecallService(),
     );
   });
 

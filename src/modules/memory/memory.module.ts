@@ -14,6 +14,7 @@ import {
 } from '../../hsakaa/schemas/hsakaa-decision-case.schema';
 
 import { MemoryController } from './memory.controller';
+import { MemoryAccessPolicyService } from './memory-access-policy.service';
 import { MemoryInboxService } from './memory-inbox.service';
 import { MemoryService } from './memory.service';
 import { MemoryPeopleController } from './memory-people.controller';
@@ -102,6 +103,7 @@ import {
   ],
   providers: [
     MemoryService,
+    MemoryAccessPolicyService,
     MemoryInboxService,
     MemoryPeopleService,
     MemoryVerificationService,
@@ -114,6 +116,7 @@ import {
   ],
   exports: [
     MemoryService,
+    MemoryAccessPolicyService,
     MemoryInboxService,
     MemoryPeopleService,
     MemoryVerificationService,

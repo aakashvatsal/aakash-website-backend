@@ -16,6 +16,7 @@ export enum MetricSnapshotPeriod {
 
 export enum MediaAnalyticsSource {
   DIRECT_PLATFORM = 'direct_platform',
+  BUFFER = 'buffer',
   MANUAL = 'manual',
   LEGACY = 'legacy',
 }

@@ -5,6 +5,7 @@ import { MediaBufferService } from './media-buffer.service';
 import { MediaCalendarService } from './media-calendar.service';
 import { MediaCoreService } from './media-core.service';
 import { MediaPublishingService } from './media-publishing.service';
+import { MediaPreflightService } from './media-preflight.service';
 import { MediaAccountDocument } from './schemas/media-account.schema';
 import { MediaCalendarSlotDocument } from './schemas/media-calendar-slot.schema';
 import {
@@ -25,6 +26,7 @@ function saveDocument<T extends object>(document: T) {
 describe('MediaCalendarService', () => {
   function createService(options?: {
     publication?: MediaPublicationDocument;
+    publications?: MediaPublicationDocument[];
     account?: MediaAccountDocument;
   }) {
     const account = options?.account;
@@ -35,6 +37,7 @@ describe('MediaCalendarService', () => {
     } as unknown as Model<MediaAccountDocument>;
     const publicationModel = {
       findOne: jest.fn().mockResolvedValue(publication ?? null),
+      find: jest.fn().mockResolvedValue(options?.publications ?? []),
     } as unknown as Model<MediaPublicationDocument>;
     const slotModel = {
       exists: jest.fn().mockResolvedValue(null),
@@ -53,6 +56,9 @@ describe('MediaCalendarService', () => {
       schedule: jest.fn(),
       getPost: jest.fn(),
     } as unknown as MediaBufferService;
+    const preflightService = {
+      assertApproved: jest.fn().mockResolvedValue({ status: 'approved' }),
+    } as unknown as MediaPreflightService;
 
     return {
       service: new MediaCalendarService(
@@ -62,10 +68,12 @@ describe('MediaCalendarService', () => {
         coreService,
         publishingService,
         bufferService,
+        preflightService,
       ),
       coreService,
       updateAccountMock,
       publishingService,
+      preflightService,
     };
   }
 
@@ -194,6 +202,74 @@ describe('MediaCalendarService', () => {
     expect((item as unknown as { save: jest.Mock }).save).toHaveBeenCalled();
   });
 
+  it('keeps a failed automatic publish eligible for bounded retry', async () => {
+    const configuredAccount = account();
+    const item = publication({
+      accountId: configuredAccount._id,
+      productionStatus: MediaProductionStatus.READY,
+      status: MediaPostStatus.SCHEDULED,
+      deliveryStatus: MediaDeliveryStatus.SCHEDULED,
+      autoPublish: true,
+      publishAttempts: 0,
+    });
+    const { service, publishingService } = createService({
+      publication: item,
+      account: configuredAccount,
+    });
+    (publishingService.publish as jest.Mock).mockRejectedValue(
+      new Error('provider temporarily unavailable'),
+    );
+
+    await service.publishNow(item._id.toString());
+
+    expect(item.deliveryStatus).toBe(MediaDeliveryStatus.FAILED);
+    expect(item.status).toBe(MediaPostStatus.SCHEDULED);
+    expect(item.publishAttempts).toBe(1);
+    expect(item.nextPublishAttemptAt).toBeInstanceOf(Date);
+  });
+
+  it('stops automatic retries after the maximum publish attempts', async () => {
+    const configuredAccount = account();
+    const item = publication({
+      accountId: configuredAccount._id,
+      productionStatus: MediaProductionStatus.READY,
+      status: MediaPostStatus.SCHEDULED,
+      deliveryStatus: MediaDeliveryStatus.SCHEDULED,
+      autoPublish: true,
+      publishAttempts: 2,
+    });
+    const { service, publishingService } = createService({
+      publication: item,
+      account: configuredAccount,
+    });
+    (publishingService.publish as jest.Mock).mockRejectedValue(
+      new Error('provider still unavailable'),
+    );
+
+    await service.publishNow(item._id.toString());
+
+    expect(item.publishAttempts).toBe(3);
+    expect(item.status).toBe(MediaPostStatus.FAILED);
+    expect(item.nextPublishAttemptAt).toBeUndefined();
+  });
+
+  it('moves ambiguous stuck direct publishes to manual review instead of risking a duplicate', async () => {
+    const item = publication({
+      status: MediaPostStatus.SCHEDULED,
+      deliveryStatus: MediaDeliveryStatus.PUBLISHING,
+      autoPublish: true,
+      lastPublishAttemptAt: new Date(Date.now() - 60 * 60_000),
+    });
+    const { service } = createService({ publications: [item] });
+
+    const result = await service.recoverStuckPublishing();
+
+    expect(result.manualReview).toBe(1);
+    expect(item.deliveryStatus).toBe(MediaDeliveryStatus.MANUAL_REQUIRED);
+    expect(item.autoPublish).toBe(false);
+    expect(item.lastPublishError).toContain('avoid a duplicate');
+  });
+
   it('keeps WhatsApp Status out of automatic publishing', async () => {
     const configuredAccount = account({
       platform: MediaPlatform.WHATSAPP,
@@ -220,6 +296,25 @@ describe('MediaCalendarService', () => {
       service.schedulePublication(item._id.toString(), {
         scheduledAt: new Date(Date.now() + 60 * 60_000).toISOString(),
         autoPublish: true,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+  it('requires a fresh owner-approved preflight before scheduling', async () => {
+    const configuredAccount = account();
+    const item = publication({ accountId: configuredAccount._id });
+    const { service, preflightService } = createService({
+      publication: item,
+      account: configuredAccount,
+    });
+    (preflightService.assertApproved as jest.Mock).mockRejectedValue(
+      new BadRequestException(
+        'Owner-approved Media preflight review is required.',
+      ),
+    );
+
+    await expect(
+      service.schedulePublication(item._id.toString(), {
+        scheduledAt: new Date(Date.now() + 60 * 60_000).toISOString(),
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });

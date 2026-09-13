@@ -19,6 +19,7 @@ export enum HsakaaDailyContextSource {
   MEMORY = 'memory',
   DECISION = 'decision',
   HEALTH = 'health',
+  HOBBY = 'hobby',
   MEDIA = 'media',
   PEOPLE = 'people',
   COMPANY = 'company',

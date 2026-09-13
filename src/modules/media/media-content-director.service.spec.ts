@@ -5,6 +5,7 @@ import { MediaContentDirectorService } from './media-content-director.service';
 import { MediaContentIntelligenceService } from './media-content-intelligence.service';
 import { MediaCoreService } from './media-core.service';
 import { MediaGrowthService } from './media-growth.service';
+import { MediaPresenceService } from './media-presence.service';
 import { MediaContentItemDocument } from './schemas/media-content-item.schema';
 import {
   MediaGenerationRunDocument,
@@ -201,6 +202,27 @@ describe('MediaContentDirectorService', () => {
       }),
     } as unknown as MediaGrowthService;
 
+    const directorContext = jest.fn().mockResolvedValue({
+      presenceStrategy: {
+        northStar: 'Make the real Aakash visible as a builder and operator.',
+        neverBecome: ['generic motivational creator'],
+      },
+      voiceProfile: {
+        summary: 'Direct, reflective and specific.',
+        authenticityChecks: ['Would Aakash genuinely say this?'],
+      },
+      worldContext: {
+        companies: [],
+        publicSafe: [],
+        internalSafe: [],
+        needsReview: [],
+        privacyPolicy: {},
+      },
+    });
+    const presenceService = {
+      directorContext,
+    } as unknown as MediaPresenceService;
+
     const service = new MediaContentDirectorService(
       generationRunModel,
       contentModel,
@@ -209,6 +231,7 @@ describe('MediaContentDirectorService', () => {
       coreService,
       intelligenceService,
       growthService,
+      presenceService,
     );
 
     return {
@@ -218,6 +241,7 @@ describe('MediaContentDirectorService', () => {
       intelligenceService,
       createContent,
       createPublication,
+      directorContext,
       analyzeContentItem,
       analyzePublication,
       recordRejectedCandidate,
@@ -226,8 +250,13 @@ describe('MediaContentDirectorService', () => {
   }
 
   it('generates, anti-repetition checks, critiques and ranks a draft batch without creating canonical content', async () => {
-    const { service, generateStructuredResponse, createContent, getRun } =
-      createService();
+    const {
+      service,
+      generateStructuredResponse,
+      createContent,
+      directorContext,
+      getRun,
+    } = createService();
 
     const result = await service.generate({
       brief: 'Turn current builder lessons into distinct authority content.',
@@ -257,6 +286,7 @@ describe('MediaContentDirectorService', () => {
     });
     expect(run.candidates[0].finalScore).toBeGreaterThan(60);
     expect(run.rankedCandidateKeys).toEqual(['candidate_1', 'candidate_2']);
+    expect(directorContext).toHaveBeenCalled();
     expect(createContent).not.toHaveBeenCalled();
   });
 

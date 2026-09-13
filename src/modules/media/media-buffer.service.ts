@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { MediaAssetStorageService } from './media-asset-storage.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
@@ -21,6 +22,7 @@ import {
   MediaAssetType,
 } from './schemas/media-asset.schema';
 import { MediaPlatform, MediaPostType } from './schemas/media-post.schema';
+import { MediaMetricsResponse } from './interfaces/media-analytics.interface';
 import { MediaPublicationDocument } from './schemas/media-publication.schema';
 
 export interface BufferOrganization {
@@ -56,6 +58,24 @@ export interface BufferPostState {
   } | null;
 }
 
+export interface BufferPostMetric {
+  type: string;
+  name: string;
+  value: number;
+  unit: string;
+}
+
+export interface BufferPostMetricsRecord {
+  id: string;
+  text?: string | null;
+  channelId: string;
+  dueAt?: string | null;
+  sentAt?: string | null;
+  externalLink?: string | null;
+  metrics?: BufferPostMetric[] | null;
+  metricsUpdatedAt?: string | null;
+}
+
 interface BufferCreatePostResult {
   id: string;
   status: BufferPostState['status'];
@@ -85,6 +105,7 @@ export class MediaBufferService {
     private readonly accountModel: Model<MediaAccountDocument>,
     @InjectModel(MediaAsset.name)
     private readonly assetModel: Model<MediaAssetDocument>,
+    private readonly assetStorage: MediaAssetStorageService,
   ) {}
 
   isConfigured() {
@@ -348,6 +369,165 @@ export class MediaBufferService {
     return data.post;
   }
 
+  async getPostMetrics(postId: string): Promise<MediaMetricsResponse> {
+    this.requireConfigured();
+    const data = await this.graphql<{ post?: BufferPostMetricsRecord }>(
+      `query GetBufferPostMetrics($input: PostInput!) {
+        post(input: $input) {
+          id
+          text
+          channelId
+          dueAt
+          sentAt
+          externalLink
+          metrics { type name value unit }
+          metricsUpdatedAt
+        }
+      }`,
+      { input: { id: postId } },
+    );
+    if (!data.post) throw new NotFoundException('Buffer post was not found.');
+    return this.normalizePostMetrics(data.post);
+  }
+
+  async insights(limitPerChannel = 20) {
+    this.requireConfigured();
+    const safeLimit = Math.min(
+      Math.max(Math.trunc(limitPerChannel || 20), 1),
+      50,
+    );
+    const accounts = await this.accountModel
+      .find({
+        isActive: true,
+        deliveryProvider: MediaDeliveryProvider.BUFFER,
+        'buffer.channelId': { $type: 'string', $ne: '' },
+      })
+      .sort({ platform: 1, isPrimary: -1 })
+      .lean();
+
+    const rows = (
+      await Promise.all(
+        accounts.map(async (account) => {
+          if (!account.buffer?.channelId || !account.buffer.organizationId)
+            return [];
+          try {
+            const data = await this.graphql<{
+              posts?: {
+                edges?: Array<{ node?: BufferPostMetricsRecord }>;
+                pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+              };
+            }>(
+              `query BufferSentPostsWithMetrics($organizationId: OrganizationId!) {
+                posts(
+                  first: ${safeLimit}
+                  input: {
+                    organizationId: $organizationId
+                    filter: { status: [sent], channelIds: ["${account.buffer.channelId}"] }
+                  }
+                ) {
+                  edges {
+                    node {
+                      id
+                      text
+                      dueAt
+                      sentAt
+                      externalLink
+                      channelId
+                      metrics { type name value unit }
+                      metricsUpdatedAt
+                    }
+                  }
+                  pageInfo { hasNextPage endCursor }
+                }
+              }`,
+              { organizationId: account.buffer.organizationId },
+            );
+            return (data.posts?.edges ?? [])
+              .map((edge) => edge.node)
+              .filter((post): post is BufferPostMetricsRecord => Boolean(post))
+              .map((post) => ({
+                accountId: String(account._id),
+                platform: account.platform,
+                displayName: account.displayName,
+                post,
+                normalized: this.normalizePostMetrics(post).normalized,
+              }));
+          } catch (error) {
+            return [
+              {
+                accountId: String(account._id),
+                platform: account.platform,
+                displayName: account.displayName,
+                error: this.errorMessage(error),
+              },
+            ];
+          }
+        }),
+      )
+    ).flat();
+
+    const successful = rows.filter(
+      (
+        row,
+      ): row is Extract<
+        (typeof rows)[number],
+        { post: BufferPostMetricsRecord }
+      > => 'post' in row,
+    );
+    return {
+      generatedAt: new Date().toISOString(),
+      configured: true,
+      accounts: accounts.length,
+      posts: successful,
+      failures: rows.filter((row) => 'error' in row),
+      totals: {
+        posts: successful.length,
+        impressions: successful.reduce(
+          (sum, row) => sum + (row.normalized.impressions ?? 0),
+          0,
+        ),
+        reach: successful.reduce(
+          (sum, row) => sum + (row.normalized.reach ?? 0),
+          0,
+        ),
+        views: successful.reduce(
+          (sum, row) => sum + (row.normalized.views ?? 0),
+          0,
+        ),
+        reactions: successful.reduce(
+          (sum, row) => sum + (row.normalized.likes ?? 0),
+          0,
+        ),
+        comments: successful.reduce(
+          (sum, row) => sum + (row.normalized.comments ?? 0),
+          0,
+        ),
+        shares: successful.reduce(
+          (sum, row) => sum + (row.normalized.shares ?? 0),
+          0,
+        ),
+        saves: successful.reduce(
+          (sum, row) => sum + (row.normalized.saves ?? 0),
+          0,
+        ),
+        clicks: successful.reduce(
+          (sum, row) => sum + (row.normalized.clicks ?? 0),
+          0,
+        ),
+        followersGained: successful.reduce(
+          (sum, row) => sum + (row.normalized.followersGained ?? 0),
+          0,
+        ),
+      },
+      policy: {
+        metricsRefreshApproximatelyDaily: true,
+        commentsAreCountsOnly: true,
+        commentBodiesRemainInEngagementInbox: true,
+        personalApiKeyRequiredForMetrics: true,
+      },
+    };
+  }
+
   private async createPost(
     publication: MediaPublicationDocument,
     account: MediaAccountDocument,
@@ -461,7 +641,10 @@ export class MediaBufferService {
         publicationId: publication._id,
         isActive: true,
         status: MediaAssetStatus.READY,
-        url: { $type: 'string' },
+        $or: [
+          { url: { $type: 'string' } },
+          { storageKey: { $type: 'string' } },
+        ],
         type: {
           $in: [
             MediaAssetType.IMAGE,
@@ -474,9 +657,13 @@ export class MediaBufferService {
       .lean();
 
     const assets = records
-      .filter((asset) => this.isStablePublicUrl(asset.url))
-      .map((asset) => {
-        const payload = { url: asset.url };
+      .map((asset) => ({
+        asset,
+        resolvedUrl: this.assetStorage.resolveAssetUrl(asset),
+      }))
+      .filter((item) => this.isStablePublicUrl(item.resolvedUrl))
+      .map(({ asset, resolvedUrl }) => {
+        const payload = { url: resolvedUrl as string };
         if (asset.type === MediaAssetType.IMAGE) return { image: payload };
         if (asset.type === MediaAssetType.VIDEO) return { video: payload };
 
@@ -692,6 +879,50 @@ export class MediaBufferService {
     ).trim();
   }
 
+  private normalizePostMetrics(
+    post: BufferPostMetricsRecord,
+  ): MediaMetricsResponse {
+    const byType = new Map<string, number>();
+    for (const metric of post.metrics ?? []) {
+      if (!metric?.type) continue;
+      const value = Number(metric.value);
+      if (!Number.isFinite(value)) continue;
+      byType.set(metric.type, (byType.get(metric.type) ?? 0) + value);
+    }
+
+    const reactions =
+      (byType.get('reactions') ?? 0) + (byType.get('likes') ?? 0);
+    const shares =
+      (byType.get('shares') ?? 0) +
+      (byType.get('reposts') ?? 0) +
+      (byType.get('quotes') ?? 0);
+    const totalMinutes = byType.get('totalTimeWatched') ?? 0;
+    return {
+      normalized: {
+        impressions: byType.get('impressions') ?? 0,
+        reach: byType.get('reach') ?? 0,
+        views: byType.get('views') ?? 0,
+        engagedViews: byType.get('viewers') ?? 0,
+        likes: reactions,
+        comments: byType.get('comments') ?? 0,
+        shares,
+        saves: byType.get('saves') ?? 0,
+        clicks: byType.get('clicks') ?? 0,
+        followersGained: byType.get('follows') ?? 0,
+        watchTimeSeconds: totalMinutes * 60,
+        averageViewDurationSeconds: byType.get('averageTimeWatched') ?? 0,
+        engagementRate: byType.get('engagementRate'),
+      },
+      raw: {
+        provider: 'buffer',
+        bufferPostId: post.id,
+        channelId: post.channelId,
+        metricsUpdatedAt: post.metricsUpdatedAt ?? null,
+        metrics: post.metrics ?? [],
+      },
+    };
+  }
+
   private platformForService(service: string): MediaPlatform | undefined {
     const key = service.trim().toLowerCase();
     if (key === 'linkedin') return MediaPlatform.LINKEDIN;
@@ -718,6 +949,8 @@ export class MediaBufferService {
       whatsappUsesDirectOrManualDelivery: true,
       youtubeBufferSupportIsShortsOnly: true,
       stablePublicAssetUrlsRequired: true,
+      bufferPostMetricsAvailableForPersonalApiKeys: true,
+      commentBodiesAreNotProvidedByBufferMetrics: true,
     };
   }
 
@@ -757,7 +990,7 @@ export class MediaBufferService {
     return {
       canPublish: !unavailable,
       canSchedule: !unavailable,
-      canReadAnalytics: false,
+      canReadAnalytics: this.isConfigured() && !unavailable,
       canReadEngagement: false,
       canUploadAssets: false,
       requiresManualPublish: unavailable,

@@ -54,6 +54,7 @@ describe('MemoryService deterministic recall', () => {
       memoryModel as never,
       {} as never,
       {} as never,
+      {} as never,
       aiService as never,
       new MemoryRecallService(),
     );

@@ -5,6 +5,7 @@ import { AiModule } from '../modules/ai/ai.module';
 import { ChatModule } from '../modules/chat/chat.module';
 import { CompaniesModule } from '../modules/companies/companies.module';
 import { HealthModule } from '../modules/health/health.module';
+import { HobbiesModule } from '../modules/hobbies/hobbies.module';
 import { JournalModule } from '../modules/journal/journal.module';
 import { LibraryModule } from '../modules/library/library.module';
 import { MediaModule } from '../modules/media/media.module';
@@ -36,6 +37,11 @@ import {
   HealthEntry,
   HealthEntrySchema,
 } from '../modules/health/schemas/health-entry.schema';
+import { Hobby, HobbySchema } from '../modules/hobbies/schemas/hobby.schema';
+import {
+  HobbyPracticeSession,
+  HobbyPracticeSessionSchema,
+} from '../modules/hobbies/schemas/hobby-practice-session.schema';
 import {
   MediaPost,
   MediaPostSchema,
@@ -96,6 +102,16 @@ import {
   HsakaaDailyContext,
   HsakaaDailyContextSchema,
 } from './schemas/hsakaa-daily-context.schema';
+import {
+  HsakaaVoiceProfile,
+  HsakaaVoiceProfileSchema,
+} from './schemas/hsakaa-voice-profile.schema';
+import {
+  HsakaaVoiceFeedback,
+  HsakaaVoiceFeedbackSchema,
+} from './schemas/hsakaa-voice-feedback.schema';
+import { HsakaaVoiceService } from './hsakaa-voice.service';
+import { HsakaaVoiceScheduler } from './hsakaa-voice.scheduler';
 
 @Module({
   imports: [
@@ -106,12 +122,16 @@ import {
       { name: HsakaaWeeklyReview.name, schema: HsakaaWeeklyReviewSchema },
       { name: HsakaaDecisionCase.name, schema: HsakaaDecisionCaseSchema },
       { name: HsakaaDailyContext.name, schema: HsakaaDailyContextSchema },
+      { name: HsakaaVoiceProfile.name, schema: HsakaaVoiceProfileSchema },
+      { name: HsakaaVoiceFeedback.name, schema: HsakaaVoiceFeedbackSchema },
       { name: Task.name, schema: TaskSchema },
       { name: BrainDump.name, schema: BrainDumpSchema },
       { name: JournalEntry.name, schema: JournalEntrySchema },
       { name: LibraryItem.name, schema: LibraryItemSchema },
       { name: LibraryHighlight.name, schema: LibraryHighlightSchema },
       { name: HealthEntry.name, schema: HealthEntrySchema },
+      { name: Hobby.name, schema: HobbySchema },
+      { name: HobbyPracticeSession.name, schema: HobbyPracticeSessionSchema },
       { name: MediaPost.name, schema: MediaPostSchema },
       { name: MediaPublication.name, schema: MediaPublicationSchema },
       { name: PersonInteraction.name, schema: PersonInteractionSchema },
@@ -128,6 +148,7 @@ import {
     JournalModule,
     LibraryModule,
     HealthModule,
+    HobbiesModule,
     MediaModule,
     TasksModule,
     RemindersModule,
@@ -150,8 +171,11 @@ import {
     HsakaaDailyContextService,
     HsakaaDailyJournalService,
     HsakaaDailyJournalScheduler,
+    HsakaaVoiceService,
+    HsakaaVoiceScheduler,
     HsakaaBriefScheduler,
     HsakaaOwnerSessionGuard,
   ],
+  exports: [HsakaaBriefService],
 })
 export class HsakaaModule {}

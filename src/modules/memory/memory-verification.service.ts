@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -22,6 +23,8 @@ import {
 
 @Injectable()
 export class MemoryVerificationService {
+  private readonly logger = new Logger(MemoryVerificationService.name);
+
   constructor(
     @InjectModel(MemoryPerson.name)
     private readonly memoryPersonModel: Model<MemoryPersonDocument>,
@@ -41,9 +44,11 @@ export class MemoryVerificationService {
     //   'owner user ID',
     // );
 
-    const genericResponse = {
+    const fallbackVerificationSessionId = new Types.ObjectId().toString();
+    const genericResponse = (verificationSessionId: string) => ({
       message: 'If the identity is recognised, an OTP has been sent.',
-    };
+      verificationSessionId,
+    });
 
     const isEmail = identifier.includes('@');
 
@@ -73,7 +78,7 @@ export class MemoryVerificationService {
     });
 
     if (!person) {
-      return genericResponse;
+      return genericResponse(fallbackVerificationSessionId);
     }
 
     const recentRequestCount =
@@ -86,7 +91,7 @@ export class MemoryVerificationService {
       });
 
     if (recentRequestCount >= 3) {
-      return genericResponse;
+      return genericResponse(fallbackVerificationSessionId);
     }
 
     await this.verificationSessionModel.updateMany(
@@ -143,17 +148,22 @@ export class MemoryVerificationService {
 
     await person.save();
 
-    this.sendOtp(destination, channel, otp);
+    try {
+      await this.sendOtp(destination, channel, otp);
+    } catch (error) {
+      session.status = VerificationSessionStatus.REVOKED;
+      await session.save();
+      this.logger.error(
+        `Person OTP delivery failed for ${channel}: ${
+          error instanceof Error ? error.message : 'unknown delivery error'
+        }`,
+      );
 
-    return {
-      ...genericResponse,
+      // Keep the public response indistinguishable from an unknown identity.
+      return genericResponse(fallbackVerificationSessionId);
+    }
 
-      /*
-       * In a high-security system, you may also hide this ID
-       * and use an opaque challenge token.
-       */
-      verificationSessionId: session._id.toString(),
-    };
+    return genericResponse(session._id.toString());
   }
 
   async verifyOtp(verificationSessionId: string, otp: string) {
@@ -298,6 +308,7 @@ export class MemoryVerificationService {
       person: {
         id: person._id,
         name: person.preferredName ?? person.name,
+        memoryAccessConsentGranted: person.memoryAccessConsentGranted === true,
       },
     };
   }
@@ -348,8 +359,25 @@ export class MemoryVerificationService {
     return {
       // ownerUserId: session.ownerUserId,
       personId: session.personId,
+      personName: person.preferredName ?? person.name,
+      memoryAccessConsentGranted: person.memoryAccessConsentGranted === true,
       verificationSessionId: session._id,
       identityVersion: session.identityVersion,
+      sessionExpiresAt: session.sessionExpiresAt,
+    };
+  }
+
+  async getSessionProfile(rawSessionToken: string) {
+    const session = await this.validateSession(rawSessionToken);
+
+    return {
+      verified: true,
+      person: {
+        id: session.personId.toString(),
+        name: session.personName,
+        memoryAccessConsentGranted: session.memoryAccessConsentGranted,
+      },
+      sessionExpiresAt: session.sessionExpiresAt,
     };
   }
 
@@ -377,21 +405,50 @@ export class MemoryVerificationService {
     };
   }
 
-  private sendOtp(
+  private async sendOtp(
     destination: string,
     channel: VerificationChannel,
     otp: string,
   ) {
-    /*
-     * Replace this with your email or SMS provider.
-     *
-     * Examples:
-     * - Resend / SendGrid / AWS SES for email
-     * - Twilio / MSG91 / AWS SNS for SMS
-     */
-
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[DEV OTP] ${channel} ${destination}: ${otp}`);
+      this.logger.log(`[DEV OTP] ${channel} ${destination}: ${otp}`);
+      return;
+    }
+
+    if (channel === VerificationChannel.PHONE) {
+      throw new Error(
+        'Production phone OTP delivery is not configured. Configure an SMS provider before enabling phone verification.',
+      );
+    }
+
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    const from = process.env.MEMORY_OTP_FROM_EMAIL?.trim();
+
+    if (!apiKey || !from) {
+      throw new Error(
+        'RESEND_API_KEY and MEMORY_OTP_FROM_EMAIL are required for production email OTP delivery.',
+      );
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [destination],
+        subject: 'Your Aakash verification code',
+        text: `Your verification code is ${otp}. It expires in 5 minutes.`,
+      }),
+    });
+
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 500);
+      throw new Error(
+        `Resend rejected OTP delivery (${response.status}): ${detail}`,
+      );
     }
   }
 

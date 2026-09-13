@@ -65,6 +65,8 @@ export enum NowSource {
 
   LIBRARY = 'library',
 
+  HOBBY = 'hobby',
+
   COMPANY = 'company',
 
   CALENDAR = 'calendar',

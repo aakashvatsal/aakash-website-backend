@@ -82,6 +82,9 @@ export class BodyMeasurement {
 
   @Prop({ min: 0 })
   rightThighCm?: number;
+
+  @Prop({ min: 0 })
+  maximumHeartRateBpm?: number;
 }
 
 export const BodyMeasurementSchema =

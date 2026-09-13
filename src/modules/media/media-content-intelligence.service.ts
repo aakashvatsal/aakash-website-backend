@@ -209,6 +209,27 @@ export class MediaContentIntelligenceService {
       .lean();
   }
 
+  planningFingerprintContext(limit = 120) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 120), 20), 240);
+    return this.memoryModel
+      .find({
+        isActive: true,
+        status: MediaContentMemoryStatus.ACTIVE,
+        scope: {
+          $in: [
+            MediaContentMemoryScope.CONTENT,
+            MediaContentMemoryScope.PUBLICATION,
+          ],
+        },
+      })
+      .sort({ createdAt: -1 })
+      .limit(safeLimit)
+      .select(
+        'scope contentItemId publicationId platform format title topic thesis angle hookArchetype openingPattern storyKeys exampleKeys structure ctaArchetype visualConcept keyPhrases lexicalSignature createdAt',
+      )
+      .lean();
+  }
+
   async analyzeContentItem(contentItemId: string, refresh = false) {
     const content = await this.contentModel.findOne({
       _id: this.objectId(contentItemId),

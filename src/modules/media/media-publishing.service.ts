@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import { MediaBufferService } from './media-buffer.service';
+import { MediaAssetStorageService } from './media-asset-storage.service';
 import {
   MediaAccountDocument,
   MediaDeliveryProvider,
@@ -34,6 +35,7 @@ export class MediaPublishingService {
     private readonly bufferService: MediaBufferService,
     @InjectModel(MediaAsset.name)
     private readonly assetModel: Model<MediaAssetDocument>,
+    private readonly assetStorage: MediaAssetStorageService,
   ) {}
 
   async publish(
@@ -229,9 +231,12 @@ export class MediaPublishingService {
       MediaAssetType.VIDEO,
       MediaAssetType.IMAGE,
     ]);
-    if (!asset?.url) {
+    const assetUrl = asset
+      ? this.assetStorage.resolveAssetUrl(asset)
+      : undefined;
+    if (!asset || !assetUrl) {
       return this.manual(
-        'Instagram publishing requires a ready, publicly accessible image or video asset URL.',
+        'Instagram publishing requires a ready image or video asset in Media Library/S3 or a public URL.',
       );
     }
 
@@ -254,7 +259,7 @@ export class MediaPublishingService {
     ) {
       createUrl.searchParams.set('media_type', 'REELS');
     }
-    createUrl.searchParams.set(isVideo ? 'video_url' : 'image_url', asset.url);
+    createUrl.searchParams.set(isVideo ? 'video_url' : 'image_url', assetUrl);
 
     const createResponse = await fetch(createUrl, { method: 'POST' });
     const createPayload = await this.jsonObject(createResponse);
@@ -291,13 +296,16 @@ export class MediaPublishingService {
     const asset = await this.findPrimaryAsset(publication, [
       MediaAssetType.VIDEO,
     ]);
-    if (!asset?.url) {
+    const assetUrl = asset
+      ? this.assetStorage.resolveAssetUrl(asset)
+      : undefined;
+    if (!assetUrl) {
       return this.manual(
-        'YouTube publishing requires a ready video asset URL.',
+        'YouTube publishing requires a ready video asset in Media Library/S3 or a public URL.',
       );
     }
 
-    const assetResponse = await fetch(asset.url);
+    const assetResponse = await fetch(assetUrl);
     if (!assetResponse.ok) {
       throw new Error(
         `YouTube source video could not be loaded (${assetResponse.status}).`,
@@ -479,7 +487,10 @@ export class MediaPublishingService {
         isActive: true,
         status: MediaAssetStatus.READY,
         type: { $in: types },
-        url: { $type: 'string' },
+        $or: [
+          { url: { $type: 'string' } },
+          { storageKey: { $type: 'string' } },
+        ],
       })
       .sort({ required: -1, updatedAt: -1 });
   }

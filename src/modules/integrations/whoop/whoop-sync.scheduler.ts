@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { Cron } from '@nestjs/schedule';
 
+import { HealthProgressService } from '../../health/health-progress.service';
 import { WhoopService } from './whoop.service';
 
 @Injectable()
@@ -16,7 +17,10 @@ export class WhoopSyncScheduler {
    */
   private isRunning = false;
 
-  constructor(private readonly whoopService: WhoopService) {}
+  constructor(
+    private readonly whoopService: WhoopService,
+    private readonly healthProgressService: HealthProgressService,
+  ) {}
 
   /**
    * Every 2 hours:
@@ -55,10 +59,25 @@ export class WhoopSyncScheduler {
 
       const result = await this.whoopService.syncRecentHealth(3);
 
+      const todayKey = this.getIstDateKey();
+      let todayProgressRefreshed = false;
+
+      try {
+        await this.healthProgressService.refreshDaily(todayKey);
+        todayProgressRefreshed = true;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `WHOOP data synced, but today's Health execution refresh was skipped: ${message}`,
+        );
+      }
+
       this.logger.log(
-        `WHOOP sync completed in ${Date.now() - startedAt}ms. ${JSON.stringify(
-          result?.data ?? result,
-        )}`,
+        `WHOOP sync completed in ${Date.now() - startedAt}ms. ${JSON.stringify({
+          ...(result?.data ?? result),
+          todayKey,
+          todayProgressRefreshed,
+        })}`,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -67,5 +86,20 @@ export class WhoopSyncScheduler {
     } finally {
       this.isRunning = false;
     }
+  }
+
+  private getIstDateKey() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    return `${year}-${month}-${day}`;
   }
 }

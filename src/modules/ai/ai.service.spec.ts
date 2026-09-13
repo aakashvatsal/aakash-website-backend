@@ -100,4 +100,18 @@ describe('AiService', () => {
       'AI structured response did not complete: max_output_tokens.',
     );
   });
+  it('grounds public chat in Aakash first-person voice and eligible read-book evidence', () => {
+    const instructions = service['buildInstructions']({
+      message: 'What did this book teach you?',
+      mode: 'Library',
+      scope: 'public',
+      contextSections: ['PUBLIC READ BOOK EVIDENCE'],
+    });
+
+    expect(instructions).toContain("Speak in Aakash's first-person voice");
+    expect(instructions).toContain('BOOK GROUNDING IS STRICT');
+    expect(instructions).toContain('READING or COMPLETED');
+    expect(instructions).toContain('Never invent a quote');
+    expect(instructions).toContain('Do not refer to yourself as HSAKAA');
+  });
 });

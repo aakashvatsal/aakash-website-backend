@@ -9,6 +9,19 @@ export class MediaGrowthScheduler {
 
   constructor(private readonly growthService: MediaGrowthService) {}
 
+  @Cron('0 10 * * * *', { timeZone: 'Asia/Kolkata' })
+  async refreshLifecycleMetrics() {
+    try {
+      await this.growthService.syncLifecycle(150);
+    } catch (error) {
+      this.logger.error(
+        error instanceof Error
+          ? error.message
+          : 'Media lifecycle analytics sync failed.',
+      );
+    }
+  }
+
   @Cron('0 20 */6 * * *', { timeZone: 'Asia/Kolkata' })
   async refreshPublishedMetrics() {
     try {

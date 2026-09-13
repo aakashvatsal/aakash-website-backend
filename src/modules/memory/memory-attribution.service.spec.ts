@@ -18,6 +18,7 @@ describe('MemoryService attribution', () => {
     find: jest.fn(),
   };
   const verificationService = {};
+  const accessPolicyService = {};
   const aiService = {};
 
   let service: MemoryService;
@@ -40,6 +41,7 @@ describe('MemoryService attribution', () => {
       memoryModel as never,
       memoryPersonModel as never,
       verificationService as never,
+      accessPolicyService as never,
       aiService as never,
       new MemoryRecallService(),
     );

@@ -15,6 +15,7 @@ import {
 import { MediaBufferService } from './media-buffer.service';
 import { MediaCoreService } from './media-core.service';
 import { MediaPublishingService } from './media-publishing.service';
+import { MediaPreflightService } from './media-preflight.service';
 import {
   MediaAccount,
   MediaAccountDocument,
@@ -40,6 +41,7 @@ import {
 const MIN_HORIZON_DAYS = 7;
 const MAX_PUBLISH_ATTEMPTS = 3;
 const RETRY_DELAY_MINUTES = 15;
+const STUCK_PUBLISHING_MINUTES = 30;
 
 @Injectable()
 export class MediaCalendarService {
@@ -53,6 +55,7 @@ export class MediaCalendarService {
     private readonly mediaCoreService: MediaCoreService,
     private readonly publishingService: MediaPublishingService,
     private readonly bufferService: MediaBufferService,
+    private readonly preflightService: MediaPreflightService,
   ) {}
 
   async overview() {
@@ -239,6 +242,8 @@ export class MediaCalendarService {
       );
     }
 
+    await this.preflightService.assertApproved(publicationId);
+
     let slot: MediaCalendarSlotDocument | null = null;
     if (dto.slotId) {
       slot = await this.requireSlot(dto.slotId);
@@ -334,6 +339,7 @@ export class MediaCalendarService {
         'Production must be ready before publishing.',
       );
     }
+    await this.preflightService.assertApproved(publicationId);
     const account = await this.resolveAccount(publication);
     return this.attemptPublish(publication, account);
   }
@@ -417,6 +423,7 @@ export class MediaCalendarService {
   }
 
   async runDuePublications() {
+    await this.recoverStuckPublishing();
     const now = new Date();
     const due = await this.publicationModel.find({
       isActive: true,
@@ -459,14 +466,16 @@ export class MediaCalendarService {
           failed += 1;
       } catch (error) {
         publication.deliveryStatus = MediaDeliveryStatus.FAILED;
-        publication.status = MediaPostStatus.FAILED;
         publication.publishAttempts = (publication.publishAttempts ?? 0) + 1;
         publication.lastPublishAttemptAt = now;
         publication.lastPublishError = this.errorMessage(error);
-        publication.nextPublishAttemptAt = this.addMinutes(
-          now,
-          RETRY_DELAY_MINUTES,
-        );
+        const retryable = publication.publishAttempts < MAX_PUBLISH_ATTEMPTS;
+        publication.status = retryable
+          ? MediaPostStatus.SCHEDULED
+          : MediaPostStatus.FAILED;
+        publication.nextPublishAttemptAt = retryable
+          ? this.addMinutes(now, RETRY_DELAY_MINUTES)
+          : undefined;
         await publication.save();
         failed += 1;
       }
@@ -612,15 +621,57 @@ export class MediaCalendarService {
       return publication;
     } catch (error) {
       publication.deliveryStatus = MediaDeliveryStatus.FAILED;
-      publication.status = MediaPostStatus.FAILED;
+      const retryable = publication.publishAttempts < MAX_PUBLISH_ATTEMPTS;
+      publication.status = retryable
+        ? MediaPostStatus.SCHEDULED
+        : MediaPostStatus.FAILED;
       publication.lastPublishError = this.errorMessage(error);
-      publication.nextPublishAttemptAt =
-        publication.publishAttempts < MAX_PUBLISH_ATTEMPTS
-          ? this.addMinutes(now, RETRY_DELAY_MINUTES)
-          : undefined;
+      publication.nextPublishAttemptAt = retryable
+        ? this.addMinutes(now, RETRY_DELAY_MINUTES)
+        : undefined;
       await publication.save();
       return publication;
     }
+  }
+
+  async recoverStuckPublishing() {
+    const cutoff = this.addMinutes(new Date(), -STUCK_PUBLISHING_MINUTES);
+    const stuck = await this.publicationModel.find({
+      isActive: true,
+      deliveryStatus: MediaDeliveryStatus.PUBLISHING,
+      lastPublishAttemptAt: { $lte: cutoff },
+    });
+
+    let bufferManaged = 0;
+    let manualReview = 0;
+    for (const publication of stuck) {
+      if (publication.bufferPostId) {
+        // Buffer owns delivery after handoff. Reconciliation can safely ask Buffer
+        // for the authoritative state without creating a duplicate post.
+        bufferManaged += 1;
+        continue;
+      }
+
+      publication.deliveryStatus = MediaDeliveryStatus.MANUAL_REQUIRED;
+      publication.status = MediaPostStatus.SCHEDULED;
+      publication.autoPublish = false;
+      publication.nextPublishAttemptAt = undefined;
+      publication.lastPublishError =
+        'Automatic delivery stopped after an interrupted publish attempt. Verify the platform for a possible existing post before retrying to avoid a duplicate.';
+      await publication.save();
+      manualReview += 1;
+    }
+
+    return {
+      checked: stuck.length,
+      bufferManaged,
+      manualReview,
+      cutoff,
+      policy: {
+        ambiguousDirectPublishesNeverAutoRetry: true,
+        bufferHandoffsUseAuthoritativeReconciliation: true,
+      },
+    };
   }
 
   private async ensureAccountSlots(account: MediaAccountDocument) {

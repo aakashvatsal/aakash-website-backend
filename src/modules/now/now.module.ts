@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { NowController } from './now.controller';
 
 import { NowService } from './now.service';
+import { NowFreshnessScheduler } from './now-freshness.scheduler';
 
 import { NowStatus, NowStatusSchema } from './schemas/now-status.schema';
 
@@ -21,7 +22,7 @@ import { NowStatus, NowStatusSchema } from './schemas/now-status.schema';
 
   controllers: [NowController],
 
-  providers: [NowService],
+  providers: [NowService, NowFreshnessScheduler],
 
   exports: [NowService],
 })

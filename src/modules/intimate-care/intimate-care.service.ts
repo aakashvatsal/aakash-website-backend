@@ -168,6 +168,30 @@ export class IntimateCareService {
     return log;
   }
 
+  async getLogs(startDate?: string, endDate?: string) {
+    const filter: Record<string, unknown> = {
+      isActive: true,
+    };
+
+    if (startDate || endDate) {
+      const dateFilter: Record<string, Date> = {};
+
+      if (startDate) {
+        dateFilter.$gte = this.normalizeDate(startDate);
+      }
+
+      if (endDate) {
+        const end = this.normalizeDate(endDate);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.$lte = end;
+      }
+
+      filter.date = dateFilter;
+    }
+
+    return this.dailyLogModel.find(filter).sort({ date: -1 }).lean();
+  }
+
   async updateRoutineItem(
     logId: string,
     itemIndex: number,

@@ -152,6 +152,25 @@ export class CreateMediaAssetDto {
   @IsOptional() @IsObject() metadata?: Record<string, unknown>;
 }
 
+export class CreateMediaAssetUploadIntentDto {
+  @IsString() filename: string;
+  @IsString() mimeType: string;
+  @IsInt() @Min(1) @Max(2_000_000_000) sizeBytes: number;
+  @IsOptional() @IsEnum(MediaAssetType) type?: MediaAssetType;
+  @IsOptional() @IsString() role?: string;
+  @IsOptional() @IsEnum(MediaSourceType) source?: MediaSourceType;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(30)
+  @IsString({ each: true })
+  tags?: string[];
+  @IsOptional() @IsString() notes?: string;
+}
+
+export class AttachMediaLibraryAssetDto {
+  @IsMongoId() libraryAssetId: string;
+}
+
 export class MediaCandidateFingerprintDto {
   @IsString() title: string;
   @IsOptional() @IsString() thesis?: string;

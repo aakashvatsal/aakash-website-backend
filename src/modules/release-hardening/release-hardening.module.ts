@@ -29,6 +29,10 @@ import {
   UniversalSearchEmbedding,
   UniversalSearchEmbeddingSchema,
 } from '../universal-search/schemas/universal-search-embedding.schema';
+import {
+  BASE_RELEASE_HARDENING_SERVICE,
+  ReleaseHardeningHealthService,
+} from './release-hardening-health.service';
 import { ReleaseHardeningController } from './release-hardening.controller';
 import { ReleaseHardeningService } from './release-hardening.service';
 
@@ -50,7 +54,18 @@ import { ReleaseHardeningService } from './release-hardening.service';
     ]),
   ],
   controllers: [ReleaseHardeningController],
-  providers: [HsakaaOwnerSessionGuard, ReleaseHardeningService],
+  providers: [
+    HsakaaOwnerSessionGuard,
+    {
+      provide: BASE_RELEASE_HARDENING_SERVICE,
+      useClass: ReleaseHardeningService,
+    },
+    ReleaseHardeningHealthService,
+    {
+      provide: ReleaseHardeningService,
+      useExisting: ReleaseHardeningHealthService,
+    },
+  ],
   exports: [ReleaseHardeningService],
 })
 export class ReleaseHardeningModule {}

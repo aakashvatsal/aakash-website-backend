@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Ip, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Ip, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
@@ -34,6 +34,14 @@ export class MemoryVerificationController {
       dto.verificationSessionId,
       dto.otp,
     );
+  }
+
+  @Get('session')
+  getSession(
+    @Headers('x-memory-session')
+    sessionToken: string,
+  ) {
+    return this.verificationService.getSessionProfile(sessionToken);
   }
 
   @Post('logout')

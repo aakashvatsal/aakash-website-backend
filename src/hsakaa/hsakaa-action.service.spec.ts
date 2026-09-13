@@ -390,6 +390,10 @@ describe('HsakaaActionService', () => {
       memoryService as unknown as MemoryService,
       remindersService as unknown as RemindersService,
       decisionExperimentService as never,
+      {} as never, // MediaContentDirectorService
+      {} as never, // MediaProductionService
+      {} as never, // MediaCalendarService
+      {} as never, // MediaEngagementService
       chatService as unknown as ChatService,
       configService,
     );

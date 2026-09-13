@@ -10,6 +10,7 @@ export enum MediaGenerationPurpose {
   REWRITE = 'rewrite',
   CALENDAR_FILL = 'calendar_fill',
   PRODUCTION = 'production',
+  PLANNING = 'planning',
 }
 
 export enum MediaGenerationRunStatus {

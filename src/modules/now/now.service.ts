@@ -15,11 +15,16 @@ import { NowHistoryQueryDto } from './dto/now-history-query.dto';
 import { UpdateNowStatusDto } from './dto/update-now-status.dto';
 
 import {
+  NowActivityType,
   NowSource,
   NowStatus,
   NowStatusDocument,
   NowVisibility,
 } from './schemas/now-status.schema';
+
+const PERSONAL_OS_TIMEZONE = 'Asia/Kolkata';
+const DEFAULT_STALE_AFTER_MINUTES = 6 * 60;
+const SLEEP_STALE_AFTER_MINUTES = 12 * 60;
 
 @Injectable()
 export class NowService {
@@ -164,7 +169,7 @@ export class NowService {
   }
 
   async getCurrent() {
-    await this.expireCurrentIfNeeded();
+    await this.refreshCurrentState();
 
     const status = await this.nowStatusModel
       .findOne({
@@ -183,7 +188,7 @@ export class NowService {
   }
 
   async getCurrentDocument() {
-    await this.expireCurrentIfNeeded();
+    await this.refreshCurrentState();
 
     return this.nowStatusModel.findOne({
       isCurrent: true,
@@ -213,7 +218,7 @@ export class NowService {
   }
 
   async getPublicCurrent() {
-    await this.expireCurrentIfNeeded();
+    await this.refreshCurrentState();
 
     const status = await this.nowStatusModel
       .findOne({
@@ -235,6 +240,43 @@ export class NowService {
     }
 
     return this.toPublicStatus(status);
+  }
+
+  getTemporalContext(referenceTime = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: PERSONAL_OS_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(referenceTime);
+
+    const value = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((part) => part.type === type)?.value ?? '';
+
+    const hour = Number.parseInt(value('hour'), 10);
+    const localHour = Number.isFinite(hour) ? hour : 0;
+    const daypart = this.resolveDaypart(localHour);
+
+    return {
+      timezone: PERSONAL_OS_TIMEZONE,
+      utcIso: referenceTime.toISOString(),
+      localDate: `${value('year')}-${value('month')}-${value('day')}`,
+      localTime: `${value('hour')}:${value('minute')}:${value('second')}`,
+      weekday: value('weekday'),
+      hour24: localHour,
+      daypart,
+      isNight: daypart === 'night' || daypart === 'late_night',
+    };
+  }
+
+  async refreshCurrentState(referenceTime = new Date()) {
+    await this.expireCurrentIfNeeded(referenceTime);
+    await this.expireStaleCurrentIfNeeded(referenceTime);
   }
 
   async getHistory(page = 1, limit = 20) {
@@ -550,15 +592,11 @@ export class NowService {
     );
   }
 
-  private async expireCurrentIfNeeded() {
-    const now = new Date();
-
+  private async expireCurrentIfNeeded(now = new Date()) {
     await this.nowStatusModel.updateMany(
       {
         isCurrent: true,
-
         isActive: true,
-
         expiresAt: {
           $lte: now,
         },
@@ -566,11 +604,71 @@ export class NowService {
       {
         $set: {
           isCurrent: false,
-
           endedAt: now,
         },
       },
     );
+  }
+
+  private async expireStaleCurrentIfNeeded(now: Date) {
+    const defaultCutoff = new Date(
+      now.getTime() - DEFAULT_STALE_AFTER_MINUTES * 60_000,
+    );
+    const sleepCutoff = new Date(
+      now.getTime() - SLEEP_STALE_AFTER_MINUTES * 60_000,
+    );
+
+    await Promise.all([
+      this.expireStaleStatuses(now, defaultCutoff, {
+        $ne: NowActivityType.SLEEPING,
+      }),
+      this.expireStaleStatuses(now, sleepCutoff, NowActivityType.SLEEPING),
+    ]);
+  }
+
+  private async expireStaleStatuses(
+    now: Date,
+    cutoff: Date,
+    activityType: NowActivityType | { $ne: NowActivityType },
+  ) {
+    await this.nowStatusModel.updateMany(
+      {
+        isCurrent: true,
+        isActive: true,
+        isArchived: false,
+        activityType,
+        // Explicit expiry remains authoritative. This fallback only protects
+        // statuses that otherwise have no natural end and could live forever.
+        expiresAt: { $exists: false },
+        $or: [
+          { lastActivityAt: { $lte: cutoff } },
+          {
+            lastActivityAt: { $exists: false },
+            updatedAt: { $lte: cutoff },
+          },
+          {
+            lastActivityAt: { $exists: false },
+            updatedAt: { $exists: false },
+            startedAt: { $lte: cutoff },
+          },
+        ],
+      },
+      {
+        $set: {
+          isCurrent: false,
+          endedAt: now,
+        },
+      },
+    );
+  }
+
+  private resolveDaypart(hour: number) {
+    if (hour < 4) return 'late_night';
+    if (hour < 6) return 'early_morning';
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    if (hour < 21) return 'evening';
+    return 'night';
   }
 
   private toPublicStatus(status: unknown): Record<string, unknown> {

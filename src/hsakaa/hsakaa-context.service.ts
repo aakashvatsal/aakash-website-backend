@@ -4,9 +4,13 @@ import { Types } from 'mongoose';
 import { CompaniesService } from '../modules/companies/companies.service';
 import { HealthDashboardService } from '../modules/health/health-dashboard.service';
 import { HealthService } from '../modules/health/health.service';
+import { HobbiesService } from '../modules/hobbies/hobbies.service';
 import { JournalService } from '../modules/journal/journal.service';
 import { LibraryService } from '../modules/library/library.service';
-import { LibraryItemStatus } from '../modules/library/schemas/library-item.schema';
+import {
+  LibraryItemStatus,
+  LibraryItemType,
+} from '../modules/library/schemas/library-item.schema';
 import { MediaService } from '../modules/media/media.service';
 import { MemoryService } from '../modules/memory/memory.service';
 import { NowService } from '../modules/now/now.service';
@@ -33,6 +37,7 @@ export class HsakaaContextService {
     private readonly libraryService: LibraryService,
     private readonly healthService: HealthService,
     private readonly healthDashboardService: HealthDashboardService,
+    private readonly hobbiesService: HobbiesService,
     private readonly mediaService: MediaService,
     private readonly tasksService: TasksService,
     private readonly remindersService: RemindersService,
@@ -49,7 +54,13 @@ export class HsakaaContextService {
       this.nowService.getPublicCurrent(),
     ]);
 
-    const sections: string[] = [];
+    const sections: string[] = [
+      this.formatSection(
+        'CURRENT LOCAL TIME',
+        this.nowService.getTemporalContext(),
+        1200,
+      ),
+    ];
     const memoryIds: Types.ObjectId[] = [];
 
     if (memoryResult.status === 'fulfilled' && memoryResult.value.length > 0) {
@@ -59,9 +70,13 @@ export class HsakaaContextService {
     }
 
     if (nowResult.status === 'fulfilled' && nowResult.value) {
-      sections.push(
-        this.formatSection('CURRENT PUBLIC NOW STATUS', nowResult.value, 4500),
-      );
+      const safeNow = this.sanitizePublicNow(nowResult.value);
+
+      if (safeNow) {
+        sections.push(
+          this.formatSection('CURRENT PUBLIC NOW STATUS', safeNow, 4500),
+        );
+      }
     }
 
     const modeSections = await this.getModeSections(mode, message);
@@ -73,6 +88,82 @@ export class HsakaaContextService {
       memoryIds,
       retrievedMemoryCount:
         memoryResult.status === 'fulfilled' ? memoryResult.value.length : 0,
+    };
+  }
+
+  async buildVerifiedPersonContext(
+    mode: HsakaaMode,
+    message: string,
+    sessionToken: string,
+  ): Promise<
+    HsakaaContextBundle & {
+      personId: Types.ObjectId;
+      personName: string;
+      memoryAccessConsentGranted: boolean;
+    }
+  > {
+    const [memoryResult, nowResult] = await Promise.allSettled([
+      this.memoryService.retrieveForVerifiedPersonHsakaa(
+        sessionToken,
+        message,
+        10,
+        mode,
+      ),
+      this.nowService.getPublicCurrent(),
+    ]);
+
+    if (memoryResult.status !== 'fulfilled') {
+      throw memoryResult.reason;
+    }
+
+    const sections: string[] = [
+      this.formatSection(
+        'CURRENT LOCAL TIME',
+        this.nowService.getTemporalContext(),
+        1200,
+      ),
+      this.formatSection(
+        'VERIFIED VISITOR IDENTITY',
+        {
+          name: memoryResult.value.personName,
+          personSpecificMemoryEnabled:
+            memoryResult.value.memoryAccessConsentGranted,
+        },
+        1000,
+      ),
+    ];
+    const memoryIds: Types.ObjectId[] = [];
+
+    if (memoryResult.value.memories.length > 0) {
+      memoryIds.push(
+        ...memoryResult.value.memories.map((memory) => memory._id),
+      );
+      sections.push(
+        this.formatMemorySection(
+          memoryResult.value.memories,
+          'PUBLIC + VERIFIED-PERSON MEMORY CONTEXT',
+        ),
+      );
+    }
+
+    if (nowResult.status === 'fulfilled' && nowResult.value) {
+      const safeNow = this.sanitizePublicNow(nowResult.value);
+      if (safeNow) {
+        sections.push(
+          this.formatSection('CURRENT PUBLIC NOW STATUS', safeNow, 4500),
+        );
+      }
+    }
+
+    sections.push(...(await this.getModeSections(mode, message)));
+
+    return {
+      sections,
+      memoryIds,
+      retrievedMemoryCount: memoryResult.value.memories.length,
+      personId: memoryResult.value.personId,
+      personName: memoryResult.value.personName,
+      memoryAccessConsentGranted: memoryResult.value.memoryAccessConsentGranted,
     };
   }
 
@@ -93,6 +184,7 @@ export class HsakaaContextService {
       meditationSummaryResult,
       brainDumpSummaryResult,
       brainDumpInboxResult,
+      hobbiesOverviewResult,
     ] = await Promise.allSettled([
       this.memoryService.recall({
         query: message,
@@ -112,9 +204,16 @@ export class HsakaaContextService {
         page: 1,
         limit: 8,
       }),
+      this.hobbiesService.getOverview(),
     ]);
 
-    const sections: string[] = [];
+    const sections: string[] = [
+      this.formatSection(
+        'CURRENT LOCAL TIME',
+        this.nowService.getTemporalContext(),
+        1200,
+      ),
+    ];
     const memoryIds: Types.ObjectId[] = [];
 
     if (memoryResult.status === 'fulfilled') {
@@ -182,6 +281,16 @@ export class HsakaaContextService {
           'BRAIN DUMP INBOX',
           brainDumpInboxResult.value,
           8000,
+        ),
+      );
+    }
+
+    if (hobbiesOverviewResult.status === 'fulfilled') {
+      sections.push(
+        this.formatSection(
+          'HOBBIES / DELIBERATE PRACTICE',
+          hobbiesOverviewResult.value,
+          9000,
         ),
       );
     }
@@ -278,6 +387,7 @@ export class HsakaaContextService {
       this.libraryService.findAll({ search, page: 1, limit: 4 }, false),
       this.mediaService.findAll({ search, page: 1, limit: 3 }, false),
       this.healthDashboardService.getDashboard(),
+      this.hobbiesService.getOverview(),
     ]);
 
     const labels = [
@@ -286,6 +396,7 @@ export class HsakaaContextService {
       'PRIVATE LIBRARY',
       'PRIVATE MEDIA',
       'PRIVATE HEALTH DASHBOARD',
+      'HOBBIES / DELIBERATE PRACTICE',
     ];
 
     return results.flatMap((result, index) => {
@@ -352,10 +463,8 @@ export class HsakaaContextService {
         return this.getLibrarySections(message);
 
       case HsakaaMode.HEALTH:
-        return this.getHealthSections();
-
       case HsakaaMode.MEDIA:
-        return this.getMediaSections(message);
+        return [];
 
       case HsakaaMode.MEMORY:
         return [];
@@ -371,14 +480,12 @@ export class HsakaaContextService {
       this.getCompaniesData(message, 3),
       this.getJournalData(message, 2),
       this.getLibraryData(message, 3),
-      this.getMediaData(message, 2),
     ]);
 
     const labels = [
       'PUBLIC COMPANIES',
       'PUBLIC JOURNAL',
-      'PUBLIC LIBRARY',
-      'PUBLIC MEDIA',
+      'PUBLIC READ BOOK EVIDENCE',
     ];
 
     return results.flatMap((result, index) => {
@@ -407,7 +514,7 @@ export class HsakaaContextService {
   private async getLibrarySections(message: string) {
     const data = await this.safeResolve(() => this.getLibraryData(message, 6));
 
-    return this.sectionIfUseful('PUBLIC LIBRARY', data, 8000);
+    return this.sectionIfUseful('PUBLIC READ BOOK EVIDENCE', data, 10000);
   }
 
   private async getMediaSections(message: string) {
@@ -491,47 +598,88 @@ export class HsakaaContextService {
   private async getLibraryData(message: string, limit: number) {
     const search = this.getSearchTerms(message);
 
-    if (search) {
-      try {
-        const searched = await this.libraryService.findAll(
+    const loadEligibleBooks = async (withSearch: boolean) => {
+      const [reading, completed] = await Promise.all([
+        this.libraryService.findAll(
           {
-            search,
+            type: LibraryItemType.BOOK,
+            status: LibraryItemStatus.READING,
+            ...(withSearch && search ? { search } : {}),
             page: 1,
             limit,
           },
           true,
-        );
+        ),
+        this.libraryService.findAll(
+          {
+            type: LibraryItemType.BOOK,
+            status: LibraryItemStatus.COMPLETED,
+            ...(withSearch && search ? { search } : {}),
+            page: 1,
+            limit,
+          },
+          true,
+        ),
+      ]);
 
-        if (searched.data.length > 0) {
-          return searched.data;
+      const deduplicated = new Map<string, Record<string, unknown>>();
+
+      for (const item of [...reading.data, ...completed.data]) {
+        const record = item as unknown as Record<string, unknown>;
+        const id = record._id?.toString();
+
+        if (id && !deduplicated.has(id)) {
+          deduplicated.set(id, record);
         }
+      }
+
+      return [...deduplicated.values()].slice(0, limit);
+    };
+
+    let books: Record<string, unknown>[] = [];
+
+    if (search) {
+      try {
+        books = await loadEligibleBooks(true);
       } catch {
-        // Fall through to current/public books.
+        books = [];
       }
     }
 
-    const reading = await this.libraryService.findAll(
-      {
-        status: LibraryItemStatus.READING,
-        page: 1,
-        limit,
-      },
-      true,
-    );
-
-    if (reading.data.length > 0) {
-      return reading.data;
+    if (books.length === 0) {
+      books = await loadEligibleBooks(false);
     }
 
-    const latest = await this.libraryService.findAll(
-      {
-        page: 1,
-        limit,
-      },
-      true,
+    const enriched = await Promise.all(
+      books.map(async (book) => {
+        const id = book._id?.toString();
+
+        if (!id) {
+          return { ...book, publicReferences: [] };
+        }
+
+        const [detailsResult, highlightsResult] = await Promise.allSettled([
+          this.libraryService.findOne(id, true),
+          this.libraryService.getHighlights(id, true),
+        ]);
+
+        const details =
+          detailsResult.status === 'fulfilled'
+            ? (detailsResult.value as unknown as Record<string, unknown>)
+            : book;
+        const publicReferences =
+          highlightsResult.status === 'fulfilled'
+            ? highlightsResult.value.slice(0, 8)
+            : [];
+
+        return {
+          ...details,
+          publicReferences,
+        };
+      }),
     );
 
-    return latest.data;
+    return enriched;
   }
 
   private async getMediaData(message: string, limit: number) {
@@ -565,6 +713,24 @@ export class HsakaaContextService {
     );
 
     return latest.data;
+  }
+
+  private sanitizePublicNow(value: unknown) {
+    if (typeof value !== 'object' || value === null) {
+      return null;
+    }
+
+    const safe = { ...(value as Record<string, unknown>) };
+    const source = typeof safe.source === 'string' ? safe.source : '';
+
+    if (source === 'health' || source === 'whoop') {
+      return null;
+    }
+
+    delete safe.health;
+    delete safe.energyScore;
+
+    return safe;
   }
 
   private async safeResolve<T>(resolver: () => Promise<T>): Promise<T | null> {
@@ -606,6 +772,7 @@ export class HsakaaContextService {
       confidence?: number;
       retrievalScore: number;
     }>,
+    label = 'PUBLIC MEMORY CONTEXT',
   ) {
     const lines = memories.map((memory, index) =>
       [
@@ -621,7 +788,7 @@ export class HsakaaContextService {
         .join(' | '),
     );
 
-    return ['PUBLIC MEMORY CONTEXT', ...lines].join('\n');
+    return [label, ...lines].join('\n');
   }
 
   private formatSection(

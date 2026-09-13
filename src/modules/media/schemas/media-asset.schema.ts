@@ -54,6 +54,33 @@ export class MediaAsset {
   @Prop({ trim: true })
   storageKey?: string;
 
+  @Prop({ type: SchemaTypes.ObjectId, ref: 'MediaAsset', index: true })
+  librarySourceAssetId?: Types.ObjectId;
+
+  @Prop({ trim: true })
+  storageProvider?: string;
+
+  @Prop({ trim: true })
+  originalName?: string;
+
+  @Prop({ trim: true })
+  mimeType?: string;
+
+  @Prop({ min: 0 })
+  sizeBytes?: number;
+
+  @Prop({ default: false, index: true })
+  libraryReusable: boolean;
+
+  @Prop({ type: [String], default: [] })
+  tags: string[];
+
+  @Prop({ trim: true })
+  etag?: string;
+
+  @Prop()
+  uploadedAt?: Date;
+
   @Prop({ trim: true })
   prompt?: string;
 

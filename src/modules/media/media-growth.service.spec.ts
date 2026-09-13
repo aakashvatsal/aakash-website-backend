@@ -8,7 +8,10 @@ import { MediaContentItemDocument } from './schemas/media-content-item.schema';
 import { MediaContentMemoryDocument } from './schemas/media-content-memory.schema';
 import { MediaGrowthExperimentDocument } from './schemas/media-growth-experiment.schema';
 import { MediaGrowthLearningDocument } from './schemas/media-growth-learning.schema';
-import { MediaMetricSnapshotDocument } from './schemas/media-metric-snapshot.schema';
+import {
+  MediaMetricSnapshotDocument,
+  MetricSnapshotPeriod,
+} from './schemas/media-metric-snapshot.schema';
 import {
   MediaPlatform,
   MediaPostStatus,
@@ -166,6 +169,55 @@ describe('MediaGrowthService', () => {
     expect(update.$set.engagementRate).toBeGreaterThan(0);
     expect(update.$set.performanceScore).toBeGreaterThan(0);
     expect(update.$set.performanceScore).toBeLessThanOrEqual(100);
+  });
+
+  it('requests only missing lifecycle snapshots when their age thresholds are reached', async () => {
+    const { service, publicationId } = createService();
+    const publicationModel = Reflect.get(service, 'publicationModel') as {
+      find: jest.Mock;
+    };
+    const metricModel = Reflect.get(service, 'metricModel') as {
+      find: jest.Mock;
+    };
+    const publishedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    publicationModel.find.mockReturnValue(
+      chain([
+        {
+          _id: publicationId,
+          platform: MediaPlatform.YOUTUBE,
+          format: MediaPostType.SHORT,
+          title: 'Lifecycle test',
+          publishedAt,
+          platformPostId: 'video-1',
+          status: MediaPostStatus.POSTED,
+          deliveryStatus: MediaDeliveryStatus.PUBLISHED,
+          isActive: true,
+        },
+      ]),
+    );
+    metricModel.find.mockReturnValue({
+      select: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([
+        {
+          mediaPublicationId: publicationId,
+          period: MetricSnapshotPeriod.ONE_HOUR,
+        },
+      ]),
+    });
+
+    const overview = await service.lifecycleOverview(100);
+
+    expect(overview.due.map((item) => item.period)).toEqual([
+      MetricSnapshotPeriod.TWENTY_FOUR_HOURS,
+      MetricSnapshotPeriod.SEVENTY_TWO_HOURS,
+      MetricSnapshotPeriod.SEVEN_DAYS,
+    ]);
+    expect(overview.due.map((item) => item.period)).not.toContain(
+      MetricSnapshotPeriod.ONE_HOUR,
+    );
+    expect(overview.due.map((item) => item.period)).not.toContain(
+      MetricSnapshotPeriod.THIRTY_DAYS,
+    );
   });
 
   it('captures account audience growth from the platform connector', async () => {

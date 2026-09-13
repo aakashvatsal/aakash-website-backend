@@ -25,6 +25,7 @@ import { MemoryRecallQueryDto } from './dto/memory-recall-query.dto';
 import { UpdateMemoryDto } from './dto/update-memory.dto';
 import { UpdateMemoryScoreDto } from './dto/update-memory-score.dto';
 import { UpdateMemoryTagsDto } from './dto/update-memory-tags.dto';
+import { MemoryAccessPolicyService } from './memory-access-policy.service';
 import { MemoryVerificationService } from './memory-verification.service';
 import { MemoryRecallService } from './memory-recall.service';
 import {
@@ -54,6 +55,8 @@ export class MemoryService implements OnModuleInit {
     private readonly memoryPersonModel: Model<MemoryPersonDocument>,
 
     private readonly verificationService: MemoryVerificationService,
+
+    private readonly accessPolicyService: MemoryAccessPolicyService,
 
     private readonly aiService: AiService,
 
@@ -469,7 +472,7 @@ export class MemoryService implements OnModuleInit {
       .trim();
 
     const memories = await this.memoryModel
-      .find(this.getPublicEmbeddingEligibleFilter())
+      .find(this.getPublicHsakaaEligibleFilter())
       .sort({ importance: -1, confidence: -1, capturedAt: -1 })
       .limit(500)
       .lean();
@@ -484,6 +487,49 @@ export class MemoryService implements OnModuleInit {
       retrievalScore,
       matchedFields,
     }));
+  }
+
+  async retrieveForVerifiedPersonHsakaa(
+    rawSessionToken: string,
+    query: string,
+    limit = 10,
+    mode?: string,
+  ) {
+    await this.syncExpiredMemories();
+    const session =
+      await this.verificationService.validateSession(rawSessionToken);
+    const safeLimit = Math.min(Math.max(limit, 1), 14);
+    const retrievalText = [query, this.getModeRetrievalTerms(mode)]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+
+    const memories = await this.memoryModel
+      .find(
+        this.accessPolicyService.getVerifiedPersonHsakaaFilter({
+          personId: session.personId,
+          memoryAccessConsentGranted: session.memoryAccessConsentGranted,
+        }),
+      )
+      .sort({ importance: -1, confidence: -1, capturedAt: -1 })
+      .limit(500)
+      .lean();
+
+    const plan = this.memoryRecallService.buildPlan({ query: retrievalText });
+    const ranked = this.memoryRecallService.rank(memories, plan, safeLimit);
+
+    await this.markmemoryAccessed(ranked.map(({ memory }) => memory._id));
+
+    return {
+      personId: session.personId,
+      personName: session.personName,
+      memoryAccessConsentGranted: session.memoryAccessConsentGranted,
+      memories: ranked.map(({ memory, retrievalScore, matchedFields }) => ({
+        ...memory,
+        retrievalScore,
+        matchedFields,
+      })),
+    };
   }
 
   async getEmbeddingStatus() {
@@ -641,7 +687,7 @@ export class MemoryService implements OnModuleInit {
     //   'owner user ID',
     // );
 
-    const filter = this.getPublicEmbeddingEligibleFilter();
+    const filter = this.getPublicHsakaaEligibleFilter();
 
     if (search?.trim()) {
       filter.$text = {
@@ -669,35 +715,12 @@ export class MemoryService implements OnModuleInit {
       await this.verificationService.validateSession(rawSessionToken);
 
     const memory = await this.memoryModel
-      .find({
-        // ownerUserId: session.ownerUserId,
-        personId: session.personId,
-        accessLevel: {
-          $in: [
-            MemoryAccessLevel.PERSON_PRIVATE,
-            MemoryAccessLevel.OWNER_AND_PERSON,
-            MemoryAccessLevel.PUBLIC,
-          ],
-        },
-        isActive: true,
-        isArchived: false,
-        isDisputed: false,
-        $or: [
-          {
-            expiresAt: {
-              $exists: false,
-            },
-          },
-          {
-            expiresAt: null,
-          },
-          {
-            expiresAt: {
-              $gt: new Date(),
-            },
-          },
-        ],
-      })
+      .find(
+        this.accessPolicyService.getVerifiedPersonHsakaaFilter({
+          personId: session.personId,
+          memoryAccessConsentGranted: session.memoryAccessConsentGranted,
+        }),
+      )
       .sort({
         importance: -1,
         confidence: -1,
@@ -705,10 +728,12 @@ export class MemoryService implements OnModuleInit {
       })
       .lean();
 
-    await this.markmemoryAccessed(memory.map((memory) => memory._id));
+    await this.markmemoryAccessed(memory.map((item) => item._id));
 
     return {
       personId: session.personId,
+      personName: session.personName,
+      memoryAccessConsentGranted: session.memoryAccessConsentGranted,
       memory,
     };
   }
@@ -1201,6 +1226,10 @@ export class MemoryService implements OnModuleInit {
       await this.syncEmbeddingBestEffort(memory);
     }
     return memory;
+  }
+
+  private getPublicHsakaaEligibleFilter(): QueryFilter<MemoryDocument> {
+    return this.accessPolicyService.getPublicHsakaaFilter();
   }
 
   private getPublicEmbeddingEligibleFilter(): QueryFilter<MemoryDocument> {

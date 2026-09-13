@@ -10,6 +10,8 @@ import {
 import {
   CreateMediaAccountDto,
   CreateMediaAssetDto,
+  CreateMediaAssetUploadIntentDto,
+  AttachMediaLibraryAssetDto,
   CreateMediaContentItemDto,
   CreateMediaPublicationDto,
   AcceptMediaDirectorCandidateDto,
@@ -36,6 +38,16 @@ import {
   UpdateMediaGrowthExperimentDto,
 } from './dto/media-core.dto';
 import {
+  BootstrapMediaPresenceDto,
+  GenerateMediaPresenceStrategyDto,
+  GenerateMediaVoiceProfileDto,
+} from './dto/media-presence.dto';
+import { GenerateMediaPlanningCycleDto } from './dto/media-planning.dto';
+import {
+  BootstrapMediaLaunchDto,
+  UpdateMediaLaunchProfileDto,
+} from './dto/media-launch.dto';
+import {
   RunMediaAutopilotDto,
   UpdateMediaAutopilotRecommendationDto,
   UpdateMediaAutopilotSettingsDto,
@@ -48,10 +60,35 @@ import { MediaProductionService } from './media-production.service';
 import { MediaCalendarService } from './media-calendar.service';
 import { MediaGrowthService } from './media-growth.service';
 import { MediaAutopilotService } from './media-autopilot.service';
+import { MediaPresenceService } from './media-presence.service';
+import { MediaPlanningService } from './media-planning.service';
+import { MediaPlanningGenerationService } from './media-planning-generation.service';
+import { MediaLearningService } from './media-learning.service';
+import { MediaStrategyAdaptationService } from './media-strategy-adaptation.service';
+import { MediaTodayService } from './media-today.service';
+import { MediaOperationsService } from './media-operations.service';
+import { MediaLaunchService } from './media-launch.service';
+import { MediaExecutionService } from './media-execution.service';
+import { MediaAssetLibraryService } from './media-asset-library.service';
+import { MediaPreflightService } from './media-preflight.service';
+import { MediaReleaseService } from './media-release.service';
+import { UpdateMediaExecutionDto } from './dto/media-execution.dto';
+import {
+  DecideMediaPreflightDto,
+  RunMediaPreflightDto,
+} from './dto/media-review.dto';
 import {
   MediaContentMemoryScope,
   MediaRepetitionRisk,
 } from './schemas/media-content-memory.schema';
+import { MediaAssetType } from './schemas/media-asset.schema';
+import {
+  RefreshMediaSocialRecommendationsDto,
+  RunMediaSocialPresenceReviewDto,
+  SyncMediaSocialProfileDto,
+  UpdateMediaSocialRecommendationDto,
+} from './dto/media-social-presence.dto';
+import { MediaSocialPresenceService } from './media-social-presence.service';
 
 @Controller('media/core')
 export class MediaCoreController {
@@ -64,6 +101,19 @@ export class MediaCoreController {
     private readonly calendarService: MediaCalendarService,
     private readonly growthService: MediaGrowthService,
     private readonly autopilotService: MediaAutopilotService,
+    private readonly presenceService: MediaPresenceService,
+    private readonly planningService: MediaPlanningService,
+    private readonly planningGenerationService: MediaPlanningGenerationService,
+    private readonly learningService: MediaLearningService,
+    private readonly strategyAdaptationService: MediaStrategyAdaptationService,
+    private readonly todayService: MediaTodayService,
+    private readonly operationsService: MediaOperationsService,
+    private readonly launchService: MediaLaunchService,
+    private readonly executionService: MediaExecutionService,
+    private readonly assetLibraryService: MediaAssetLibraryService,
+    private readonly preflightService: MediaPreflightService,
+    private readonly releaseService: MediaReleaseService,
+    private readonly socialPresenceService: MediaSocialPresenceService,
   ) {}
 
   @Get('overview') overview() {
@@ -76,6 +126,31 @@ export class MediaCoreController {
 
   @Post('buffer/sync') syncBufferAccounts() {
     return this.bufferService.syncAccounts();
+  }
+
+  @Get('buffer/insights') bufferInsights(@Query('limit') limit?: string) {
+    return this.bufferService.insights(limit ? Number(limit) : 20);
+  }
+
+  @Post('buffer/recalibrate') async recalibrateFromBuffer() {
+    const accounts = await this.bufferService.syncAccounts();
+    const latest = await this.growthService.syncPublished(100);
+    const lifecycle = await this.growthService.syncLifecycle(150);
+    const learning = await this.learningService.rebuildAll(90);
+    const adaptation = await this.strategyAdaptationService.generate({
+      force: true,
+      notes:
+        'Recalibrated from the latest Buffer post metrics. Preserve voice and anti-repetition safeguards; treat small samples cautiously.',
+    });
+    return {
+      generatedAt: new Date().toISOString(),
+      accounts,
+      latest,
+      lifecycle,
+      learning,
+      adaptation,
+      insights: await this.bufferService.insights(20),
+    };
   }
 
   @Post('buffer/accounts/:accountId/connect') connectBufferAccount(
@@ -108,6 +183,51 @@ export class MediaCoreController {
     @Body() dto: UpdateMediaAccountDto,
   ) {
     return this.calendarService.updateAccount(accountId, dto);
+  }
+
+  @Get('social-presence/overview') socialPresenceOverview() {
+    return this.socialPresenceService.overview();
+  }
+
+  @Post('social-presence/sync') syncSocialPresence(
+    @Body() dto: SyncMediaSocialProfileDto,
+  ) {
+    return this.socialPresenceService.syncAll(dto?.syncNetwork ?? true);
+  }
+
+  @Post('social-presence/accounts/:accountId/sync') syncSocialPresenceAccount(
+    @Param('accountId') accountId: string,
+    @Body() dto: SyncMediaSocialProfileDto,
+  ) {
+    return this.socialPresenceService.syncAccount(
+      accountId,
+      dto?.syncNetwork ?? true,
+    );
+  }
+
+  @Post('social-presence/recommendations/refresh') refreshSocialRecommendations(
+    @Body() dto: RefreshMediaSocialRecommendationsDto,
+  ) {
+    return this.socialPresenceService.refreshRecommendations(
+      dto?.force ?? false,
+    );
+  }
+
+  @Patch('social-presence/recommendations/:recommendationId')
+  updateSocialRecommendation(
+    @Param('recommendationId') recommendationId: string,
+    @Body() dto: UpdateMediaSocialRecommendationDto,
+  ) {
+    return this.socialPresenceService.updateRecommendation(
+      recommendationId,
+      dto.status,
+    );
+  }
+
+  @Post('social-presence/review/run') runSocialPresenceReview(
+    @Body() dto: RunMediaSocialPresenceReviewDto,
+  ) {
+    return this.socialPresenceService.runWeeklyReview(dto?.force ?? true);
   }
 
   @Get('calendar/overview') calendarOverview() {
@@ -162,6 +282,117 @@ export class MediaCoreController {
     return this.calendarService.completeManualPublish(publicationId, dto);
   }
 
+  @Get('review/overview') reviewOverview() {
+    return this.preflightService.overview();
+  }
+
+  @Get('review/publications/:publicationId') publicationReview(
+    @Param('publicationId') publicationId: string,
+  ) {
+    return this.preflightService.get(publicationId);
+  }
+
+  @Post('review/publications/:publicationId/run') runPublicationReview(
+    @Param('publicationId') publicationId: string,
+    @Body() dto: RunMediaPreflightDto,
+  ) {
+    return this.preflightService.run(publicationId, dto?.force ?? false);
+  }
+
+  @Patch('review/publications/:publicationId/decision') decidePublicationReview(
+    @Param('publicationId') publicationId: string,
+    @Body() dto: DecideMediaPreflightDto,
+  ) {
+    return this.preflightService.decide(publicationId, dto.decision, dto.note);
+  }
+
+  @Get('release/overview') releaseOverview() {
+    return this.releaseService.overview();
+  }
+
+  @Post('release/repair-safe') releaseRepairSafeState() {
+    return this.releaseService.repairSafeState();
+  }
+
+  @Get('operations/overview') operationsOverview() {
+    return this.operationsService.overview();
+  }
+
+  @Post('operations/repair-safe') repairMediaOperationsSafeState() {
+    return this.operationsService.repairSafeState();
+  }
+
+  @Get('launch/overview') launchOverview() {
+    return this.launchService.overview();
+  }
+
+  @Post('launch/bootstrap') async bootstrapLaunch(
+    @Body() dto: BootstrapMediaLaunchDto,
+  ) {
+    const launch = await this.launchService.bootstrap(dto ?? {});
+    const plan = await this.planningService.generate({
+      force: true,
+      startDate: dto?.startDate,
+      notes: dto?.notes?.trim()
+        ? `Day-1 launch calibration: ${dto.notes.trim()}`
+        : 'Day-1 launch calibration bootstrap.',
+    });
+    return { launch, plan };
+  }
+
+  @Patch('launch/profile') updateLaunchProfile(
+    @Body() dto: UpdateMediaLaunchProfileDto,
+  ) {
+    return this.launchService.updateProfileApplied(dto.platform, dto.applied);
+  }
+
+  @Get('presence/overview') presenceOverview() {
+    return this.presenceService.overview();
+  }
+
+  @Get('presence/context') presenceContext(@Query('days') days?: string) {
+    return this.presenceService.worldContext(days ? Number(days) : 120);
+  }
+
+  @Post('presence/bootstrap') bootstrapPresence(
+    @Body() dto: BootstrapMediaPresenceDto,
+  ) {
+    return this.presenceService.bootstrap(dto);
+  }
+
+  @Post('presence/strategy/generate') generatePresenceStrategy(
+    @Body() dto: GenerateMediaPresenceStrategyDto,
+  ) {
+    return this.presenceService.generateStrategy(dto);
+  }
+
+  @Post('presence/voice/generate') generateVoiceProfile(
+    @Body() dto: GenerateMediaVoiceProfileDto,
+  ) {
+    return this.presenceService.generateVoiceProfile(dto);
+  }
+
+  @Get('presence-os/overview') presenceOsOverview() {
+    return this.strategyAdaptationService.overview();
+  }
+
+  @Post('presence-os/adapt') adaptPresenceStrategy(
+    @Body() body: { force?: boolean; notes?: string },
+  ) {
+    return this.strategyAdaptationService.generate(body ?? {});
+  }
+
+  @Get('presence-os/today') presenceToday(@Query('date') date?: string) {
+    return this.todayService.overview(date);
+  }
+
+  @Patch('presence-os/executions/:key') updatePresenceExecution(
+    @Param('key') key: string,
+    @Body() dto: UpdateMediaExecutionDto,
+  ) {
+    return this.executionService.update(key, dto);
+  }
+
   @Get('autopilot/overview') autopilotOverview() {
     return this.autopilotService.overview();
   }
@@ -191,6 +422,30 @@ export class MediaCoreController {
       recommendationKey,
       dto,
     );
+  }
+
+  @Get('learning/overview') learningOverview(@Query('days') days?: string) {
+    return this.learningService.overview(days ? Number(days) : 90);
+  }
+
+  @Post('learning/rebuild') rebuildLearning(@Body() body: { days?: number }) {
+    return this.learningService.rebuildAll(body?.days ?? 90);
+  }
+
+  @Post('learning/performance/rebuild') rebuildPerformanceLearning(
+    @Body() body: { days?: number },
+  ) {
+    return this.learningService.rebuildPerformance(body?.days ?? 90);
+  }
+
+  @Post('learning/audience/rebuild') rebuildAudienceLearning(
+    @Body() body: { days?: number },
+  ) {
+    return this.learningService.rebuildAudience(body?.days ?? 60);
+  }
+
+  @Post('growth/lifecycle/sync') syncLifecycleGrowth() {
+    return this.growthService.syncLifecycle(150);
   }
 
   @Get('growth/overview') growthOverview(@Query('days') days?: string) {
@@ -292,6 +547,40 @@ export class MediaCoreController {
     return this.service.createAsset(dto);
   }
 
+  @Get('asset-library/storage') assetLibraryStorage() {
+    return this.assetLibraryService.storageStatus();
+  }
+
+  @Get('asset-library') assetLibrary(
+    @Query('search') search?: string,
+    @Query('type') type?: MediaAssetType,
+    @Query('limit') limit?: string,
+  ) {
+    return this.assetLibraryService.list({
+      search,
+      type,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post('asset-library/upload-intent') createAssetUploadIntent(
+    @Body() dto: CreateMediaAssetUploadIntentDto,
+  ) {
+    return this.assetLibraryService.createUploadIntent(dto);
+  }
+
+  @Post('asset-library/:assetId/complete') completeAssetUpload(
+    @Param('assetId') assetId: string,
+  ) {
+    return this.assetLibraryService.completeUpload(assetId);
+  }
+
+  @Post('asset-library/:assetId/archive') archiveAssetLibraryItem(
+    @Param('assetId') assetId: string,
+  ) {
+    return this.assetLibraryService.archive(assetId);
+  }
+
   @Get('migration') migrationStatus() {
     return this.service.migrationStatus();
   }
@@ -370,6 +659,22 @@ export class MediaCoreController {
     return this.productionService.updateAsset(assetId, dto);
   }
 
+  @Get('production/publications/:publicationId/asset-suggestions')
+  productionAssetSuggestions(@Param('publicationId') publicationId: string) {
+    return this.productionService.assetSuggestions(publicationId);
+  }
+
+  @Post('production/assets/:assetId/attach-library')
+  attachProductionLibraryAsset(
+    @Param('assetId') assetId: string,
+    @Body() dto: AttachMediaLibraryAssetDto,
+  ) {
+    return this.productionService.attachLibraryAsset(
+      assetId,
+      dto.libraryAssetId,
+    );
+  }
+
   @Get('intelligence/overview') intelligenceOverview() {
     return this.intelligenceService.overview();
   }
@@ -422,5 +727,39 @@ export class MediaCoreController {
       publicationId,
       body?.refresh ?? false,
     );
+  }
+
+  @Get('planning/overview') planningOverview() {
+    return this.planningService.overview();
+  }
+
+  @Get('planning/cycles') listPlanningCycles(@Query('limit') limit?: string) {
+    return this.planningService.list(limit ? Number(limit) : 12);
+  }
+
+  @Get('planning/archive') planningArchive(@Query('days') days?: string) {
+    return this.planningService.archive(days ? Number(days) : 90);
+  }
+
+  @Post('planning/generate-async') startPlanningGeneration(
+    @Body() dto: GenerateMediaPlanningCycleDto,
+  ) {
+    return this.planningGenerationService.start(dto);
+  }
+
+  @Get('planning/generation/latest') latestPlanningGeneration() {
+    return this.planningGenerationService.latest();
+  }
+
+  @Get('planning/generation/:jobId') planningGenerationStatus(
+    @Param('jobId') jobId: string,
+  ) {
+    return this.planningGenerationService.get(jobId);
+  }
+
+  @Post('planning/generate') generatePlanningCycle(
+    @Body() dto: GenerateMediaPlanningCycleDto,
+  ) {
+    return this.planningService.generate(dto);
   }
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 
 import { MemoryService } from '../modules/memory/memory.service';
+import { HobbiesService } from '../modules/hobbies/hobbies.service';
 import { NowService } from '../modules/now/now.service';
 import { HsakaaMode } from './dto/ask-hsakaa.dto';
 
@@ -16,6 +17,7 @@ export class HsakaaAgentContextService {
   constructor(
     private readonly memoryService: MemoryService,
     private readonly nowService: NowService,
+    private readonly hobbiesService: HobbiesService,
   ) {}
 
   async build(
@@ -24,12 +26,13 @@ export class HsakaaAgentContextService {
   ): Promise<HsakaaAgentContextBundle> {
     const memoryLimit = mode === HsakaaMode.MEMORY ? 12 : 6;
 
-    const [memoryResult, nowResult] = await Promise.allSettled([
+    const [memoryResult, nowResult, hobbiesResult] = await Promise.allSettled([
       this.memoryService.recall({
         query: message,
         limit: memoryLimit,
       }),
       this.nowService.getCurrent(),
+      this.hobbiesService.getOverview(),
     ]);
 
     const sections: string[] = [];
@@ -53,6 +56,16 @@ export class HsakaaAgentContextService {
     if (nowResult.status === 'fulfilled' && nowResult.value) {
       sections.push(
         this.formatSection('CURRENT PRIVATE NOW STATUS', nowResult.value, 4500),
+      );
+    }
+
+    if (hobbiesResult.status === 'fulfilled') {
+      sections.push(
+        this.formatSection(
+          'HOBBIES / DELIBERATE PRACTICE',
+          hobbiesResult.value,
+          6500,
+        ),
       );
     }
 

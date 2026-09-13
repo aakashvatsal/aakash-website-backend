@@ -3,6 +3,7 @@ import { Model, Types } from 'mongoose';
 
 import { AiService } from '../ai/ai.service';
 import { MediaProductionService } from './media-production.service';
+import { MediaAssetLibraryService } from './media-asset-library.service';
 import {
   MediaAssetDocument,
   MediaAssetStatus,
@@ -165,6 +166,11 @@ describe('MediaProductionService', () => {
       getModel: jest.fn().mockReturnValue('gpt-test'),
       generateStructuredResponse,
     } as unknown as AiService;
+    const assetLibraryService = {
+      suggestForRequirement: jest.fn().mockResolvedValue([]),
+      getReusableAsset: jest.fn(),
+      isCompatible: jest.fn().mockReturnValue(true),
+    } as unknown as MediaAssetLibraryService;
 
     return {
       service: new MediaProductionService(
@@ -173,12 +179,14 @@ describe('MediaProductionService', () => {
         assetModel,
         generationRunModel,
         aiService,
+        assetLibraryService,
       ),
       publicationModel,
       assetModel,
       createAsset,
       generationRunModel,
       aiService,
+      assetLibraryService,
       generateStructuredResponse,
     };
   }
