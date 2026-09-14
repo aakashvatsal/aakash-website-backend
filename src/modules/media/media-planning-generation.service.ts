@@ -28,7 +28,7 @@ export class MediaPlanningGenerationService {
     const totalDays =
       mode === 'week'
         ? 7
-        : mode === 'ensure'
+        : mode === 'ensure' || mode === 'roll'
           ? Math.max(
               0,
               (await this.planningService.overview()).rolling.missingDates
@@ -54,7 +54,7 @@ export class MediaPlanningGenerationService {
         (mode === 'day'
           ? `Refresh Media planning day ${dto.targetDate ?? ''}.`
           : mode === 'roll'
-            ? 'Roll the Media planning window forward by one day.'
+            ? 'Fill only the missing dates in the rolling Media planning window; preserve every existing day unchanged.'
             : mode === 'ensure'
               ? 'Generate only missing dates in the rolling seven-day Media Presence plan; preserve every existing day unchanged.'
               : 'Generate the rolling seven-day Media Presence plan.'),
@@ -143,7 +143,7 @@ export class MediaPlanningGenerationService {
       const totalDays =
         mode === 'week'
           ? 7
-          : mode === 'ensure'
+          : mode === 'ensure' || mode === 'roll'
             ? Math.max(
                 0,
                 (await this.planningService.overview()).rolling.missingDates

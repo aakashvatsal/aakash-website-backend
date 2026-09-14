@@ -1267,7 +1267,6 @@ export class MediaPlanningService {
     onProgress?: MediaPlanningProgressCallback,
   ) {
     const startDate = this.rollingStartDate();
-    const endDate = this.addDays(startDate, ROLLING_WINDOW_DAYS - 1);
     const presence = await this.presenceService.directorContext();
     if (!presence.presenceStrategy || !presence.voiceProfile) {
       throw new BadRequestException(
@@ -1295,18 +1294,29 @@ export class MediaPlanningService {
     const available = new Set((base.days ?? []).map((day) => day.date));
     const missing = expectedDates.filter((date) => !available.has(date));
     if (!missing.length) return base;
-    if (missing.length !== 1 || missing[0] !== endDate) {
-      throw new BadRequestException(
-        'The rolling plan has more than one missing day. Rebuild the full seven-day window instead of filling multiple gaps silently.',
+
+    if (missing.length === 1) {
+      const targetDate = missing[0];
+      return this.generateSingleDayIntoRollingPlan(
+        base,
+        targetDate,
+        {
+          ...dto,
+          mode: 'roll',
+          targetDate,
+          outingStatus: inheritedContext.outingStatus,
+          outingDetails: inheritedContext.outingDetails,
+        },
+        onProgress,
       );
     }
-    return this.generateSingleDayIntoRollingPlan(
-      base,
-      endDate,
+
+    return this.generate(
       {
         ...dto,
-        mode: 'roll',
-        targetDate: endDate,
+        mode: 'ensure',
+        startDate,
+        targetDate: undefined,
         outingStatus: inheritedContext.outingStatus,
         outingDetails: inheritedContext.outingDetails,
       },

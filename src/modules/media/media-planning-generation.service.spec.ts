@@ -12,7 +12,10 @@ describe('MediaPlanningGenerationService', () => {
 
   function build() {
     const findOne = jest.fn();
-    const create = jest.fn();
+    type CreateFn = (
+      doc: Record<string, unknown>,
+    ) => Promise<MediaGenerationRunDocument>;
+    const create = jest.fn() as jest.MockedFunction<CreateFn>;
     type UpdateOneFn = (
       filter: Record<string, unknown>,
       update: Record<string, unknown>,
@@ -27,12 +30,29 @@ describe('MediaPlanningGenerationService', () => {
     const generate = jest.fn() as jest.MockedFunction<
       MediaPlanningService['generate']
     >;
-    const planningService = { generate } as unknown as MediaPlanningService;
+    const overview = jest.fn();
+    const rollForward = jest.fn() as jest.MockedFunction<
+      MediaPlanningService['rollForward']
+    >;
+    const planningService = {
+      generate,
+      overview,
+      rollForward,
+    } as unknown as MediaPlanningService;
     const service = new MediaPlanningGenerationService(
       generationRunModel,
       planningService,
     );
-    return { service, findOne, create, updateOne, planningService, generate };
+    return {
+      service,
+      findOne,
+      create,
+      updateOne,
+      planningService,
+      generate,
+      overview,
+      rollForward,
+    };
   }
 
   function runDocument(overrides: Record<string, unknown> = {}) {
@@ -143,6 +163,27 @@ describe('MediaPlanningGenerationService', () => {
     const partialPlan = checkpointSet['metadata.partialPlan'] as
       Record<string, unknown> | undefined;
     expect(partialPlan?.startDate).toBe('2026-09-04');
+  });
+
+  it('tracks the actual number of missing days for a rolling generation job', async () => {
+    const { service, findOne, create, overview } = build();
+    overview.mockResolvedValue({
+      rolling: {
+        missingDates: ['2026-09-14', '2026-09-16', '2026-09-18', '2026-09-20'],
+      },
+    });
+    findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+    create.mockResolvedValue(runDocument());
+
+    await service.start({ mode: 'roll' });
+
+    const createInput = create.mock.calls[0]?.[0];
+    expect(createInput?.brief).toBe(
+      'Fill only the missing dates in the rolling Media planning window; preserve every existing day unchanged.',
+    );
+    const metadata = createInput?.metadata as
+      Record<string, unknown> | undefined;
+    expect(metadata?.totalDays).toBe(4);
   });
 
   it('returns the existing active planning job instead of starting duplicate generation', async () => {

@@ -2451,6 +2451,114 @@ describe('MediaPlanningService V3.14 whole-OS growth planning', () => {
     expect(merged.days[6].theme).toBe('Only the missing day was generated');
   });
 
+  it('ensure mode materializes only three missing dates and preserves all existing rolling days', async () => {
+    const generated = generatedPlan();
+    const missingDates = new Set(['2026-09-08', '2026-09-10', '2026-09-13']);
+    const stored = {
+      ...generated,
+      key: '2026-09-07:4:1:weekly:phase:v3.16.4',
+      days: generated.days
+        .filter((day) => !missingDates.has(day.date))
+        .map((day) => ({ ...day, theme: `PRESERVED ${day.date}` })),
+    };
+    const { service, planModel, getLastPlanUpdate } = makeService(generated);
+    planModel.findOne.mockImplementation(() => ({
+      sort: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(stored) })),
+    }));
+
+    await service.generate({
+      mode: 'ensure',
+      startDate: '2026-09-07',
+    });
+
+    const savedDays = getLastPlanUpdate()?.$set?.days ?? [];
+    expect(savedDays).toHaveLength(7);
+    for (const day of savedDays) {
+      if (missingDates.has(day.date)) {
+        expect(day.theme).not.toBe(`PRESERVED ${day.date}`);
+      } else {
+        expect(day.theme).toBe(`PRESERVED ${day.date}`);
+      }
+    }
+  });
+
+  it.each([3, 4])(
+    'fills exactly %i missing rolling-window dates without rebuilding preserved days',
+    async (missingCount) => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-09-07T06:00:00.000Z'));
+      try {
+        const { service, planModel } = makeService();
+        const full = generatedPlan();
+        const missingDates = full.days
+          .slice(0, missingCount)
+          .map((day) => day.date);
+        const stored = {
+          ...full,
+          key: '2026-09-07:4:1:weekly:phase:v3.16.4',
+          days: full.days.filter((day) => !missingDates.includes(day.date)),
+        };
+        planModel.findOne.mockImplementation(() => ({
+          sort: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(stored) })),
+        }));
+
+        const ensure = jest
+          .spyOn(service, 'generate')
+          .mockResolvedValue(stored as never);
+
+        await service.rollForward({ mode: 'roll' });
+
+        expect(ensure).toHaveBeenCalledTimes(1);
+        expect(ensure).toHaveBeenCalledWith(
+          expect.objectContaining({
+            mode: 'ensure',
+            startDate: '2026-09-07',
+            targetDate: undefined,
+          }),
+          undefined,
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    },
+  );
+
+  it('fills one missing date wherever the gap is inside the rolling window', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-09-07T06:00:00.000Z'));
+    try {
+      const { service, planModel } = makeService();
+      const full = generatedPlan();
+      const missingDate = '2026-09-10';
+      const stored = {
+        ...full,
+        key: '2026-09-07:4:1:weekly:phase:v3.16.4',
+        days: full.days.filter((day) => day.date !== missingDate),
+      };
+      planModel.findOne.mockImplementation(() => ({
+        sort: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(stored) })),
+      }));
+
+      const singleDay = jest
+        .spyOn(service as never, 'generateSingleDayIntoRollingPlan' as never)
+        .mockResolvedValue(stored as never);
+
+      await service.rollForward({ mode: 'roll' });
+
+      expect(singleDay).toHaveBeenCalledWith(
+        stored,
+        missingDate,
+        expect.objectContaining({
+          mode: 'roll',
+          targetDate: missingDate,
+        }),
+        undefined,
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('allows the daily roll to maintain the future horizon when a new weekly outing context is still unknown', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-09-14T06:00:00.000Z'));
