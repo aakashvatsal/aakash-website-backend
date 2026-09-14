@@ -16,7 +16,7 @@ describe('HsakaaService verified-person guard', () => {
         _id: conversationId,
       }),
       getRecentVerifiedPersonMessages: jest.fn().mockResolvedValue([]),
-      appendMessage: jest.fn().mockResolvedValue(undefined),
+      appendMessage: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }),
     };
     const contextService = {
       buildVerifiedPersonContext: jest.fn().mockResolvedValue({
@@ -59,6 +59,7 @@ describe('HsakaaService verified-person guard', () => {
       {} as never,
       {} as never,
       voiceService as never,
+      {} as never,
     );
 
     return {

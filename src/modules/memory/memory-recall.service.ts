@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { tokenizeUnicodeText } from '../../common/utils/text-search.util';
+
 import { MemoryRecallIntent } from './dto/memory-recall-query.dto';
 import { MemoryType, MemoryVerificationStatus } from './schemas/memory.schema';
 
@@ -391,16 +393,10 @@ export class MemoryRecallService {
       'your',
     ]);
 
-    return [
-      ...new Set(
-        value
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, ' ')
-          .split(/\s+/)
-          .map((token) => token.trim())
-          .filter((token) => token.length > 2 && !stopWords.has(token)),
-      ),
-    ];
+    return tokenizeUnicodeText(value, {
+      stopWords,
+      minimumLength: 2,
+    });
   }
 
   private clamp(value: number) {

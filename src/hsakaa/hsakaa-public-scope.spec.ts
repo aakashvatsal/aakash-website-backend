@@ -18,26 +18,36 @@ describe('evaluatePublicHsakaaScope', () => {
   });
 
   it.each([
-    'What is the capital of France?',
     'Can you explain quantum physics?',
-    'How does a combustion engine work?',
     'Recommend me a good book',
     'Write me an email',
     'Solve 29 * 48',
     'Plan a trip to Japan',
     'Translate this sentence to Spanish',
-  ])('blocks generic question: %s', (message) => {
+  ])('blocks obvious English general-purpose commands: %s', (message) => {
     expect(evaluatePublicHsakaaScope(HsakaaMode.CHAT, message).scope).toBe(
       'out_of_scope',
     );
   });
 
-  it('does not let a non-chat mode turn an unrelated question into a personal one', () => {
+  it.each([
+    'तुम कौन सी किताब पढ़ रहे हो?',
+    '¿Qué libro estás leyendo ahora?',
+    '今どんな本を読んでいますか？',
+    'آپ ابھی کون سی کتاب پڑھ رہے ہیں؟',
+  ])(
+    'lets multilingual questions reach grounded model scope handling: %s',
+    (message) => {
+      expect(evaluatePublicHsakaaScope(HsakaaMode.CHAT, message).allowed).toBe(
+        true,
+      );
+    },
+  );
+
+  it('does not let a selected mode override an obvious English general-purpose command', () => {
     expect(
-      evaluatePublicHsakaaScope(
-        HsakaaMode.LIBRARY,
-        'What is the capital of France?',
-      ).scope,
+      evaluatePublicHsakaaScope(HsakaaMode.LIBRARY, 'Explain quantum physics')
+        .scope,
     ).toBe('out_of_scope');
   });
 
@@ -70,12 +80,9 @@ describe('evaluatePublicHsakaaScope', () => {
     },
   );
 
-  it.each(['Capital of France?', 'Write me a poem', 'Solve 2 + 2'])(
-    'blocks unrelated short questions even after a personal conversation: %s',
-    (message) => {
-      expect(
-        evaluatePublicHsakaaScope(HsakaaMode.CHAT, message, true).scope,
-      ).toBe('out_of_scope');
-    },
-  );
+  it('allows a multilingual continuation after a personal conversation', () => {
+    expect(
+      evaluatePublicHsakaaScope(HsakaaMode.CHAT, 'और बताओ?', true).allowed,
+    ).toBe(true);
+  });
 });

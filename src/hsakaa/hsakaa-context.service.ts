@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Types } from 'mongoose';
 
+import { tokenizeUnicodeText } from '../common/utils/text-search.util';
+
 import { CompaniesService } from '../modules/companies/companies.service';
 import { HealthDashboardService } from '../modules/health/health-dashboard.service';
 import { HealthService } from '../modules/health/health.service';
@@ -828,16 +830,10 @@ export class HsakaaContextService {
       'would',
     ]);
 
-    return [
-      ...new Set(
-        message
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, ' ')
-          .split(/\s+/)
-          .map((token) => token.trim())
-          .filter((token) => token.length > 2 && !stopWords.has(token)),
-      ),
-    ]
+    return tokenizeUnicodeText(message, {
+      stopWords,
+      minimumLength: 2,
+    })
       .slice(0, maximumTerms)
       .join(' ');
   }

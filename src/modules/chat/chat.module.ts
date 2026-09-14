@@ -6,6 +6,14 @@ import {
   ConversationSchema,
 } from './schemas/conversation.schema';
 import { Message, MessageSchema } from './schemas/message.schema';
+import {
+  ImportedChatThread,
+  ImportedChatThreadSchema,
+} from './schemas/imported-chat-thread.schema';
+import {
+  ImportedChatMessage,
+  ImportedChatMessageSchema,
+} from './schemas/imported-chat-message.schema';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { AiModule } from '../ai/ai.module';
@@ -21,6 +29,14 @@ import { MemoryModule } from '../memory/memory.module';
       {
         name: Message.name,
         schema: MessageSchema,
+      },
+      {
+        name: ImportedChatThread.name,
+        schema: ImportedChatThreadSchema,
+      },
+      {
+        name: ImportedChatMessage.name,
+        schema: ImportedChatMessageSchema,
       },
     ]),
     AiModule,

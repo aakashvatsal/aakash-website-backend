@@ -14,14 +14,22 @@ describe('evaluateVerifiedPersonHsakaaScope', () => {
     ).toBe(true);
   });
 
-  it.each([
-    'What is the capital of France?',
-    'Write me an email',
-    'Recommend me a restaurant',
-  ])('still blocks generic question: %s', (message) => {
+  it.each(['Write me an email', 'Recommend me a restaurant'])(
+    'still blocks obvious English general-purpose commands: %s',
+    (message) => {
+      expect(
+        evaluateVerifiedPersonHsakaaScope(HsakaaMode.CHAT, message).scope,
+      ).toBe('out_of_scope');
+    },
+  );
+
+  it('lets an ambiguous question reach grounded model scope handling', () => {
     expect(
-      evaluateVerifiedPersonHsakaaScope(HsakaaMode.CHAT, message).scope,
-    ).toBe('out_of_scope');
+      evaluateVerifiedPersonHsakaaScope(
+        HsakaaMode.CHAT,
+        'What is the capital of France?',
+      ).allowed,
+    ).toBe(true);
   });
 
   it.each([

@@ -121,12 +121,22 @@ export function evaluatePublicHsakaaScope(
     return { scope: 'personal', allowed: true };
   }
 
-  return {
-    scope: 'out_of_scope',
-    allowed: false,
-    answer:
-      'Hmmm, that’s not really what I’m here for 😅 Ask me something about me: my work, books, memories, decisions or how I think.',
-  };
+  // Keep obvious English general-purpose commands out of the public twin.
+  // Everything else is allowed through to the grounded model for final scope
+  // handling. This is intentional: a deterministic English regex gate cannot
+  // safely decide whether a Hindi, Spanish, Japanese, Urdu, mixed-language,
+  // or other multilingual question is personal. The model still receives only
+  // public context and is instructed to refuse unrelated/general requests.
+  if (looksLikeGeneralTask) {
+    return {
+      scope: 'out_of_scope',
+      allowed: false,
+      answer:
+        'Hmmm, that’s not really what I’m here for 😅 Ask me something about me: my work, books, memories, decisions or how I think.',
+    };
+  }
+
+  return { scope: 'personal', allowed: true };
 }
 
 const VERIFIED_PERSON_RELATIONSHIP_PATTERN =

@@ -111,7 +111,12 @@ import {
   HsakaaVoiceFeedbackSchema,
 } from './schemas/hsakaa-voice-feedback.schema';
 import { HsakaaVoiceService } from './hsakaa-voice.service';
+import {
+  HsakaaPersonVoiceProfile,
+  HsakaaPersonVoiceProfileSchema,
+} from './schemas/hsakaa-person-voice-profile.schema';
 import { HsakaaVoiceScheduler } from './hsakaa-voice.scheduler';
+import { HsakaaSpeechService } from './hsakaa-speech.service';
 
 @Module({
   imports: [
@@ -124,6 +129,10 @@ import { HsakaaVoiceScheduler } from './hsakaa-voice.scheduler';
       { name: HsakaaDailyContext.name, schema: HsakaaDailyContextSchema },
       { name: HsakaaVoiceProfile.name, schema: HsakaaVoiceProfileSchema },
       { name: HsakaaVoiceFeedback.name, schema: HsakaaVoiceFeedbackSchema },
+      {
+        name: HsakaaPersonVoiceProfile.name,
+        schema: HsakaaPersonVoiceProfileSchema,
+      },
       { name: Task.name, schema: TaskSchema },
       { name: BrainDump.name, schema: BrainDumpSchema },
       { name: JournalEntry.name, schema: JournalEntrySchema },
@@ -173,6 +182,7 @@ import { HsakaaVoiceScheduler } from './hsakaa-voice.scheduler';
     HsakaaDailyJournalScheduler,
     HsakaaVoiceService,
     HsakaaVoiceScheduler,
+    HsakaaSpeechService,
     HsakaaBriefScheduler,
     HsakaaOwnerSessionGuard,
   ],

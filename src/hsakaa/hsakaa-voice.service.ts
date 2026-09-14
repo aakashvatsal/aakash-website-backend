@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { createHash } from 'node:crypto';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import { AiService } from '../modules/ai/ai.service';
+import { ChatService } from '../modules/chat/chat.service';
 import {
   BrainDump,
   BrainDumpDocument,
@@ -35,6 +36,10 @@ import {
   HsakaaVoiceProfile,
   HsakaaVoiceProfileDocument,
 } from './schemas/hsakaa-voice-profile.schema';
+import {
+  HsakaaPersonVoiceProfile,
+  HsakaaPersonVoiceProfileDocument,
+} from './schemas/hsakaa-person-voice-profile.schema';
 
 interface VoiceCorpusSample {
   source:
@@ -42,6 +47,7 @@ interface VoiceCorpusSample {
     | 'manual_journal'
     | 'manual_brain_dump'
     | 'voice_brain_dump'
+    | 'imported_chat'
     | 'correction';
   context: HsakaaVoiceContext;
   text: string;
@@ -116,6 +122,8 @@ export class HsakaaVoiceService {
     private readonly profileModel: Model<HsakaaVoiceProfileDocument>,
     @InjectModel(HsakaaVoiceFeedback.name)
     private readonly feedbackModel: Model<HsakaaVoiceFeedbackDocument>,
+    @InjectModel(HsakaaPersonVoiceProfile.name)
+    private readonly personProfileModel: Model<HsakaaPersonVoiceProfileDocument>,
     @InjectModel(Conversation.name)
     private readonly conversationModel: Model<ConversationDocument>,
     @InjectModel(Message.name)
@@ -125,6 +133,7 @@ export class HsakaaVoiceService {
     @InjectModel(BrainDump.name)
     private readonly brainDumpModel: Model<BrainDumpDocument>,
     private readonly aiService: AiService,
+    private readonly chatService: ChatService,
   ) {}
 
   sanitizeRenderedText(text: string): string {
@@ -142,6 +151,7 @@ export class HsakaaVoiceService {
           'manual journal entries',
           'manual/voice brain-dump entries',
           'explicit Aakash voice corrections',
+          'Aakash-authored messages imported into My Chats',
         ],
         neverLearnsFrom: [
           'public or verified-person visitor messages',
@@ -227,7 +237,7 @@ export class HsakaaVoiceService {
     return { refreshed: true, profile };
   }
 
-  async getRenderContext(mode: HsakaaMode, message: string) {
+  async getRenderContext(mode: HsakaaMode, message: string, personId?: string) {
     const profile = await this.profileModel.findOne({ key: 'aakash' }).lean();
     const context = this.inferContext(mode, message);
 
@@ -284,7 +294,193 @@ export class HsakaaVoiceService {
       );
     }
 
+    if (personId) {
+      const personContext = await this.getPersonRenderContext(personId);
+      if (personContext) lines.push(personContext);
+    }
+
     return lines.join('\n');
+  }
+
+  async refreshPersonProfile(personId: string) {
+    if (!Types.ObjectId.isValid(personId)) {
+      return { refreshed: false, reason: 'invalid_person_id' };
+    }
+
+    const samples =
+      await this.chatService.getImportedOwnerStyleSamplesForPerson(
+        personId,
+        160,
+      );
+    const safeSamples = samples
+      .map((item) => this.sanitizeAuthoredText(item.content))
+      .filter((text) => this.isUsefulSample(text))
+      .slice(0, 160);
+
+    if (safeSamples.length < 4) {
+      return {
+        refreshed: false,
+        reason: 'not_enough_person_specific_samples',
+        sampleCount: safeSamples.length,
+      };
+    }
+
+    const signature = this.buildTextSignature(safeSamples);
+    const current = await this.personProfileModel
+      .findOne({ personId: new Types.ObjectId(personId) })
+      .lean();
+
+    if (current?.corpusSignature === signature) {
+      return { refreshed: false, reason: 'unchanged', profile: current };
+    }
+
+    const result = await this.aiService.generateStructuredResponse<{
+      styleSummary: string;
+      responseHabits: string[];
+      vocabularyMarkers: string[];
+      avoidPatterns: string[];
+      syntheticExamples: string[];
+      confidence: number;
+    }>({
+      name: 'aakash_person_interaction_style',
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          styleSummary: { type: 'string' },
+          responseHabits: { type: 'array', items: { type: 'string' } },
+          vocabularyMarkers: { type: 'array', items: { type: 'string' } },
+          avoidPatterns: { type: 'array', items: { type: 'string' } },
+          syntheticExamples: { type: 'array', items: { type: 'string' } },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+        },
+        required: [
+          'styleSummary',
+          'responseHabits',
+          'vocabularyMarkers',
+          'avoidPatterns',
+          'syntheticExamples',
+          'confidence',
+        ],
+      },
+      instructions: `
+Learn only how Aakash changes his communication style with one specific person.
+Do not preserve or output facts from the conversation. Do not mention names, places, companies, events, dates, private topics or identifiable details.
+Focus only on tone, warmth, directness, message length, question style, humour, punctuation, emoji habits and conversational pacing.
+Synthetic examples must be generic and fact-neutral. Never quote the source messages verbatim.
+This profile will modify style only, never factual content.
+      `.trim(),
+      input: safeSamples
+        .map((text) => `[AAKASH] ${text.slice(0, 700)}`)
+        .join('\n---\n'),
+      verbosity: 'low',
+      reasoningEffort: 'low',
+      maxOutputTokens: 1800,
+    });
+
+    const safe = {
+      styleSummary: this.sanitizeProfileField(result.data.styleSummary, 1200),
+      responseHabits: this.sanitizeProfileList(result.data.responseHabits, 8),
+      vocabularyMarkers: this.sanitizeProfileList(
+        result.data.vocabularyMarkers,
+        8,
+      ),
+      avoidPatterns: this.sanitizeProfileList(result.data.avoidPatterns, 8),
+      syntheticExamples: this.sanitizeProfileList(
+        result.data.syntheticExamples,
+        5,
+      ),
+      confidence: Math.min(Math.max(Number(result.data.confidence) || 0, 0), 1),
+    };
+
+    const profile = await this.personProfileModel.findOneAndUpdate(
+      { personId: new Types.ObjectId(personId) },
+      {
+        $set: {
+          ...safe,
+          sampleCount: safeSamples.length,
+          corpusSignature: signature,
+          lastLearnedAt: new Date(),
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    return { refreshed: true, profile };
+  }
+
+  private async getPersonRenderContext(personId: string) {
+    if (!Types.ObjectId.isValid(personId)) return '';
+
+    let profile = await this.personProfileModel
+      .findOne({ personId: new Types.ObjectId(personId) })
+      .lean();
+
+    const samples =
+      await this.chatService.getImportedOwnerStyleSamplesForPerson(
+        personId,
+        160,
+      );
+    const useful = samples
+      .map((item) => this.sanitizeAuthoredText(item.content))
+      .filter((text) => this.isUsefulSample(text));
+
+    if (useful.length >= 4) {
+      const signature = this.buildTextSignature(useful);
+      if (!profile || profile.corpusSignature !== signature) {
+        try {
+          const refreshed = await this.refreshPersonProfile(personId);
+          if ('profile' in refreshed && refreshed.profile) {
+            profile = refreshed.profile;
+          }
+        } catch (error) {
+          this.logger.warn(
+            `Could not refresh person-specific communication style: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+    }
+
+    if (!profile || profile.sampleCount < 4) return '';
+
+    const lines = [
+      'PERSON-SPECIFIC AAKASH COMMUNICATION FINGERPRINT: STYLE ONLY, NEVER FACTUAL EVIDENCE',
+      profile.styleSummary ? `Style adjustment: ${profile.styleSummary}` : '',
+      profile.responseHabits?.length
+        ? `Interaction habits: ${profile.responseHabits.join('; ')}`
+        : '',
+      profile.vocabularyMarkers?.length
+        ? `Natural markers for this relationship, only when they fit: ${profile.vocabularyMarkers.join('; ')}`
+        : '',
+      profile.avoidPatterns?.length
+        ? `Avoid for this relationship: ${profile.avoidPatterns.join('; ')}`
+        : '',
+      profile.syntheticExamples?.length
+        ? `Generic style examples: ${profile.syntheticExamples.join(' | ')}`
+        : '',
+      'Never infer a fact from this style fingerprint. Relationship facts must come from allowed Memory/People context only.',
+    ].filter(Boolean);
+
+    return lines.join('\n');
+  }
+
+  private buildTextSignature(values: string[]) {
+    const hash = createHash('sha256');
+    for (const value of values) hash.update(`${value}\n`);
+    return hash.digest('hex');
+  }
+
+  private sanitizeProfileField(value: string, maxLength: number) {
+    return this.sanitizeAuthoredText(String(value ?? '')).slice(0, maxLength);
+  }
+
+  private sanitizeProfileList(values: string[], maxItems: number) {
+    return (Array.isArray(values) ? values : [])
+      .map((value) => this.sanitizeProfileField(value, 500))
+      .filter(Boolean)
+      .slice(0, maxItems);
   }
 
   private async collectCorpus() {
@@ -294,44 +490,46 @@ export class HsakaaVoiceService {
       .lean();
     const ownerConversationIds = ownerConversations.map((item) => item._id);
 
-    const [messages, journals, brainDumps, feedback] = await Promise.all([
-      ownerConversationIds.length
-        ? this.messageModel
-            .find({
-              conversationId: { $in: ownerConversationIds },
-              role: MessageRole.USER,
-            })
-            .sort({ createdAt: -1 })
-            .limit(240)
-            .lean()
-        : Promise.resolve([]),
-      this.journalModel
-        .find({
-          source: JournalSource.MANUAL,
-          isActive: true,
-          isArchived: false,
-          content: { $type: 'string', $ne: '' },
-        })
-        .sort({ date: -1 })
-        .limit(100)
-        .select({ content: 1, date: 1 })
-        .lean(),
-      this.brainDumpModel
-        .find({
-          source: { $in: [BrainDumpSource.MANUAL, BrainDumpSource.VOICE] },
-          isActive: true,
-          isArchived: false,
-        })
-        .sort({ createdAt: -1 })
-        .limit(100)
-        .select({ content: 1, source: 1, createdAt: 1 })
-        .lean(),
-      this.feedbackModel
-        .find({ isActive: true })
-        .sort({ createdAt: -1 })
-        .limit(60)
-        .lean(),
-    ]);
+    const [messages, journals, brainDumps, feedback, importedChats] =
+      await Promise.all([
+        ownerConversationIds.length
+          ? this.messageModel
+              .find({
+                conversationId: { $in: ownerConversationIds },
+                role: MessageRole.USER,
+              })
+              .sort({ createdAt: -1 })
+              .limit(240)
+              .lean()
+          : Promise.resolve([]),
+        this.journalModel
+          .find({
+            source: JournalSource.MANUAL,
+            isActive: true,
+            isArchived: false,
+            content: { $type: 'string', $ne: '' },
+          })
+          .sort({ date: -1 })
+          .limit(100)
+          .select({ content: 1, date: 1 })
+          .lean(),
+        this.brainDumpModel
+          .find({
+            source: { $in: [BrainDumpSource.MANUAL, BrainDumpSource.VOICE] },
+            isActive: true,
+            isArchived: false,
+          })
+          .sort({ createdAt: -1 })
+          .limit(100)
+          .select({ content: 1, source: 1, createdAt: 1 })
+          .lean(),
+        this.feedbackModel
+          .find({ isActive: true })
+          .sort({ createdAt: -1 })
+          .limit(60)
+          .lean(),
+        this.chatService.getImportedOwnerStyleSamples(240),
+      ]);
 
     const samples: VoiceCorpusSample[] = [];
 
@@ -373,6 +571,16 @@ export class HsakaaVoiceService {
         text: brainDump.content,
         observedAt: this.asDate(brainDump.createdAt),
         weight: brainDump.source === BrainDumpSource.VOICE ? 2 : 1,
+      });
+    }
+
+    for (const item of importedChats) {
+      this.pushSample(samples, {
+        source: 'imported_chat',
+        context: HsakaaVoiceContext.CASUAL,
+        text: item.content,
+        observedAt: this.asDate(item.sentAt),
+        weight: 4,
       });
     }
 

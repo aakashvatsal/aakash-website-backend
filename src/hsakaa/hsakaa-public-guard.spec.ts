@@ -18,7 +18,7 @@ describe('HsakaaService public scope guard', () => {
         _id: conversationId,
       }),
       getRecentMessages: jest.fn().mockResolvedValue(previousMessages),
-      appendMessage: jest.fn().mockResolvedValue(undefined),
+      appendMessage: jest.fn().mockResolvedValue({ _id: new Types.ObjectId() }),
     };
     const contextService = {
       buildPublicContext: jest.fn().mockResolvedValue({
@@ -51,13 +51,14 @@ describe('HsakaaService public scope guard', () => {
       {} as never,
       {} as never,
       voiceService as never,
+      {} as never,
     );
 
     return { service, aiService, chatService, contextService, voiceService };
   }
 
   it.each([
-    ['What is the capital of France?', HsakaaMode.CHAT],
+    ['Explain quantum physics', HsakaaMode.CHAT],
     ["How is Aakash's WHOOP recovery?", HsakaaMode.CHAT],
     ["How is Aakash's Instagram performing?", HsakaaMode.CHAT],
   ])(
@@ -104,7 +105,7 @@ describe('HsakaaService public scope guard', () => {
 
     await service.ask({
       mode: HsakaaMode.CHAT,
-      message: 'Capital of France?',
+      message: 'Write me a poem',
       sessionId: 'c52d92f2-bf2e-4e13-9023-238267d6ad2c',
     });
 

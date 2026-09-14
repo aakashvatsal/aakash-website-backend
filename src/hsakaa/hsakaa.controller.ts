@@ -1,17 +1,22 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Header,
   Headers,
   Param,
   Patch,
   Post,
   Query,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 
 import { Public } from '../common/decorators/public.decorator';
 import { ConversationQueryDto } from '../modules/chat/dto/conversation-query.dto';
+import { ImportMyChatDto } from '../modules/chat/dto/import-my-chat.dto';
+import { MyChatQueryDto } from '../modules/chat/dto/my-chat-query.dto';
 import { AskHsakaaDto } from './dto/ask-hsakaa.dto';
 import { ConfirmHsakaaActionDto } from './dto/confirm-hsakaa-action.dto';
 import { AnalyzeHsakaaDecisionDto } from './dto/analyze-hsakaa-decision.dto';
@@ -32,6 +37,10 @@ import {
 import { AskPrivateHsakaaDto } from './dto/ask-private-hsakaa.dto';
 import { AskVerifiedPersonHsakaaDto } from './dto/ask-verified-person-hsakaa.dto';
 import { CreateHsakaaVoiceFeedbackDto } from './dto/hsakaa-voice.dto';
+import {
+  PublicHsakaaSpeechDto,
+  VerifiedPersonHsakaaSpeechDto,
+} from './dto/hsakaa-speech.dto';
 import {
   GenerateHsakaaDailyJournalDto,
   HsakaaDailyContextQueryDto,
@@ -59,6 +68,36 @@ export class HsakaaController {
     @Headers('x-memory-session') sessionToken: string,
   ) {
     return this.hsakaaService.askVerifiedPerson(dto, sessionToken);
+  }
+
+  @Post('speech')
+  @Public()
+  @Header('Cache-Control', 'private, no-store')
+  async speakPublic(@Body() dto: PublicHsakaaSpeechDto) {
+    const audio = await this.hsakaaService.speakPublic(dto);
+    return new StreamableFile(audio, {
+      type: 'audio/mpeg',
+      disposition: 'inline',
+      length: audio.byteLength,
+    });
+  }
+
+  @Post('person/speech')
+  @Public()
+  @Header('Cache-Control', 'private, no-store')
+  async speakVerifiedPerson(
+    @Body() dto: VerifiedPersonHsakaaSpeechDto,
+    @Headers('x-memory-session') sessionToken: string,
+  ) {
+    const audio = await this.hsakaaService.speakVerifiedPerson(
+      dto,
+      sessionToken,
+    );
+    return new StreamableFile(audio, {
+      type: 'audio/mpeg',
+      disposition: 'inline',
+      length: audio.byteLength,
+    });
   }
 
   /**
@@ -388,6 +427,36 @@ export class HsakaaController {
   @Post('private/voice/feedback')
   addPrivateVoiceFeedback(@Body() dto: CreateHsakaaVoiceFeedbackDto) {
     return this.hsakaaService.addPrivateVoiceFeedback(dto);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Get('private/my-chats')
+  getMyChats(@Query() query: MyChatQueryDto) {
+    return this.hsakaaService.getMyChats(query);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Post('private/my-chats/import')
+  importMyChat(@Body() dto: ImportMyChatDto) {
+    return this.hsakaaService.importMyChat(dto);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Post('private/my-chats/refresh-learning')
+  refreshMyChatLearning(@Body() body: { personId?: string }) {
+    return this.hsakaaService.refreshMyChatLearning(body?.personId);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Get('private/my-chats/:threadId')
+  getMyChat(@Param('threadId') threadId: string) {
+    return this.hsakaaService.getMyChat(threadId);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Delete('private/my-chats/:threadId')
+  archiveMyChat(@Param('threadId') threadId: string) {
+    return this.hsakaaService.archiveMyChat(threadId);
   }
 
   @UseGuards(HsakaaOwnerSessionGuard)
