@@ -336,10 +336,6 @@ export class WhoopHealthService {
             goals: [],
 
             memoryIds: [],
-
-            isArchived: false,
-
-            isActive: true,
           },
 
           $addToSet: {
@@ -348,7 +344,7 @@ export class WhoopHealthService {
         },
         {
           upsert: true,
-          new: true,
+          returnDocument: 'after',
 
           setDefaultsOnInsert: true,
         },
@@ -400,7 +396,11 @@ export class WhoopHealthService {
           },
           $addToSet: { sources: HealthDataSource.WHOOP },
         },
-        { upsert: true, new: true, setDefaultsOnInsert: true },
+        {
+          upsert: true,
+          returnDocument: 'after',
+          setDefaultsOnInsert: true,
+        },
       );
     }
 
@@ -485,7 +485,7 @@ export class WhoopHealthService {
       },
       {
         upsert: true,
-        new: true,
+        returnDocument: 'after',
 
         setDefaultsOnInsert: true,
       },
