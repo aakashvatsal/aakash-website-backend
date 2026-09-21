@@ -28,6 +28,17 @@ import {
 } from './media-public-identity';
 import { MediaPlatform, MediaPostType } from './schemas/media-post.schema';
 import {
+  MEDIA_CURRENT_GROWTH_SEASON,
+  MEDIA_HEALTH_CONTENT_POLICY,
+  MEDIA_PLATFORM_NATIVE_RULES,
+  MEDIA_RECURRING_CAST,
+  MEDIA_SHOOTING_LIBRARY,
+  MEDIA_STORY_SELECTION_DIMENSIONS,
+  MEDIA_STORYTELLING_VERSION,
+  MEDIA_WEEKLY_HUMANITY_CONTRACT,
+  mediaStorytellingPromptPolicy,
+} from './media-storytelling-policy';
+import {
   MediaDailyExecution,
   MediaDailyExecutionDocument,
   MediaExecutionKind,
@@ -545,7 +556,8 @@ export class MediaPlanningService {
         'increase qualified discovery and non-follower reach',
         'convert profile visits and viewers into followers by making the ongoing Aakash journey clear',
         'build recurring series and recognizable formats that reward returning',
-        'maximize shares, saves, completion/watch time and meaningful conversation where they predict follow-through',
+        'maximize impressions/recommendation eligibility, qualified choice-to-view, shares/saves, completion/watch time and meaningful conversation where they predict follow-through',
+        'optimize titles, thumbnails/covers and first-seconds packaging for strangers before asking existing followers to care',
         'use platform-native distribution rather than identical cross-posts',
       ],
       guardrails: [
@@ -787,7 +799,7 @@ export class MediaPlanningService {
       ],
     );
     const growthObjective = this.growthObjective(socialPresence);
-    const baseKey = `${startDate}:${presence.presenceStrategy.version}:${presence.voiceProfile.version}:${weeklyAdaptation?.key ?? 'no-weekly-review'}:${launchContext.phase}:v3.16.4`;
+    const baseKey = `${startDate}:${presence.presenceStrategy.version}:${presence.voiceProfile.version}:${weeklyAdaptation?.key ?? 'no-weekly-review'}:${launchContext.phase}:${MEDIA_STORYTELLING_VERSION}`;
     const existing = await this.planModel.findOne({
       key: baseKey,
       isActive: true,
@@ -879,6 +891,16 @@ export class MediaPlanningService {
         currentCalendarCoverage: calendar.coverage,
         allowedPlatforms: GROWTH_PLATFORMS,
         allowedFormats: Object.values(MediaPostType),
+        storytellingPolicy: {
+          version: MEDIA_STORYTELLING_VERSION,
+          currentGrowthSeason: MEDIA_CURRENT_GROWTH_SEASON,
+          healthContentPolicy: MEDIA_HEALTH_CONTENT_POLICY,
+          platformNativeRules: MEDIA_PLATFORM_NATIVE_RULES,
+          recurringCast: MEDIA_RECURRING_CAST,
+          storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
+          shootingLibrary: MEDIA_SHOOTING_LIBRARY,
+          weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+        },
       };
       let blueprintResponse = await this.generateBlueprint(
         blueprintInput,
@@ -1075,6 +1097,16 @@ export class MediaPlanningService {
           alreadyGeneratedThisWeek: priorWeekCopies.slice(-12),
           archivedPlanFingerprints: archivedPlanningFingerprints,
           weeklyOutingContext: weekContext,
+          storytellingPolicy: {
+            version: MEDIA_STORYTELLING_VERSION,
+            currentGrowthSeason: MEDIA_CURRENT_GROWTH_SEASON,
+            healthContentPolicy: MEDIA_HEALTH_CONTENT_POLICY,
+            platformNativeRules: MEDIA_PLATFORM_NATIVE_RULES,
+            recurringCast: MEDIA_RECURRING_CAST,
+            storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
+            shootingLibrary: MEDIA_SHOOTING_LIBRARY,
+            weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+          },
         };
 
         const posts = await this.generateReliableDayPosts({
@@ -1440,6 +1472,16 @@ export class MediaPlanningService {
         currentCalendarCoverage: calendar.coverage,
         allowedPlatforms: GROWTH_PLATFORMS,
         allowedFormats: Object.values(MediaPostType),
+        storytellingPolicy: {
+          version: MEDIA_STORYTELLING_VERSION,
+          currentGrowthSeason: MEDIA_CURRENT_GROWTH_SEASON,
+          healthContentPolicy: MEDIA_HEALTH_CONTENT_POLICY,
+          platformNativeRules: MEDIA_PLATFORM_NATIVE_RULES,
+          recurringCast: MEDIA_RECURRING_CAST,
+          storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
+          shootingLibrary: MEDIA_SHOOTING_LIBRARY,
+          weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+        },
       };
 
       let blueprintResponse = await this.generateBlueprint(
@@ -1652,6 +1694,16 @@ export class MediaPlanningService {
         alreadyGeneratedThisWeek: priorWeekCopies.slice(-20),
         archivedPlanFingerprints: archivedPlanningFingerprints,
         weeklyOutingContext: weekContext,
+        storytellingPolicy: {
+          version: MEDIA_STORYTELLING_VERSION,
+          currentGrowthSeason: MEDIA_CURRENT_GROWTH_SEASON,
+          healthContentPolicy: MEDIA_HEALTH_CONTENT_POLICY,
+          platformNativeRules: MEDIA_PLATFORM_NATIVE_RULES,
+          recurringCast: MEDIA_RECURRING_CAST,
+          storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
+          shootingLibrary: MEDIA_SHOOTING_LIBRARY,
+          weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+        },
       };
       const posts = await this.generateReliableDayPosts({
         day,
@@ -1890,6 +1942,16 @@ export class MediaPlanningService {
         (item) => evidenceIds.has(item.id),
       ),
       voiceProfile,
+      storytellingPolicy: {
+        version: MEDIA_STORYTELLING_VERSION,
+        currentGrowthSeason: MEDIA_CURRENT_GROWTH_SEASON,
+        healthContentPolicy: MEDIA_HEALTH_CONTENT_POLICY,
+        platformNativeRules: MEDIA_PLATFORM_NATIVE_RULES,
+        recurringCast: MEDIA_RECURRING_CAST,
+        storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
+        shootingLibrary: MEDIA_SHOOTING_LIBRARY,
+        weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+      },
     };
 
     try {
@@ -1960,6 +2022,16 @@ export class MediaPlanningService {
         (item) => evidenceIds.has(item.id),
       ),
       voiceProfile,
+      storytellingPolicy: {
+        version: MEDIA_STORYTELLING_VERSION,
+        currentGrowthSeason: MEDIA_CURRENT_GROWTH_SEASON,
+        healthContentPolicy: MEDIA_HEALTH_CONTENT_POLICY,
+        platformNativeRules: MEDIA_PLATFORM_NATIVE_RULES,
+        recurringCast: MEDIA_RECURRING_CAST,
+        storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
+        shootingLibrary: MEDIA_SHOOTING_LIBRARY,
+        weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+      },
     };
 
     try {
@@ -2958,13 +3030,26 @@ export class MediaPlanningService {
   private blueprintInstructions() {
     return [
       'You are HSAKAA Media V3.14, the strategic public-figure growth system for Aakash. Build only the compact seven-day BLUEPRINT; final copy is generated later.',
+      mediaStorytellingPromptPolicy(),
+      'CURRENT SIX-MONTH GROWTH SEASON: use storytellingPolicy.currentGrowthSeason as the active development arc. Track all five pursuits through evidence, but do not force all five into feed posts. Reading is the daily anchor. Spanish, guitar, voice improvement and chess are active six-month pursuits. Surface a pursuit when there is a real change, attempt, mistake, breakthrough, funny moment or visually useful checkpoint; quieter practice can remain in Stories.',
+      'TRAVEL ARC: storytellingPolicy.currentGrowthSeason.travel defines the six-month travel rhythm. Treat destination research, budgeting and preparation as story material when grounded. Never claim a booking or trip has happened unless evidence says so.',
+      'PLATFORM-NATIVE PLANNING: use storytellingPolicy.platformNativeRules before assigning a platform. The same event may travel across platforms only when each derivative has a genuinely different job and treatment.',
       'PRIMARY OBJECTIVE: reach the supplied 100K-follower growthObjective as quickly as sustainably possible while making Aakash increasingly recognisable, trusted and worth following across topics. Optimise for discovery + follower conversion + retention/recognition + authority + affinity. Never buy reach with spam, fake controversy, trend-chasing disconnected from Aakash or generic viral bait.',
+      'STORY SELECTION ORDER: first reject anything ungrounded. Then rank the remaining truthful candidates using storytellingPolicy.storySelectionDimensions. A story should not win a major slot merely because it is technically interesting or evidence-rich. Prefer the candidate a stranger is most likely to understand, care about, watch through, share/reply to and return for.',
+      'WEEKLY HUMANITY FLOOR: when grounded whole-person context exists, at least 40% of the ranked opportunity pool should come from learning/building-Aakash/human-personality/travel/pets/life rather than company-system analysis. This is an opportunity-pool target, not permission to invent activity. Feed selection can still favour professional content on LinkedIn.',
+      'STRANGER-FRIENDLY DISCOVERY: include at least two ranked opportunities whose hook/premise is understandable without knowing any company/product name. A company may be the case study, but the opening tension should be universal enough to travel beyond current followers.',
+      'LIGHTNESS / HUMOUR: actively look for one grounded warm, awkward, playful, surprising or self-aware opportunity each week. It can be a Story-only or feed opportunity. Do not manufacture jokes or force humour onto serious events.',
+      'DOGS AS RECURRING CAST: storytellingPolicy.recurringCast contains Pixel, Cosmo and Happy. Actively consider whether a real walk, home, practice or routine scene becomes warmer or more watchable if one of them is genuinely present. Their entrance, companionship or interruption may be used as an opening beat or B-roll when captured; never invent what a dog did, assume presence, or force a pet cameo into a technical post.',
+      'HEALTH / FITNESS OPPORTUNITY: inspect Health OS for fresh source-grounded gym, training, walk, run or movement signals. When such a signal has visual action, tension, humour, consistency, a setback/return, or a real reaction, let it compete normally for Instagram/YouTube/Story slots. Do not force a feed post merely because a workout exists.',
+      'HEALTH PRIVACY: storytellingPolicy.healthContentPolicy overrides the broad PUBLIC_SAFE label for Health. Routine fitness items in allowedByDefault may be used when grounded; fields in requiresExplicitApproval must stay private unless the supplied per-asset evidence explicitly says owner-approved-for-media. Never expose medical, biometric or body-measurement detail just because Health OS contains it.',
+      'ACTUAL-LIFE FLOOR: storytellingPolicy.weeklyHumanityContract is a real planning constraint. When grounded routine/hobby/learning/human evidence exists, ensure the week contains at least two distinct actual-life feed clusters, including at least one Instagram feed cluster, plus at least three Instagram Story days grounded in whole-life signals. A HSAKAA privacy discussion about Health does NOT count as actual-life fitness content.',
+      'FITNESS PLATFORM FIT: Instagram/YouTube may use gym/walk material for movement, documentary texture, human struggle and recurring progress. LinkedIn should use Health only when there is a genuinely professional story rather than a forced discipline analogy. Stories may use low-production gym/walk context freely when grounded and privacy-safe.',
       'PUBLIC IDENTITY: Aakash is the thoughtful builder who is deliberately building companies and himself. He should feel curious, analytical, ambitious, calm, human, experimental and slightly unconventional—not like a product-management instructor, AI influencer, motivational creator or lifestyle influencer.',
       'For every opportunity set identityPillar for backward-compatible high-level identity AND strategyNarrativeKey copied exactly from presenceStrategy.narratives[].key. Also set a stable topicClusterKey: all derivatives of the same underlying idea/event must share one cluster key even across platforms. Set growthIntent to authority, discovery, conversion, affinity or conversation based on the primary growth job of the idea.',
       'Do not translate every personal signal into a professional framework. A chess moment may simply be about chess; a guitar/voice/fitness/reading moment may simply show the journey, struggle, taste or curiosity. Human_unfiltered content should usually contain no business analogy. Building_aakash should centre Aakash improving himself. Learning_experiments should centre the journey/progress/question before any generalized lesson.',
       'WHOLE-PERSONAL-OS CONTEXT: inspect every supplied Personal OS source across Tasks, Brain Dump, Journal, Library, Highlights, Decisions, Health, Hobbies, Media history, Companies and HSAKAA. PEOPLE and MEMORY are intentionally excluded from Media and must never be inferred, reconstructed or requested through another source. By owner policy, every other supplied Personal OS source is PUBLIC_SAFE Media context.',
       'ROUTINES + HEALTH: Health is PUBLIC_SAFE Media context by owner policy. Source-grounded workouts, sleep/recovery/fitness metrics, diet/supplement context, progress and routines may be used when supplied. Never invent a diagnosis, result, improvement or completed activity; distinguish a planned routine from a completed one.',
-      'HOBBIES + SKILLS: worldContext.hobbies is the first-class source of truth for active HSAKAA Hobbies. Prefer actual active/maintenance tracks, current stage, real recorded practice pace and latest coaching focus. A keyword appearing elsewhere is not enough to make a hobby a weekly theme. Never invent practice. A normal hobby event gets one primary content surface plus at most one lightweight secondary surface; do not flood YouTube + X + WhatsApp + Stories with the same chess/guitar/voice moment.',
+      'HOBBIES + SKILLS: worldContext.hobbies is the first-class source of truth for active HSAKAA Hobbies. Prefer actual active/maintenance tracks, current stage, real recorded practice pace and latest coaching focus. A keyword appearing elsewhere is not enough to make a hobby a weekly theme. Never invent practice. Before ranking opportunities, explicitly consider all five active six-month pursuits: reading, Spanish, guitar, voice improvement and chess. It is valid for a pursuit to produce no feed post when nothing interesting happened, but do not silently ignore a pursuit that has fresh evidence. A normal hobby event gets one primary content surface plus at most one lightweight secondary surface; do not flood YouTube + X + WhatsApp + Stories with the same moment.',
       'BOOKS + LEARNING: books/highlights can inspire thinking, but vary the expression: a question, disagreement, passage reaction, experiment, visual note or changed view. Do not make every reading signal a framework post and do not claim reading progress unless evidence supports it.',
       'Professional authority should come from lived builder/operator reasoning, real decisions, mistakes, trade-offs and company-building experience—not generic product-management education. Prefer “what I am seeing/trying/changing” over textbook frameworks.',
       'Use whole-HSAKAA context to understand who Aakash is. The context is creative/strategic memory and anti-repetition memory; it is NOT a requirement that every personal reflection was previously approved as a public claim.',
@@ -2973,42 +3058,52 @@ export class MediaPlanningService {
       'LIGHTWEIGHT PRESENCE IS FIRST-CLASS: Instagram Stories should be planned 7/7 when usable context exists. YouTube Stories was retired by YouTube, so use YouTube Community posts as the native lightweight equivalent roughly 3-5 times per week. Community posts may be text, image or poll and should deepen familiarity/conversation rather than duplicate the same-day video.',
       'Instagram Stories are a separate daily lightweight presence layer. Plan one Story pack for every day when any usable context exists, usually 1-3 frames. Derive it from known routine/current work/learning/personal growth/professional context. Never fabricate that Aakash completed an activity: when based on a routine, make the captureBrief contingent (for example, “during the morning walk, capture…”).',
       'PORTFOLIO: use presenceStrategy.narratives as the real weekly narrative system. Aim broadly toward their targetSharePercent across DISTINCT topic clusters, not raw cross-platform post count. Use at least five distinct strategy narratives when enough grounded context exists. No single narrative or company should dominate simply because one source idea is easy to repurpose.',
+      'NARRATIVE CLASSIFICATION: strategyNarrativeKey describes the audience-facing story, not merely the source module. A lived founder/operator decision, mistake, trade-off or operating constraint belongs to builder_operator when that is the real premise. A changed belief, unresolved idea or reconsideration belongs to ideas_thinking. Use sports_workflows/freight_workflows when the industry workflow itself is the story, personal_intelligence when HSAKAA/personal-intelligence design is the story, and learning_experiments/building_aakash/human_personality for actual-life growth and personality chapters. Do not classify a gym/walk/hobby scene as personal_intelligence merely because Health/HSAKAA supplied the evidence.',
       'OWNED BUILDER JOURNEY IS MANDATORY: when worldContext.companies contains one or more configured companies, the seven-day plan must use at least one DISTINCT topic cluster that names one of those companies and shows Aakash actually building/operating it. Configured company fields and supplied company evidence are PUBLIC_SAFE by owner policy, so current focus, priorities, products, markets, principles, target customer, status and stage may be used exactly when supplied. Never invent a customer name, metric, launch, capability, outcome or implementation detail that is not in supplied evidence.',
       'HSAKAA / PERSONAL INTELLIGENCE: treat HSAKAA as an owned public builder journey, not merely an internal planning system. Supplied HSAKAA brief/review context is PUBLIC_SAFE by owner policy. Actively look for a truthful builder checkpoint, design decision, failure, boundary, experiment or before/after learning. Use only the supplied detail and never invent implementation status or capability.',
       'REPURPOSING: cross-platform derivatives count as ONE topic cluster for diversity. A strong source can have native derivatives, but do not use repurposing to fake diversity or saturate the week. Personal/hobby clusters should normally appear on no more than two surfaces total. Professional anchor clusters may travel farther only when each treatment has a distinct job.',
       'Every day must still contain one explicit POST or SKIP decision for LinkedIn, Instagram feed, YouTube, X and WhatsApp so the calendar is unambiguous. SKIP is healthy when no feed asset is needed. A blank/invalid time on SKIP is acceptable; actual POST times must be exact local HH:MM Asia/Kolkata.',
       'For WhatsApp, follow the Presence Strategy cadence and keep it personal/high-trust. Default to Status when genuinely relevant; direct whatsapp_message needs a real warm-contact reason. Never prepend generic templates such as “One thing I have been learning in my own work” to unrelated hobbies, astronomy or human moments.',
-      "HSAKAA is a content creation system, not an evidence-review checklist. Use the broad PUBLIC_SAFE Personal OS context aggressively enough that Aakash's real companies, health/routines, learning and current work remain visible. PEOPLE and MEMORY stay excluded. If a fact is absent from supplied evidence, remove only that unsupported fact rather than erasing the whole narrative.",
+      "HSAKAA is a content creation system, not an evidence-review checklist. Use PUBLIC_SAFE Personal OS context aggressively enough that Aakash's real companies, privacy-safe health/routines, learning and current work remain visible. PEOPLE and MEMORY stay excluded. Health is additionally constrained by storytellingPolicy.healthContentPolicy. If a fact is absent from supplied evidence, remove only that unsupported fact rather than erasing the whole narrative.",
       'INTERNAL MEDIA STRATEGY IS NEVER PUBLIC CONTENT. Cadence tests, algorithm experiments, first-post strategy, impression testing and HSAKAA operating instructions guide planning but can never be selected as a public thesis.',
       'Create 8-14 ranked opportunities from real whole-HSAKAA context where possible. Every opportunity must include strategyNarrativeKey, topicClusterKey and growthIntent. Plan at least two authentic discovery-oriented opportunities and at least one conversion-oriented opportunity that gives a new viewer a reason to follow Aakash for the ongoing journey, without generic “follow for more” copy. Prefer a conversion opportunity with a concrete continuation: baseline -> experiment -> checkpoint -> result, an unresolved build decision, or a promised future comparison. Evidence IDs shown in worldContext are short backend-issued keys such as E001. For every usable public_safe opportunity, evidenceIds must contain one or more exact E### keys copied from worldContext.publicSafe[].id, worldContext.companyEvidence[].id, worldContext.hsakaaEvidence[].id, worldContext.wholeLifeSignals[].id or worldContext.identityEvidence[].id. worldContext.internalSafe exists only for backward compatibility and should normally be empty. Never put opp_ opportunity keys in evidenceIds and never invent evidence references.',
-      'Evidence has two active modes plus one legacy compatibility mode. PUBLIC_SAFE may support factual public claims exactly as supplied and now covers every Media source except PEOPLE and MEMORY. IDENTITY_SAFE may support stable identity-level facts explicitly supplied in identityEvidence. INTERNAL_SAFE is legacy/backward-compatible only. Never infer PEOPLE or MEMORY details, and never invent metrics, capabilities, outcomes or facts absent from supplied evidence.',
+      'Evidence has two active modes plus one legacy compatibility mode. PUBLIC_SAFE may support factual public claims exactly as supplied, except Health is not blanket-publishable: apply storytellingPolicy.healthContentPolicy before using Health fields. IDENTITY_SAFE may support stable identity-level facts explicitly supplied in identityEvidence. INTERNAL_SAFE is legacy/backward-compatible only. Never infer PEOPLE or MEMORY details, and never invent metrics, capabilities, outcomes or facts absent from supplied evidence.',
       'An opportunity should normally be privacy=public_safe whenever its evidence comes from the supplied non-People/non-Memory Personal OS context. A named company opportunity may use PUBLIC_SAFE companyEvidence for supplied facts and IDENTITY_SAFE evidence for stable identity facts. Do not clear companyName merely because a particular company field is absent; remove only the unsupported field.',
       'needs_review opportunities must have usable=false and cannot be referenced by a POST. PEOPLE and MEMORY are never supplied as Media evidence.',
       'Historical fingerprints are hard anti-repetition memory. Avoid repeating topic+thesis+angle, hook archetype, opening pattern, stories/examples, structure, CTA pattern, visual concept, key phrases and lexical signature. Also avoid repeating the same routine Story concept on consecutive days.',
-      'Use Buffer/direct-platform performance to calibrate format, hooks, timing, length and topic mix, but never turn analytics strategy into public content and never blindly repeat a previously successful post.',
+      'Use Buffer/direct-platform performance to calibrate story choice, packaging, format, hooks, timing, length and topic mix, but never turn analytics strategy into public content and never blindly repeat a previously successful post. Learn at the STORY dimension too: which tensions, failures, transformations, visual openings and recurring characters drive non-follower reach, impressions, choice-to-view, watch time/completion, shares/saves, comments/replies and follower conversion.',
       'Create 1-3 story arcs where continuity helps. Prefer repeatable SERIES that can compound recognition toward 100K rather than one-off random themes. The goal is recognisable continuity across weeks, not disconnected daily posts.',
       'For each feed execution return only planning decision fields in the schema. Final copy, captions, carousel slides and scripts are generated in a bounded second stage.',
       'For instagramStory return only the Story planning skeleton: action, time, sourceType, sourceEvidenceIds, reason and captureBrief. Final Story frames are generated separately.',
       'For youtubeCommunity return only the lightweight Community skeleton: action, time, format (text|image|poll), sourceType, sourceEvidenceIds and reason. Plan 3-5 POSTs/week when usable context exists; final Community copy/visual/poll execution is generated separately.',
-      'LONG-FORM BALANCE: when real whole-person context exists, at least one of the two weekly long-form YouTube videos should come from learning_experiments, building_aakash or human_personality rather than making both long videos professional systems/technology essays.',
+      'LONG-FORM BALANCE + VIABILITY: when real whole-person context exists, at least one of the two weekly long-form YouTube videos should come from learning_experiments, building_aakash or human_personality rather than making both long videos professional systems/technology essays. But do not force a long video merely to satisfy balance. A long-form candidate must have enough real scenes, progression, tension/questions and payoff to justify its length. If the only event is preparation, absence of action or a proposed framework, use a Short/Story/LinkedIn treatment instead and SKIP long-form.',
       'This plan never publishes autonomously. Aakash approval remains required before canonical acceptance or publishing.',
     ].join('\n');
   }
 
   private dayPackInstructions() {
     return [
+      mediaStorytellingPromptPolicy(),
+      "PLATFORM EXECUTION: obey storytellingPolicy.platformNativeRules. Preserve the same underlying truth but write/film it natively for the selected platform instead of cloning another platform's asset.",
+      'SHOOTING DIRECTION: for every REEL, SHORT or VIDEO, cameraInstructions must specify the shoot style, location/context, opening frame, camera position/movement, live-audio vs voice-over choice and shot progression. Use broll for exact supporting shots. Avoid seated desk talking-head unless it is genuinely the strongest treatment.',
       'You are HSAKAA Media V3.14. Turn ONLY the supplied feed POST decisions for one day into complete execution-ready content. Do not add posts, remove posts, change platforms, change dates, change formats, change posting times or change opportunity references.',
       'Write for the long-term public-figure objective: Aakash should become recognisable for a distinct point of view, useful operator depth and a human personality. Prefer specificity and lived thinking over generic advice, influencer language or motivational filler.',
       'Return exactly one full execution object for every expectedPosts item and no SKIP objects. The service will merge intentional skips deterministically.',
       'Every returned post must be completely publish-ready: executionReady=true, readinessIssues=[], one exact platform-native publishCopy, final hook, final CTA, and hashtags when useful. Never output duplicate post-text/caption variants, “write a post about”, “caption idea”, placeholders, TODOs or instructions for Aakash to finish the copy.',
-      'supplied publicEvidence may support factual public claims exactly as supplied; by owner policy it covers every Media context source except PEOPLE and MEMORY. supplied reflectionEvidence is legacy INTERNAL_SAFE context and should normally be empty. supplied identityEvidence may support stable configured identity facts. evidenceIds must come from the referenced opportunity and must never be invented.',
+      'supplied publicEvidence may support factual public claims exactly as supplied, except Health must still pass storytellingPolicy.healthContentPolicy. supplied reflectionEvidence is legacy INTERNAL_SAFE context and should normally be empty. supplied identityEvidence may support stable configured identity facts. evidenceIds must come from the referenced opportunity and must never be invented.',
       'NAMED COMPANY / HSAKAA EXECUTION: preserve the owned builder identity in final copy instead of abstracting it into generic product advice. PUBLIC_SAFE company/HSAKAA evidence may support the exact focus, priority, product, market, principle, target-customer, status, stage or checkpoint supplied. Never invent a feature, launch, customer name, metric, result, status or capability absent from evidence.',
       'CONVERSION CONTENT: when growthIntent=conversion, the final copy must create a specific reason to come back—what is being tested, what remains unresolved, the next checkpoint, or what Aakash will compare later. Do not use generic “follow for more” language.',
       'When legacy reflectionEvidence is used without publicEvidence, keep it first-person and abstract. PEOPLE and MEMORY must never be reconstructed. Do not quote book highlights verbatim; turn them into Aakash’s own reflection. PUBLIC_SAFE evidence may be stated as sourced fact, while any inference must be clearly framed as Aakash’s view.',
       'INTERNAL MEDIA STRATEGY IS NEVER PUBLIC CONTENT. Never publish cadence tests, algorithm experiments, first-post strategy, early-signal/sample language, impression testing or HSAKAA operating instructions.',
       'For IMAGE choose exactly one imageBrief mode: ai_generation, real_photo or designed_graphic. AI generation requires a complete detailed prompt. Real photo or designed graphic requires a full visual description. Always provide aspect ratio, overlay text and source guidance.',
       'For CAROUSEL provide the complete carouselSlides array. Every slide needs final headline, final bodyCopy, visualType, overlayText, and either a complete imagePrompt for ai_image or a complete visualDescription otherwise.',
-      'For REEL, SHORT or VIDEO provide videoPack.fullScript word-for-word, targetDurationSeconds, deliveryInstructions, cameraInstructions, punchIns, broll, onScreenText, musicDirection and coverDirection. A YouTube long-form video must contain the full script, never an outline.',
+      'For REEL, SHORT or VIDEO provide videoPack.fullScript word-for-word, targetDurationSeconds, deliveryInstructions, cameraInstructions, punchIns, broll, onScreenText, musicDirection and coverDirection. A YouTube long-form video must contain the full script, never an outline. Distinguish source activity duration from published video runtime: if Aakash practises for 30 minutes but the edit is 210 seconds, title/copy may say “30-minute practice session” but must not imply a 30-minute video.',
+      'For Instagram, prioritise human visual storytelling and familiarity; for LinkedIn, earn professional insight through lived builder/operator evidence; for X, sound like concise thinking-in-public; for YouTube, prioritise retention and story progression; for WhatsApp, keep the treatment intimate and low-volume.',
+      'PUBLIC COPY MUST SOUND HUMAN: factual guardrails should guide the generation silently. Do not turn captions/scripts into evidence audits. Avoid repeated phrases like “this is evidence, not progress”, “one attempt does not prove improvement”, “the capability is not implemented” or multiple disclaimer paragraphs. If a caveat is required, say it once in natural language and return to the story.',
+      'HOOK/PACKAGING TEST: the title, cover/thumbnail text and first spoken/visual beat must make sense to a stranger. For niche company content, lead with the broader tension/problem and bring 8lete/Frayto/HSAKAA in as the real example rather than expecting the viewer to care about internal architecture first.',
+      'RETENTION EDITING: remove setup that can be shown visually, start inside action where possible, and introduce a new visual beat/reveal/reaction/question often enough to prevent a static lecture. Short-form should feel compressed; long-form should have scene/chapter progression and a payoff worth the time.',
+      'DOG CAMEOS: Pixel, Cosmo and Happy may be used in the shot plan only when they naturally belong in the real scene. A dog can provide a warm cold-open, interruption, reaction beat, walk/home texture or B-roll, but never invent behaviour and never use a dog as unrelated clickbait.',
+      'Never force a lesson where the scene itself is enough. Endings such as an honest unresolved question or “try again tomorrow” are valid when they fit the evidence.',
       'For an X THREAD, write every post in xThread in exact order. For WhatsApp messages/status/templates, write every exact frame/message in whatsappSequence.',
       'Legacy caption/script/description/slides fields are compatibility fields: keep them concise and do not duplicate long content there. The canonical public-facing text belongs in publishCopy; specialized assets belong in carouselSlides, videoPack, xThread and whatsappSequence. For X threads and WhatsApp Status, publishCopy may be a compact intro while the exact sequence is authoritative.',
       'Use historicalMediaFingerprints and alreadyGeneratedThisWeek as hard anti-repetition memory. Same-week platform-native wording must be genuinely distinct.',
@@ -3018,12 +3113,14 @@ export class MediaPlanningService {
 
   private dailyStoryInstructions() {
     return [
+      mediaStorytellingPromptPolicy(),
       'You are HSAKAA Media V3.14 generating ONLY Aakash’s Instagram Story pack for the supplied day.',
       'Stories are the daily lightweight human-presence layer, not miniature feed posts. Return 1-3 frames that feel natural, current and easy to capture.',
-      'Use the supplied storyPlan and evidence only. publicEvidence may support factual claims exactly as supplied and covers all Media context except PEOPLE and MEMORY. reflectionEvidence is legacy only. identityEvidence supports stable identity facts. If sourceType=routine and evidence describes a plan rather than completion, write capture instructions conditionally so you never claim completion before it happens.',
+      'Use the supplied storyPlan and evidence only. publicEvidence may support factual claims exactly as supplied, but Health fields must also pass storytellingPolicy.healthContentPolicy. reflectionEvidence is legacy only. identityEvidence supports stable identity facts. If sourceType=routine and evidence describes a plan rather than completion, write capture instructions conditionally so you never claim completion before it happens.',
       'For a company/HSAKAA Story, preserve the named builder journey. PUBLIC_SAFE evidence may support supplied priorities/products/markets/checkpoints/metrics; identity-only evidence must stay at identity level. Never invent capabilities, customers, metrics or outcomes.',
       'Each frame must include exact overlayText, optional spokenText, a concrete visualDescription/captureInstruction, and an interactiveElement only when genuinely useful (poll/question/slider or empty string).',
-      'Stories are the human-presence layer, not mini LinkedIn posts. Prefer real routine/current-life moments: work desk/building, books/learning, walk/gym/training, recording, guitar/voice/chess/other hobbies, travel, food/drink/environment, small frustrations, wins, mistakes and reflective micro-thoughts. Use wholeLifeSignals when relevant. Health details may be used when source-grounded. Do not force a business lesson onto the moment. Never expose or infer PEOPLE/MEMORY content or internal Media strategy.',
+      'Stories are the human-presence layer, not mini LinkedIn posts. Prefer real routine/current-life moments: work desk/building, books/learning, walk/gym/training, recording, guitar/voice/chess/Spanish/other hobbies, travel, food/drink/environment, small frustrations, wins, mistakes and reflective micro-thoughts. Pixel, Cosmo and Happy may appear naturally when they are genuinely present, especially as low-production warmth around practice, walks, work or home life; never invent their behaviour. Use wholeLifeSignals when relevant. Routine gym/walk/run details may be used when source-grounded and allowed by storytellingPolicy.healthContentPolicy; deeper Health data remains approval-gated. When at least three whole-life signals are available for the week, use whole-life evidence on at least three Story days instead of filling Stories with professional diagrams. Do not force a business lesson onto the moment. Never expose or infer PEOPLE/MEMORY content or internal Media strategy.',
+      'FITNESS STORY MODE: when a real gym/walk/run signal exists, prefer one simple moving capture over a designed graphic: shoes/door/start, walking POV, one exercise/set, between-set reaction, end-of-session moment, or environmental detail. Keep exact route/location and approval-gated Health fields out.',
       'Do not repeat yesterday’s Story concept or wording. Keep it low-production and authentic enough to sustain daily.',
       'executionReady must be true and readinessIssues must be empty for a POST Story pack.',
     ].join('\n');
@@ -3031,16 +3128,17 @@ export class MediaPlanningService {
 
   private youtubeCommunityInstructions() {
     return [
+      mediaStorytellingPromptPolicy(),
       'You are HSAKAA Media V3.14 generating ONLY Aakash’s YouTube Community post for the supplied date.',
       'YouTube Stories no longer exists. Community posts are the lightweight relationship layer on YouTube, alongside Shorts and long-form video.',
       'Keep Community native and low-production: a concise text thought, one image-backed note, or a poll. Do not write a miniature YouTube description or simply repeat the same-day video/Short.',
-      'Use the supplied source evidence only. publicEvidence may support factual claims exactly as supplied and covers all Media context except PEOPLE and MEMORY. reflectionEvidence is legacy only; identityEvidence supports stable configured identity facts.',
+      'Use the supplied source evidence only. publicEvidence may support factual claims exactly as supplied, but Health fields must also pass storytellingPolicy.healthContentPolicy. reflectionEvidence is legacy only; identityEvidence supports stable configured identity facts.',
       'For company/HSAKAA Community content, keep the named builder journey. PUBLIC_SAFE evidence may support supplied priorities/products/markets/checkpoints/metrics; identity-only evidence stays at identity level. Never invent a capability, customer, metric, launch or outcome.',
       'For format=text: write one exact publishCopy and leave imageBrief mode=none and poll fields empty.',
       'For format=image: write exact publishCopy plus a complete imageBrief. Prefer a real/current photo when the supplied plan is personal or routine-led; otherwise use a restrained designed graphic. Never invent an event that did not happen.',
       'For format=poll: write a short publishCopy, exact pollQuestion and 2-4 concise pollOptions. Use polls to create genuine conversation, not generic engagement bait.',
       'Keep it useful but more conversational than feed essays. Human/unfiltered, routines, hobbies, books/learning and building-Aakash moments are welcome and do not need a business lesson. Use wholeLifeSignals to keep Aakash present as a real person between uploads.',
-      'Never expose or infer PEOPLE/MEMORY content or raw evidence IDs. Use company/health detail only when it is present in supplied PUBLIC_SAFE evidence. Internal Media strategy remains non-public.',
+      'Never expose or infer PEOPLE/MEMORY content or raw evidence IDs. Use company detail only when present in supplied PUBLIC_SAFE evidence. Use Health detail only when both source-grounded and permitted by storytellingPolicy.healthContentPolicy. Internal Media strategy remains non-public.',
       'executionReady must be true and readinessIssues must be empty for a POST.',
     ].join('\n');
   }
@@ -3462,6 +3560,11 @@ export class MediaPlanningService {
       mutableDates,
     );
     repaired = this.normalizeBlueprintTimes(repaired, validEvidence);
+    repaired = this.ensureActualLifeOpportunityPool(
+      repaired,
+      worldContext,
+      presenceStrategy,
+    );
 
     // Run a small fixed-point loop because one repair can legitimately affect
     // another (for example, cadence can remove a discovery surface; diversity
@@ -3506,6 +3609,16 @@ export class MediaPlanningService {
         presenceStrategy,
         mutableDates,
       );
+      repaired = this.repairActualLifeBalance(
+        repaired,
+        worldContext,
+        mutableDates,
+      );
+      repaired = this.repairWholeLifeStoryBalance(
+        repaired,
+        worldContext,
+        mutableDates,
+      );
     }
 
     // Final lightweight grounding and cadence pass. This intentionally happens
@@ -3533,6 +3646,403 @@ export class MediaPlanningService {
       presenceStrategy,
       mutableDates,
     );
+    repaired = this.repairActualLifeBalance(
+      repaired,
+      worldContext,
+      mutableDates,
+    );
+    repaired = this.repairWholeLifeStoryBalance(
+      repaired,
+      worldContext,
+      mutableDates,
+    );
+    return repaired;
+  }
+
+  private safeActualLifeSignals(worldContext: PlanningWorldContext) {
+    const sensitiveHealthPattern =
+      /\b(weight|body[- ]?fat|measurement|physique|hrv|sleep|strain|pain|injur|diagnos|symptom|medication|supplement|dose|lab|medical|clinical|treatment|recovery score|whoop)\b/i;
+    const routinePattern =
+      /\b(gym|workout|training|walk|walking|run|running|mobility|fitness|exercise)\b/i;
+
+    return (worldContext.wholeLifeSignals ?? [])
+      .filter((signal) => {
+        if (
+          !['routine', 'hobby', 'learning', 'human'].includes(signal.category)
+        ) {
+          return false;
+        }
+        if (signal.category !== 'routine') return true;
+        const text = `${signal.title ?? ''} ${signal.summary ?? ''}`;
+        return routinePattern.test(text) && !sensitiveHealthPattern.test(text);
+      })
+      .sort((left, right) => {
+        if (left.significantChange !== right.significantChange) {
+          return left.significantChange ? -1 : 1;
+        }
+        return (right.occurredAt ?? '').localeCompare(left.occurredAt ?? '');
+      });
+  }
+
+  private ensureActualLifeOpportunityPool(
+    blueprint: PlanningBlueprint,
+    worldContext: PlanningWorldContext,
+    presenceStrategy: PlanningPresenceStrategy,
+  ): PlanningBlueprint {
+    const repaired = this.cloneBlueprintForPortfolioRepair(blueprint);
+    const signals = this.safeActualLifeSignals(worldContext);
+    if (!signals.length) return repaired;
+
+    const narrativeKeys = new Set(
+      (presenceStrategy.narratives ?? []).map((item) => item.key),
+    );
+    const referencedEvidence = new Set(
+      repaired.opportunities.flatMap((item) => item.evidenceIds ?? []),
+    );
+    const existingActualLifeCount = repaired.opportunities.filter((item) =>
+      (item.evidenceIds ?? []).some((id) =>
+        signals.some((signal) => signal.id === id),
+      ),
+    ).length;
+    const additionsNeeded = Math.max(0, 2 - existingActualLifeCount);
+    if (!additionsNeeded) return repaired;
+
+    const categoryPriority: Record<
+      PlanningWholeLifeSignal['category'],
+      number
+    > = {
+      routine: 0,
+      human: 1,
+      hobby: 2,
+      learning: 3,
+      work: 4,
+    };
+    const candidates = [...signals]
+      .filter((signal) => !referencedEvidence.has(signal.id))
+      .sort((left, right) => {
+        const categoryDelta =
+          categoryPriority[left.category] - categoryPriority[right.category];
+        if (categoryDelta) return categoryDelta;
+        return (right.occurredAt ?? '').localeCompare(left.occurredAt ?? '');
+      })
+      .slice(0, additionsNeeded);
+
+    for (const [index, signal] of candidates.entries()) {
+      const preferredNarrative =
+        signal.category === 'routine'
+          ? 'building_aakash'
+          : signal.category === 'human'
+            ? 'human_personality'
+            : 'learning_experiments';
+      const strategyNarrativeKey = narrativeKeys.has(preferredNarrative)
+        ? preferredNarrative
+        : [...narrativeKeys][0] || preferredNarrative;
+      const identityPillar: MediaPublicIdentityPillar =
+        strategyNarrativeKey === 'building_aakash'
+          ? 'building_aakash'
+          : strategyNarrativeKey === 'human_personality'
+            ? 'human_unfiltered'
+            : 'learning_experiments';
+      const fragment = this.planningKeyFragment(
+        `actual_life_${signal.category}_${signal.title}_${index + 1}`,
+      );
+      const isRoutine = signal.category === 'routine';
+      repaired.opportunities.push({
+        key: `actual_life_${fragment}`,
+        title:
+          signal.title ||
+          (isRoutine ? 'A real routine checkpoint' : 'A real-life checkpoint'),
+        thesis: signal.summary,
+        whyNow: isRoutine
+          ? 'Use this only as a source-grounded lived fitness/routine scene: visible movement, preparation, effort, environment or an immediate real reaction. Keep sensitive Health data out. If Pixel, Cosmo or Happy naturally joins the moment, a brief candid beat may stay in the story.'
+          : 'Use this as a lived Aakash chapter rather than another professional analysis. Prefer the actual attempt, curiosity, awkwardness, reaction or small unresolved next step. If a dog is genuinely present, a natural cameo may stay in the scene.',
+        sourceSummary: signal.summary,
+        evidenceIds: [signal.id],
+        companyName: '',
+        narrative: 'actual_life',
+        strategyNarrativeKey,
+        topicClusterKey: `cluster_actual_life_${fragment}`,
+        growthIntent:
+          signal.category === 'hobby' || signal.category === 'learning'
+            ? 'conversion'
+            : 'affinity',
+        identityPillar,
+        platforms: [
+          MediaPlatform.INSTAGRAM,
+          MediaPlatform.YOUTUBE,
+          MediaPlatform.X,
+          MediaPlatform.WHATSAPP,
+        ],
+        formats: [
+          MediaPostType.REEL,
+          MediaPostType.SHORT,
+          MediaPostType.IMAGE,
+          MediaPostType.WHATSAPP_STATUS,
+        ],
+        strategicFit: isRoutine ? 90 : 86,
+        novelty: signal.significantChange ? 88 : 76,
+        evidenceStrength: 82,
+        privacy: 'public_safe',
+        usable: true,
+      });
+    }
+
+    return repaired;
+  }
+
+  private repairActualLifeBalance(
+    blueprint: PlanningBlueprint,
+    worldContext: PlanningWorldContext,
+    mutableDates?: Set<string>,
+  ): PlanningBlueprint {
+    const repaired = this.cloneBlueprintForPortfolioRepair(blueprint);
+    const signals = this.safeActualLifeSignals(worldContext);
+    if (!signals.length) return repaired;
+
+    const mutable = (date: string) => !mutableDates || mutableDates.has(date);
+    const signalIds = new Set(signals.map((item) => item.id));
+    const opportunityByKey = new Map(
+      repaired.opportunities.map((item) => [item.key, item]),
+    );
+    const actualLifeOpportunities = repaired.opportunities.filter(
+      (item) =>
+        item.usable &&
+        item.privacy === 'public_safe' &&
+        (item.evidenceIds ?? []).some((id) => signalIds.has(id)),
+    );
+    if (!actualLifeOpportunities.length) return repaired;
+
+    const usedActualClusters = () => {
+      const clusters = new Set<string>();
+      for (const day of repaired.days) {
+        for (const execution of day.executions) {
+          if (execution.action !== 'post') continue;
+          const opportunity = opportunityByKey.get(
+            execution.opportunityKey ?? '',
+          );
+          if (
+            opportunity &&
+            (opportunity.evidenceIds ?? []).some((id) => signalIds.has(id))
+          ) {
+            clusters.add(opportunity.topicClusterKey);
+          }
+        }
+      }
+      return clusters;
+    };
+
+    const formatForPlatform = (
+      platform: MediaPlatform,
+      opportunity: GeneratedPlan['opportunities'][number],
+    ) => {
+      const allowed = new Set(opportunity.formats ?? []);
+      if (platform === MediaPlatform.INSTAGRAM) {
+        return allowed.has(MediaPostType.REEL)
+          ? MediaPostType.REEL
+          : MediaPostType.IMAGE;
+      }
+      if (platform === MediaPlatform.YOUTUBE) return MediaPostType.SHORT;
+      if (platform === MediaPlatform.WHATSAPP)
+        return MediaPostType.WHATSAPP_STATUS;
+      if (platform === MediaPlatform.X) return MediaPostType.TEXT;
+      return MediaPostType.TEXT;
+    };
+
+    const pickActualOpportunity = (excludeClusters: Set<string>) =>
+      [...actualLifeOpportunities]
+        .filter((item) => !excludeClusters.has(item.topicClusterKey))
+        .sort((left, right) => {
+          const score = (item: (typeof actualLifeOpportunities)[number]) =>
+            (item.strategyNarrativeKey === 'building_aakash' ? 50 : 0) +
+            (item.strategyNarrativeKey === 'human_personality' ? 45 : 0) +
+            (item.growthIntent === 'conversion' ? 35 : 0) +
+            (item.novelty ?? 0) +
+            (item.strategicFit ?? 0);
+          return score(right) - score(left);
+        })[0];
+
+    const instagramHasActualLife = () =>
+      repaired.days.some((day) =>
+        day.executions.some((execution) => {
+          if (
+            execution.platform !== MediaPlatform.INSTAGRAM ||
+            execution.action !== 'post'
+          ) {
+            return false;
+          }
+          const opportunity = opportunityByKey.get(
+            execution.opportunityKey ?? '',
+          );
+          return Boolean(
+            opportunity &&
+            (opportunity.evidenceIds ?? []).some((id) => signalIds.has(id)),
+          );
+        }),
+      );
+
+    if (!instagramHasActualLife()) {
+      const opportunity = pickActualOpportunity(new Set());
+      const replacement = repaired.days
+        .flatMap((day) =>
+          day.executions.map((execution) => ({ day, execution })),
+        )
+        .filter(
+          ({ day, execution }) =>
+            mutable(day.date) &&
+            execution.platform === MediaPlatform.INSTAGRAM &&
+            execution.action === 'post',
+        )
+        .sort((left, right) => {
+          const professionalWeight = (entry: typeof left) => {
+            const current = opportunityByKey.get(
+              entry.execution.opportunityKey ?? '',
+            );
+            if (!current) return 0;
+            return [
+              'builder_operator',
+              'ideas_thinking',
+              'sports_workflows',
+              'freight_workflows',
+              'personal_intelligence',
+            ].includes(current.strategyNarrativeKey)
+              ? 10
+              : 0;
+          };
+          return professionalWeight(right) - professionalWeight(left);
+        })[0];
+      if (opportunity && replacement) {
+        replacement.execution.opportunityKey = opportunity.key;
+        replacement.execution.storyArcKey = '';
+        replacement.execution.format = formatForPlatform(
+          MediaPlatform.INSTAGRAM,
+          opportunity,
+        );
+        replacement.execution.reason =
+          'Instagram rebalanced automatically so grounded actual life is not crowded out by professional/system analysis for the entire week.';
+      }
+    }
+
+    const targetClusters = Math.min(
+      MEDIA_WEEKLY_HUMANITY_CONTRACT.whenGroundedEvidenceExists
+        .minimumActualLifeFeedClusters,
+      new Set(actualLifeOpportunities.map((item) => item.topicClusterKey)).size,
+    );
+    let usedClusters = usedActualClusters();
+    const surfacePriority = [
+      MediaPlatform.INSTAGRAM,
+      MediaPlatform.YOUTUBE,
+      MediaPlatform.WHATSAPP,
+      MediaPlatform.X,
+      MediaPlatform.LINKEDIN,
+    ];
+
+    for (const platform of surfacePriority) {
+      if (usedClusters.size >= targetClusters) break;
+      const opportunity = pickActualOpportunity(usedClusters);
+      if (!opportunity) break;
+      const replacement = repaired.days
+        .flatMap((day) =>
+          day.executions.map((execution) => ({ day, execution })),
+        )
+        .find(({ day, execution }) => {
+          if (!mutable(day.date) || execution.action !== 'post') return false;
+          if (execution.platform !== platform) return false;
+          if (
+            execution.platform === MediaPlatform.YOUTUBE &&
+            execution.format === MediaPostType.VIDEO
+          ) {
+            return false;
+          }
+          const current = opportunityByKey.get(execution.opportunityKey ?? '');
+          return !(
+            current &&
+            (current.evidenceIds ?? []).some((id) => signalIds.has(id))
+          );
+        });
+      if (!replacement) continue;
+      replacement.execution.opportunityKey = opportunity.key;
+      replacement.execution.storyArcKey = '';
+      replacement.execution.format = formatForPlatform(platform, opportunity);
+      replacement.execution.reason =
+        'Weekly actual-life floor restored automatically from grounded whole-life evidence so Aakash remains present as a person, not only as an analyst of systems.';
+      usedClusters = usedActualClusters();
+    }
+
+    return repaired;
+  }
+
+  private repairWholeLifeStoryBalance(
+    blueprint: PlanningBlueprint,
+    worldContext: PlanningWorldContext,
+    mutableDates?: Set<string>,
+  ): PlanningBlueprint {
+    const repaired = this.cloneBlueprintForPortfolioRepair(blueprint);
+    const signals = this.safeActualLifeSignals(worldContext);
+    const target =
+      signals.length >= 3
+        ? MEDIA_WEEKLY_HUMANITY_CONTRACT.whenGroundedEvidenceExists
+            .minimumWholeLifeStoryDays
+        : 0;
+    if (!target) return repaired;
+
+    const mutable = (date: string) => !mutableDates || mutableDates.has(date);
+    const signalIds = new Set(signals.map((item) => item.id));
+    const currentDays = new Set(
+      repaired.days
+        .filter(
+          (day) =>
+            day.instagramStory.action === 'post' &&
+            (day.instagramStory.sourceEvidenceIds ?? []).some((id) =>
+              signalIds.has(id),
+            ),
+        )
+        .map((day) => day.date),
+    );
+    if (currentDays.size >= target) return repaired;
+
+    const alreadyUsedSignals = new Set(
+      repaired.days.flatMap((day) =>
+        (day.instagramStory.sourceEvidenceIds ?? []).filter((id) =>
+          signalIds.has(id),
+        ),
+      ),
+    );
+    const availableSignals = [
+      ...signals.filter((item) => !alreadyUsedSignals.has(item.id)),
+      ...signals.filter((item) => alreadyUsedSignals.has(item.id)),
+    ];
+    let cursor = 0;
+
+    for (const day of repaired.days) {
+      if (currentDays.size >= target) break;
+      if (!mutable(day.date) || day.instagramStory.action !== 'post') continue;
+      if (
+        (day.instagramStory.sourceEvidenceIds ?? []).some((id) =>
+          signalIds.has(id),
+        )
+      ) {
+        continue;
+      }
+      const signal = availableSignals[cursor++ % availableSignals.length];
+      if (!signal) break;
+      day.instagramStory.sourceEvidenceIds = [signal.id];
+      day.instagramStory.sourceType =
+        signal.category === 'routine'
+          ? 'routine'
+          : signal.category === 'hobby'
+            ? 'hobby'
+            : signal.category === 'learning'
+              ? 'learning'
+              : 'human_moment';
+      day.instagramStory.reason =
+        'Whole-life Story balance restored from a grounded real-life signal so the week contains lightweight human familiarity as well as professional thinking.';
+      day.instagramStory.captureBrief =
+        signal.category === 'routine'
+          ? `If “${signal.title}” genuinely happens today, capture one ordinary movement/setup/end-of-session moment without health metrics or sensitive detail. If Pixel, Cosmo or Happy naturally joins, one candid frame is welcome; do not stage a reaction.`
+          : `If “${signal.title}” genuinely happens today, capture one unpolished real moment from it. Preserve the attempt, curiosity or environment rather than turning it into a lesson. If a dog is naturally present, keep the moment candid.`;
+      currentDays.add(day.date);
+    }
+
     return repaired;
   }
 
@@ -4937,7 +5447,7 @@ export class MediaPlanningService {
       if (/hsakaa|personal intelligence|digital twin/.test(text)) {
         preferred.push('personal_intelligence');
       }
-      if (/hobby|learn|book|guitar|voice|japanese|chess/.test(text)) {
+      if (/hobby|learn|book|reading|spanish|guitar|voice|chess/.test(text)) {
         preferred.push('learning_experiments', 'building_aakash');
       }
       if (/routine|gym|walk|run|practice/.test(text))
@@ -6221,12 +6731,23 @@ export class MediaPlanningService {
         fullScript: '',
         targetDurationSeconds: 0,
         deliveryInstructions: '',
+        shootStyle: '',
+        location: '',
+        movement: '',
+        openingFrame: '',
+        cameraPosition: '',
+        shotList: [],
         cameraInstructions: '',
         punchIns: [],
         broll: [],
         onScreenText: [],
+        audioDirection: '',
+        lightingDirection: '',
+        editingRhythm: '',
+        captionDirection: '',
         musicDirection: '',
         coverDirection: '',
+        coverFrame: '',
       },
       xThread: [],
       whatsappSequence: [],

@@ -74,6 +74,21 @@ export class MediaPlanningStoryArc {
   @Prop({ required: true, trim: true }) title: string;
   @Prop({ required: true, trim: true }) purpose: string;
   @Prop({ required: true, trim: true }) narrative: string;
+  @Prop({ required: true, trim: true, default: '' }) premise: string;
+  @Prop({ required: true, trim: true, default: '' }) currentChapter: string;
+  @Prop({ required: true, trim: true, default: '' }) currentTension: string;
+  @Prop({ required: true, trim: true, default: '' }) unresolvedQuestion: string;
+  @Prop({ type: [String], default: [] }) audienceKnows: string[];
+  @Prop({ type: [String], default: [] }) audienceDoesNotKnowYet: string[];
+  @Prop({ required: true, trim: true, default: '' })
+  nextNarrativeOpportunity: string;
+  @Prop({
+    type: String,
+    required: true,
+    enum: ['active', 'paused', 'completed'],
+    default: 'active',
+  })
+  status: 'active' | 'paused' | 'completed';
   @Prop({ required: true, trim: true, default: 'builder_operator' })
   strategyNarrativeKey: string;
   @Prop({ required: true, trim: true, default: 'unclustered' })
@@ -87,7 +102,7 @@ export class MediaPlanningStoryArc {
   growthIntent:
     'authority' | 'discovery' | 'conversion' | 'affinity' | 'conversation';
   @Prop({ trim: true }) companyName?: string;
-  @Prop({ required: true, min: 1, max: 30 }) durationDays: number;
+  @Prop({ required: true, min: 1, max: 210 }) durationDays: number;
   @Prop({ type: [MediaPlanningStoryBeatSchema], default: [] })
   beats: MediaPlanningStoryBeat[];
 }
@@ -149,6 +164,12 @@ export class MediaPlanningVideoPack {
   targetDurationSeconds: number;
   @Prop({ required: true, trim: true, default: '' })
   deliveryInstructions: string;
+  @Prop({ required: true, trim: true, default: '' }) shootStyle: string;
+  @Prop({ required: true, trim: true, default: '' }) location: string;
+  @Prop({ required: true, trim: true, default: '' }) movement: string;
+  @Prop({ required: true, trim: true, default: '' }) openingFrame: string;
+  @Prop({ required: true, trim: true, default: '' }) cameraPosition: string;
+  @Prop({ type: [String], default: [] }) shotList: string[];
   @Prop({ required: true, trim: true, default: '' }) cameraInstructions: string;
   @Prop({ type: [MediaPlanningTimedDirectionSchema], default: [] })
   punchIns: MediaPlanningTimedDirection[];
@@ -156,8 +177,13 @@ export class MediaPlanningVideoPack {
   broll: MediaPlanningTimedDirection[];
   @Prop({ type: [MediaPlanningTimedDirectionSchema], default: [] })
   onScreenText: MediaPlanningTimedDirection[];
+  @Prop({ required: true, trim: true, default: '' }) audioDirection: string;
+  @Prop({ required: true, trim: true, default: '' }) lightingDirection: string;
+  @Prop({ required: true, trim: true, default: '' }) editingRhythm: string;
+  @Prop({ required: true, trim: true, default: '' }) captionDirection: string;
   @Prop({ required: true, trim: true, default: '' }) musicDirection: string;
   @Prop({ required: true, trim: true, default: '' }) coverDirection: string;
+  @Prop({ required: true, trim: true, default: '' }) coverFrame: string;
 }
 export const MediaPlanningVideoPackSchema = SchemaFactory.createForClass(
   MediaPlanningVideoPack,
