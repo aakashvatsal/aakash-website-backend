@@ -177,6 +177,83 @@ export class HsakaaDailyJournalService {
     return this.approveDraft(journalEntryId, 'public');
   }
 
+  async approveAndPublishPair(dateKey?: string) {
+    const resolved =
+      dateKey ?? this.dailyContextService.getPreviousDateKey(new Date());
+    const context = (await this.dailyContextService.get(
+      resolved,
+    )) as unknown as DailyContextSnapshot | null;
+    if (!context) {
+      throw new NotFoundException('Daily context could not be found.');
+    }
+    if (context.privacyReviewStatus === 'needs_review') {
+      throw new BadRequestException(
+        'Resolve every needs-review privacy item before publishing the public journal.',
+      );
+    }
+
+    const [privateDocument, publicDocument] = await Promise.all([
+      this.journalModel.findOne({
+        sourceExternalId: `hsakaa-daily-journal:${resolved}`,
+        isActive: true,
+      }),
+      this.journalModel.findOne({
+        sourceExternalId: `hsakaa-public-daily-journal:${resolved}`,
+        isActive: true,
+      }),
+    ]);
+
+    if (!privateDocument) {
+      throw new BadRequestException(
+        'Prepare the private previous-day journal draft before publishing.',
+      );
+    }
+    if (!publicDocument) {
+      throw new BadRequestException(
+        'No public-safe journal draft exists. Mark at least one source Public safe, then regenerate the public draft.',
+      );
+    }
+
+    this.assertPublicDraftCurrent(
+      context,
+      this.metadata(publicDocument.metadata),
+    );
+
+    const publishedAt = new Date();
+    const approvedAt = publishedAt.toISOString();
+    privateDocument.metadata = {
+      ...this.metadata(privateDocument.metadata),
+      approvalStatus: 'approved',
+      approvedAt,
+      publishedAsPairAt: approvedAt,
+    };
+    privateDocument.visibility = JournalVisibility.PRIVATE;
+    privateDocument.isPublished = true;
+    privateDocument.publishedAt = publishedAt;
+
+    publicDocument.metadata = {
+      ...this.metadata(publicDocument.metadata),
+      approvalStatus: 'approved',
+      approvedAt,
+      publishedAsPairAt: approvedAt,
+    };
+    publicDocument.visibility = JournalVisibility.PUBLIC;
+    publicDocument.isPublished = true;
+    publicDocument.publishedAt = publishedAt;
+
+    const [journal, publicJournal] = await Promise.all([
+      privateDocument.save(),
+      publicDocument.save(),
+    ]);
+
+    return {
+      context,
+      journal: journal.toObject(),
+      publicJournal: publicJournal.toObject(),
+      published: true,
+    };
+  }
+
   async regeneratePublic(dateKey?: string) {
     const resolved = dateKey ?? this.dailyContextService.getDateKey(new Date());
     const context = (await this.dailyContextService.capture(
@@ -317,6 +394,7 @@ export class HsakaaDailyJournalService {
         'Use the structured arrays to extract concise wins, lessons, decisions, ideas, gratitude, and challenges only when the evidence supports them; otherwise return an empty array.',
         'Do not copy private details merely for completeness. Include them only when they materially explain the day.',
         'Health and reading metrics are stored separately from factual source records, so do not invent or calculate metrics in the prose.',
+        'Owner-supplied context items are explicit corrections or additions from Aakash, such as offline reading, work that was not captured automatically, meetings, decisions, or personal moments. Treat them as first-class factual evidence.',
         'The content should stand on its own as a real daily journal: what mattered, what moved, what was learned, what remained unresolved, and what is being carried forward.',
         'Use plain markdown paragraphs with occasional short headings when useful. Avoid generic motivational filler.',
       ].join(' '),

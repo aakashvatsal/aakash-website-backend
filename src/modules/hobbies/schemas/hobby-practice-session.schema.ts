@@ -96,6 +96,9 @@ export class HobbyPracticeSession {
   })
   source: HobbyPracticeSource;
 
+  @Prop({ default: false, index: true })
+  ownerConfirmed: boolean;
+
   @Prop({ type: SchemaTypes.ObjectId, ref: 'Task' })
   taskId?: Types.ObjectId;
 

@@ -96,8 +96,12 @@ export class HsakaaDailyContextService {
       .findOne({ dateKey: resolved })
       .lean();
     const privacyOverrides = previous?.privacyOverrides ?? {};
+    const collectedItems = await this.collectItems(start, end);
+    const ownerItems = (previous?.items ?? []).filter(
+      (item) => item.source === HsakaaDailyContextSource.OWNER,
+    );
     const items = this.applyPrivacyOverrides(
-      await this.collectItems(start, end),
+      [...collectedItems, ...ownerItems],
       privacyOverrides,
     );
     items.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
@@ -161,6 +165,110 @@ export class HsakaaDailyContextService {
     }
     delete privacyOverrides[itemId];
     return this.persistPrivacyState(context, privacyOverrides);
+  }
+
+  async upsertOwnerNote(
+    dateKey: string,
+    category: string,
+    note: string,
+    privacy: HsakaaDailyContextPrivacy = HsakaaDailyContextPrivacy.PRIVATE_ONLY,
+  ) {
+    const context = await this.ensureDocument(dateKey);
+    const trimmed = note.trim();
+    if (!trimmed) {
+      return this.removeOwnerNote(dateKey, category);
+    }
+
+    const allowed = new Set([
+      'work',
+      'offline_reading',
+      'conversation',
+      'decision',
+      'personal',
+    ]);
+    if (!allowed.has(category)) {
+      throw new BadRequestException('Unsupported journal pointer category.');
+    }
+    if (
+      ![
+        HsakaaDailyContextPrivacy.PRIVATE_ONLY,
+        HsakaaDailyContextPrivacy.PUBLIC_SAFE,
+      ].includes(privacy)
+    ) {
+      throw new BadRequestException(
+        'Owner journal notes may be private_only or public_safe.',
+      );
+    }
+
+    const id = `owner:${dateKey}:${category}`;
+    const sourceId = `${dateKey}:${category}`;
+    const labels: Record<string, string> = {
+      work: 'Work worth remembering',
+      offline_reading: 'Offline reading',
+      conversation: 'Conversation or meeting',
+      decision: 'Decision or unresolved thought',
+      personal: 'Personal context HSAKAA missed',
+    };
+    const occurredAt = new Date(
+      this.getDayRange(dateKey).end.getTime() - 60_000,
+    ).toISOString();
+    const ownerItem: HsakaaDailyContextItem = {
+      id,
+      source: HsakaaDailyContextSource.OWNER,
+      kind: `owner_note_${category}`,
+      title: labels[category] ?? 'Owner note',
+      summary: trimmed.slice(0, 4000),
+      occurredAt,
+      sourceId,
+      privacy,
+      defaultPrivacy: privacy,
+      significantChange: true,
+      metadata: {
+        ownerSupplied: true,
+        category,
+      },
+    };
+
+    const items = [
+      ...(context.items ?? []).filter((item) => item.id !== id),
+      ownerItem,
+    ].sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+    const privacyOverrides = { ...(context.privacyOverrides ?? {}) };
+    delete privacyOverrides[id];
+    const state = this.privacyState(items);
+
+    context.items = items;
+    context.changes = items.filter((item) => item.significantChange);
+    context.sourceCounts = this.countBy(items, (item) => item.source);
+    context.privacyCounts = state.privacyCounts;
+    context.privacyOverrides = privacyOverrides;
+    context.version = (context.version ?? 1) + 1;
+    context.privacyVersion = (context.privacyVersion ?? 1) + 1;
+    context.privacyReviewStatus = state.privacyReviewStatus;
+    context.publicSourceFingerprint = state.publicSourceFingerprint;
+    context.capturedAt = new Date();
+    return (await context.save()).toObject();
+  }
+
+  async removeOwnerNote(dateKey: string, category: string) {
+    const context = await this.ensureDocument(dateKey);
+    const id = `owner:${dateKey}:${category}`;
+    const items = (context.items ?? []).filter((item) => item.id !== id);
+    const privacyOverrides = { ...(context.privacyOverrides ?? {}) };
+    delete privacyOverrides[id];
+    const state = this.privacyState(items);
+
+    context.items = items;
+    context.changes = items.filter((item) => item.significantChange);
+    context.sourceCounts = this.countBy(items, (item) => item.source);
+    context.privacyCounts = state.privacyCounts;
+    context.privacyOverrides = privacyOverrides;
+    context.version = (context.version ?? 1) + 1;
+    context.privacyVersion = (context.privacyVersion ?? 1) + 1;
+    context.privacyReviewStatus = state.privacyReviewStatus;
+    context.publicSourceFingerprint = state.publicSourceFingerprint;
+    context.capturedAt = new Date();
+    return (await context.save()).toObject();
   }
 
   private async ensureDocument(dateKey: string) {

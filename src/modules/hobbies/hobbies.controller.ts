@@ -16,6 +16,7 @@ import {
 import { CreateHobbyDto } from './dto/create-hobby.dto';
 import { HobbyQueryDto, HobbySessionQueryDto } from './dto/hobby-query.dto';
 import {
+  CompletePlannedHobbySessionDto,
   FinishHobbySessionDto,
   LogHobbySessionDto,
   StartHobbySessionDto,
@@ -112,6 +113,14 @@ export class HobbiesController {
     @Body() dto: StartHobbySessionDto,
   ) {
     return this.hobbiesService.startSession(hobbyId, dto);
+  }
+
+  @Post(':hobbyId/complete-planned')
+  completePlannedSession(
+    @Param('hobbyId') hobbyId: string,
+    @Body() dto: CompletePlannedHobbySessionDto,
+  ) {
+    return this.hobbiesService.completePlannedSession(hobbyId, dto);
   }
 
   @Post(':hobbyId/sessions')

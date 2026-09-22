@@ -47,6 +47,8 @@ import {
   UpdateHsakaaDailyJournalDraftDto,
   UpdateHsakaaDailyPrivacyDto,
   ClearHsakaaDailyPrivacyOverrideDto,
+  UpsertHsakaaDailyJournalPointerDto,
+  RemoveHsakaaDailyJournalPointerDto,
 } from './dto/hsakaa-daily-context.dto';
 import { HsakaaOwnerSessionGuard } from './guards/hsakaa-owner-session.guard';
 import { HsakaaService } from './hsakaa.service';
@@ -205,6 +207,22 @@ export class HsakaaController {
   }
 
   @UseGuards(HsakaaOwnerSessionGuard)
+  @Post('private/daily-journal/pointers')
+  upsertPrivateDailyJournalPointer(
+    @Body() dto: UpsertHsakaaDailyJournalPointerDto,
+  ) {
+    return this.hsakaaService.upsertPrivateDailyJournalPointer(dto);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Delete('private/daily-journal/pointers')
+  removePrivateDailyJournalPointer(
+    @Body() dto: RemoveHsakaaDailyJournalPointerDto,
+  ) {
+    return this.hsakaaService.removePrivateDailyJournalPointer(dto);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
   @Post('private/daily-journal/generate')
   generatePrivateDailyJournal(@Body() dto: GenerateHsakaaDailyJournalDto) {
     return this.hsakaaService.generatePrivateDailyJournal(
@@ -235,6 +253,12 @@ export class HsakaaController {
   @Post('private/daily-journal/:journalEntryId/public/approve')
   approvePublicDailyJournal(@Param('journalEntryId') journalEntryId: string) {
     return this.hsakaaService.approvePublicDailyJournal(journalEntryId);
+  }
+
+  @UseGuards(HsakaaOwnerSessionGuard)
+  @Post('private/daily-journal/publish-pair')
+  approveAndPublishDailyJournalPair(@Body() dto: HsakaaDailyContextQueryDto) {
+    return this.hsakaaService.approveAndPublishDailyJournalPair(dto.dateKey);
   }
 
   @UseGuards(HsakaaOwnerSessionGuard)

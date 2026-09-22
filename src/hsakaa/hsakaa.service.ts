@@ -428,6 +428,30 @@ export class HsakaaService {
     );
   }
 
+  upsertPrivateDailyJournalPointer(input: {
+    dateKey: string;
+    category: string;
+    note: string;
+    privacy?: import('./schemas/hsakaa-daily-context.schema').HsakaaDailyContextPrivacy;
+  }) {
+    return this.dailyContextService.upsertOwnerNote(
+      input.dateKey,
+      input.category,
+      input.note,
+      input.privacy,
+    );
+  }
+
+  removePrivateDailyJournalPointer(input: {
+    dateKey: string;
+    category: string;
+  }) {
+    return this.dailyContextService.removeOwnerNote(
+      input.dateKey,
+      input.category,
+    );
+  }
+
   generatePrivateDailyJournal(dateKey?: string, regenerate = false) {
     return this.dailyJournalService.generate(dateKey, regenerate);
   }
@@ -445,6 +469,10 @@ export class HsakaaService {
 
   approvePublicDailyJournal(journalEntryId: string) {
     return this.dailyJournalService.approvePublic(journalEntryId);
+  }
+
+  approveAndPublishDailyJournalPair(dateKey?: string) {
+    return this.dailyJournalService.approveAndPublishPair(dateKey);
   }
 
   regeneratePublicDailyJournal(dateKey?: string) {

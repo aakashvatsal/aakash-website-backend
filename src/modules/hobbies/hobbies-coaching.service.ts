@@ -160,7 +160,7 @@ export class HobbiesCoachingService {
         schedule.slots.find((slot) => slot.hobbyId === hobby._id.toString()) ??
         null,
       evidencePolicy:
-        'HSAKAA only claims progress supported by recorded minutes, reflections, ratings or evidence descriptions. Audio/video/photo URLs are flagged for multimodal review rather than treated as inspected media.',
+        'Only owner-confirmed practice counts as completed. HSAKAA may recommend what to practice next, but it never marks a session or curriculum stage complete automatically. Audio/video/photo URLs are flagged for multimodal review rather than treated as inspected media.',
     };
   }
 
@@ -203,6 +203,7 @@ export class HobbiesCoachingService {
       .find({
         hobbyId: hobby._id,
         status: HobbyPracticeStatus.COMPLETED,
+        ownerConfirmed: true,
         startedAt: { $gte: range.start, $lt: range.end },
       })
       .sort({ startedAt: 1 })
@@ -358,7 +359,7 @@ export class HobbiesCoachingService {
           isActive: true,
           isArchived: false,
         })
-        .sort({ intensity: 1, name: 1 })
+        .sort({ seasonOrder: 1, intensity: 1, name: 1 })
         .lean(),
       this.taskModel
         .find({
@@ -375,6 +376,7 @@ export class HobbiesCoachingService {
       this.sessionModel
         .find({
           status: HobbyPracticeStatus.COMPLETED,
+          ownerConfirmed: true,
           startedAt: { $gte: week.start, $lt: week.end },
         })
         .select('hobbyId startedAt durationMinutes')
@@ -434,6 +436,7 @@ export class HobbiesCoachingService {
       reason: string;
       taskLoadMinutes: number;
     }> = [];
+    const slotsPerDay = new Map<string, number>();
 
     for (const hobby of hobbies) {
       const id = hobby._id.toString();
@@ -477,19 +480,30 @@ export class HobbiesCoachingService {
             Boolean(targetDate && dateKey > targetDate),
         };
       })
-        .filter((day) => !day.past && !day.outsideTargetWindow)
+        .filter(
+          (day) =>
+            !day.past &&
+            !day.outsideTargetWindow &&
+            (slotsPerDay.get(day.dateKey) ?? 0) < 2,
+        )
         .sort((a, b) => {
           if (a.alreadyPracticed !== b.alreadyPracticed)
             return Number(a.alreadyPracticed) - Number(b.alreadyPracticed);
           if (a.preferred !== b.preferred)
             return Number(b.preferred) - Number(a.preferred);
+          const aDayCount = slotsPerDay.get(a.dateKey) ?? 0;
+          const bDayCount = slotsPerDay.get(b.dateKey) ?? 0;
+          if (aDayCount !== bDayCount) return aDayCount - bDayCount;
           if (a.load !== b.load) return a.load - b.load;
           return a.index - b.index;
         });
 
       const used = new Set<string>();
       for (let slotIndex = 0; slotIndex < remainingSessions; slotIndex += 1) {
-        const candidate = candidates.find((day) => !used.has(day.dateKey));
+        const candidate = candidates.find(
+          (day) =>
+            !used.has(day.dateKey) && (slotsPerDay.get(day.dateKey) ?? 0) < 2,
+        );
         if (!candidate) break;
         used.add(candidate.dateKey);
         const sessionsLeft = Math.max(1, remainingSessions - slotIndex);
@@ -510,7 +524,13 @@ export class HobbiesCoachingService {
         const timeWindow =
           hobby.preferredPracticeTime ?? HobbyPracticeTimeWindow.FLEXIBLE;
         const clock = this.clockFor(timeWindow);
-        const startAt = new Date(`${candidate.dateKey}T${clock}:00.000+05:30`);
+        let startAt = new Date(`${candidate.dateKey}T${clock}:00.000+05:30`);
+        const collides = slots.some(
+          (slot) =>
+            slot.dateKey === candidate.dateKey &&
+            new Date(slot.startAt).getTime() === startAt.getTime(),
+        );
+        if (collides) startAt = new Date(startAt.getTime() + 60 * 60_000);
         slots.push({
           hobbyId: id,
           hobbyName: hobby.name,
@@ -530,6 +550,10 @@ export class HobbiesCoachingService {
                 : 'Uses the lowest-conflict remaining day to keep the weekly practice target realistic.',
           taskLoadMinutes: candidate.load,
         });
+        slotsPerDay.set(
+          candidate.dateKey,
+          (slotsPerDay.get(candidate.dateKey) ?? 0) + 1,
+        );
       }
     }
 
@@ -538,9 +562,9 @@ export class HobbiesCoachingService {
       generatedAt: new Date().toISOString(),
       weekStart: week.start.toISOString(),
       weekEnd: week.end.toISOString(),
-      source: 'tasks_plus_hobby_preferences',
+      source: 'six_month_season_plus_tasks',
       calendarIntegration: 'not_connected_in_backend',
-      note: 'This plan uses Hobbies preferences and Personal OS Tasks workload. It does not claim Google Calendar availability because the backend does not have a Calendar integration yet.',
+      note: 'This is the six-month growth-season plan. It schedules no more than two hobbies per day, adapts around Personal OS Tasks workload, and only owner-confirmed sessions count as completed. Google Calendar availability is not inferred.',
       slots,
     };
   }
@@ -595,6 +619,7 @@ export class HobbiesCoachingService {
       .find({
         hobbyId,
         status: HobbyPracticeStatus.COMPLETED,
+        ownerConfirmed: true,
         startedAt: { $gte: start, $lte: end },
       })
       .sort({ startedAt: 1 })

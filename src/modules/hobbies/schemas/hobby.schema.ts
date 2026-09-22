@@ -164,6 +164,18 @@ export class Hobby {
   @Prop()
   targetDate?: Date;
 
+  @Prop({ trim: true, index: true })
+  seasonKey?: string;
+
+  @Prop({ trim: true })
+  seasonLabel?: string;
+
+  @Prop({ min: 1, max: 5 })
+  seasonOrder?: number;
+
+  @Prop({ default: true })
+  ownerCompletionRequired: boolean;
+
   @Prop({ min: 1, max: 104 })
   targetHorizonWeeks?: number;
 

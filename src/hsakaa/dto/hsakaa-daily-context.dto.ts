@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  IsIn,
 } from 'class-validator';
 
 import { HsakaaDailyContextPrivacy } from '../schemas/hsakaa-daily-context.schema';
@@ -60,4 +61,30 @@ export class ClearHsakaaDailyPrivacyOverrideDto {
 
   @IsString()
   itemId: string;
+}
+
+export class UpsertHsakaaDailyJournalPointerDto {
+  @IsString()
+  dateKey: string;
+
+  @IsString()
+  @IsIn(['work', 'offline_reading', 'conversation', 'decision', 'personal'])
+  category: string;
+
+  @IsString()
+  @MaxLength(4000)
+  note: string;
+
+  @IsOptional()
+  @IsEnum(HsakaaDailyContextPrivacy)
+  privacy?: HsakaaDailyContextPrivacy;
+}
+
+export class RemoveHsakaaDailyJournalPointerDto {
+  @IsString()
+  dateKey: string;
+
+  @IsString()
+  @IsIn(['work', 'offline_reading', 'conversation', 'decision', 'personal'])
+  category: string;
 }

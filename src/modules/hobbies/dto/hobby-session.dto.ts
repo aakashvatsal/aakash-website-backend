@@ -145,3 +145,8 @@ export class LogHobbySessionDto {
   @IsObject()
   metadata?: Record<string, unknown>;
 }
+
+export class CompletePlannedHobbySessionDto {
+  @IsDateString()
+  dateKey: string;
+}

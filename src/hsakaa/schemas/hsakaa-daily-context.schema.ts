@@ -24,6 +24,7 @@ export enum HsakaaDailyContextSource {
   PEOPLE = 'people',
   COMPANY = 'company',
   HSAKAA = 'hsakaa',
+  OWNER = 'owner',
 }
 
 export interface HsakaaDailyPrivacyOverride {
