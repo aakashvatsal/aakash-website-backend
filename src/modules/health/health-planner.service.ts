@@ -677,6 +677,14 @@ type AiHealthPlan = {
   days: Array<Record<string, unknown> & { dateKey: string }>;
 };
 
+type NutritionDiversityDay = {
+  dateKey: string;
+  meals: Array<{
+    label: string;
+    signature: string;
+  }>;
+};
+
 type UploadedHealthPhoto = {
   buffer: Buffer;
   mimetype: string;
@@ -2045,6 +2053,7 @@ export class HealthPlannerService {
         contextJson,
         strategy,
         options.reason,
+        existing.filter((day) => !targetDateKeys.includes(day.dateKey)),
       );
       const generatedDays = generatedBatches.flatMap(
         (batch) => batch.data.days,
@@ -2408,6 +2417,7 @@ export class HealthPlannerService {
     contextJson: string,
     strategy: unknown,
     reason: string,
+    referenceDays: unknown[] = [],
   ): Promise<Array<AiStructuredResponse<AiHealthPlan>>> {
     const batchSize = 2;
     const batches: string[][] = [];
@@ -2415,25 +2425,32 @@ export class HealthPlannerService {
       batches.push(dateKeys.slice(index, index + batchSize));
     }
 
-    const generated = new Array<AiStructuredResponse<AiHealthPlan>>(
-      batches.length,
-    );
-    let nextBatchIndex = 0;
-    const workerCount = Math.min(2, batches.length);
-    const workers = Array.from({ length: workerCount }, async () => {
-      while (true) {
-        const batchIndex = nextBatchIndex;
-        nextBatchIndex += 1;
-        if (batchIndex >= batches.length) return;
-        generated[batchIndex] = await this.generatePlanDays(
-          batches[batchIndex],
-          contextJson,
-          strategy,
-          reason,
-        );
-      }
-    });
-    await Promise.all(workers);
+    // Nutrition used to be generated in concurrent two-day batches. Each batch
+    // therefore saw the same context but not the meals selected by the other
+    // batches, which allowed the same "safe" meal template to repeat across
+    // most of the seven-day window. Generate the small batches sequentially and
+    // carry the already-used meal signatures forward.
+    const generated: Array<AiStructuredResponse<AiHealthPlan>> = [];
+    let nutritionDiversityContext =
+      this.extractNutritionDiversityDays(referenceDays);
+
+    for (const batch of batches) {
+      const result = await this.generatePlanDays(
+        batch,
+        contextJson,
+        strategy,
+        reason,
+        nutritionDiversityContext,
+      );
+      generated.push(result);
+      nutritionDiversityContext = [
+        ...nutritionDiversityContext,
+        ...this.extractNutritionDiversityDays(result.data.days),
+      ]
+        .sort((left, right) => left.dateKey.localeCompare(right.dateKey))
+        .slice(-7);
+    }
+
     return generated;
   }
 
@@ -2461,6 +2478,7 @@ export class HealthPlannerService {
     contextJson: string,
     strategy: unknown,
     reason: string,
+    nutritionDiversityContext: NutritionDiversityDay[] = [],
   ): Promise<AiStructuredResponse<AiHealthPlan>> {
     const startedAt = Date.now();
     try {
@@ -2473,11 +2491,21 @@ export class HealthPlannerService {
           reasoningEffort: 'low',
           maxOutputTokens: 12000,
           instructions: this.planInstructions(),
-          input: JSON.stringify({ reason, dateKeys, strategy, contextJson }),
+          input: JSON.stringify({
+            reason,
+            dateKeys,
+            strategy,
+            contextJson,
+            nutritionDiversityContext,
+          }),
         });
 
       const specificityIssues = [
         ...this.findNutritionSpecificityIssues(result.data),
+        ...this.findNutritionDiversityIssues(
+          result.data,
+          nutritionDiversityContext,
+        ),
         ...this.findDailyRegimenCompletenessIssues(result.data),
       ];
       if (specificityIssues.length) {
@@ -2503,13 +2531,23 @@ export class HealthPlannerService {
           maxOutputTokens: 12000,
           instructions: [
             this.planInstructions(),
-            'The previous plan failed Health-plan completeness validation. Correct every issue below. Keep exact food specificity, include creatine/protein decisions, and return complete tagged skin/hair/body routines for every date.',
+            'The previous plan failed Health-plan completeness validation. Correct every issue below. Keep exact food specificity, preserve calorie/macro intent, rotate meals against nutritionDiversityContext, include creatine/protein decisions, and return complete tagged skin/hair/body routines for every date.',
             ...specificityIssues.slice(0, 30).map((issue) => `- ${issue}`),
           ].join('\n'),
-          input: JSON.stringify({ reason, dateKeys, strategy, contextJson }),
+          input: JSON.stringify({
+            reason,
+            dateKeys,
+            strategy,
+            contextJson,
+            nutritionDiversityContext,
+          }),
         });
         const retryIssues = [
           ...this.findNutritionSpecificityIssues(result.data),
+          ...this.findNutritionDiversityIssues(
+            result.data,
+            nutritionDiversityContext,
+          ),
           ...this.findDailyRegimenCompletenessIssues(result.data),
         ];
         if (retryIssues.length) {
@@ -2807,6 +2845,124 @@ export class HealthPlannerService {
     return issues;
   }
 
+  private extractNutritionDiversityDays(
+    values: unknown[],
+  ): NutritionDiversityDay[] {
+    return values
+      .map((value) => {
+        const day = this.asRecord(value);
+        const dateKey = this.asText(day.dateKey);
+        const nutrition = this.asRecord(day.nutrition);
+        const meals = Array.isArray(nutrition.meals) ? nutrition.meals : [];
+        return {
+          dateKey,
+          meals: meals
+            .map((mealValue) => {
+              const meal = this.asRecord(mealValue);
+              return {
+                label: this.normalizeMealLabel(this.asText(meal.label)),
+                signature: this.mealSignature(meal),
+              };
+            })
+            .filter((meal) => meal.signature),
+        };
+      })
+      .filter((day) => day.dateKey && day.meals.length)
+      .sort((left, right) => left.dateKey.localeCompare(right.dateKey));
+  }
+
+  private normalizeMealLabel(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+  }
+
+  private mealSignature(meal: Record<string, unknown>): string {
+    const items = Array.isArray(meal.items) ? meal.items : [];
+    return items
+      .map((itemValue) => {
+        const item = this.asRecord(itemValue);
+        return this.normalizeFoodName(this.asText(item.name));
+      })
+      .filter(Boolean)
+      .sort()
+      .join('|');
+  }
+
+  private isPrimaryMealLabel(label: string): boolean {
+    return /\b(breakfast|lunch|dinner|brunch|main meal|meal [123])\b/i.test(
+      label,
+    );
+  }
+
+  private findNutritionDiversityIssues(
+    plan: AiHealthPlan,
+    referenceDays: NutritionDiversityDay[] = [],
+  ): string[] {
+    const issues: string[] = [];
+    const history = [...referenceDays].sort((left, right) =>
+      left.dateKey.localeCompare(right.dateKey),
+    );
+
+    for (const current of this.extractNutritionDiversityDays(plan.days)) {
+      const fullDaySignature = current.meals
+        .map((meal) => `${meal.label}:${meal.signature}`)
+        .join('||');
+
+      const duplicateDay = history.find(
+        (previous) =>
+          previous.meals
+            .map((meal) => `${meal.label}:${meal.signature}`)
+            .join('||') === fullDaySignature,
+      );
+      if (duplicateDay) {
+        issues.push(
+          `${current.dateKey}: nutrition repeats the complete meal lineup from ${duplicateDay.dateKey}; rotate the actual foods/preparations while preserving nutrition targets.`,
+        );
+      }
+
+      const previousDay = history[history.length - 1];
+      if (previousDay) {
+        const previousByLabel = new Map(
+          previousDay.meals.map((meal) => [meal.label, meal.signature]),
+        );
+        const repeatedPrimaryMeals = current.meals.filter(
+          (meal) =>
+            this.isPrimaryMealLabel(meal.label) &&
+            previousByLabel.get(meal.label) === meal.signature,
+        );
+        if (repeatedPrimaryMeals.length >= 2) {
+          issues.push(
+            `${current.dateKey}: ${repeatedPrimaryMeals.length} primary meals exactly repeat ${previousDay.dateKey}; change at least two main meal combinations unless a recorded constraint requires repetition.`,
+          );
+        }
+      }
+
+      for (const meal of current.meals) {
+        if (!this.isPrimaryMealLabel(meal.label)) continue;
+        const previousUses = history.filter((previous) =>
+          previous.meals.some(
+            (candidate) =>
+              candidate.label === meal.label &&
+              candidate.signature === meal.signature,
+          ),
+        );
+        if (previousUses.length >= 2) {
+          issues.push(
+            `${current.dateKey}: ${meal.label || 'primary meal'} repeats the same exact food combination for a third time in the rolling window; rotate the meal while keeping targets practical.`,
+          );
+        }
+      }
+
+      history.push(current);
+      history.sort((left, right) => left.dateKey.localeCompare(right.dateKey));
+      if (history.length > 7) history.splice(0, history.length - 7);
+    }
+
+    return issues;
+  }
+
   private findNutritionSpecificityIssues(plan: AiHealthPlan): string[] {
     const issues: string[] = [];
     const genericNames = new Set([
@@ -2931,6 +3087,7 @@ export class HealthPlannerService {
       'If a trainer program is supplied, follow its split/exercises unless an explicit safety/recovery reason requires a conservative adaptation.',
       'NUTRITION: use numeric calorie/macros only when baseline/goal/tracked context supports them. Use 0 rather than inventing a target when evidence is insufficient. Respect diet restrictions and clinician/dietitian instructions.',
       'FOOD SPECIFICITY: every meal must contain exact food items and practical quantities. Never write only generic labels such as vegetables, mixed vegetables, sabzi, fruit, nuts, flour, atta, grains, protein or rice. Name the actual choice: e.g. spinach/bhindi/broccoli, whole-wheat atta/jowar flour, and brown/red/white basmati/hand-pounded/other explicit rice type. Include preparation, why it is there, and practical alternatives. Use the saved location to prefer foods that are realistically available locally. Include fruits and nuts/seeds only when they fit the plan rather than forcing them into every day.',
+      'MEAL ROTATION: nutritionDiversityContext contains meals already selected elsewhere in the current rolling window. Do not repeat an entire day meal-for-meal. Keep calorie, macro and dietary constraints coherent while rotating practical food combinations, protein sources, grains, vegetables, fruit choices and preparation styles. The same exact primary-meal combination should appear no more than twice in a seven-day window and should not be repeated on consecutive days unless an explicit clinician/dietitian constraint requires it. Reusing useful staples is allowed; repeating the same full breakfast/lunch/dinner template is not.',
       'PERFORMANCE NUTRITION / SUPPLEMENTS: nutrition.performanceNutrition must contain explicit daily rows for creatine and protein powder, plus any other strategy recommendation that materially affects that day. Copy the strategy decision into action. If it is already configured/owner-approved, status=active and explain how it fits today without changing the saved dose/timing. If it is ADD/REPLACE and not configured, status=pending_approval, approvalRequired=true, state the exact form/specification to buy and how it would fit once approved, but do not invent or activate a dose. REVIEW/REVIEW_STOP uses status=review_required. If protein powder is unnecessary because exact meals already meet the protein target, use not_needed/not_needed_today and say so. Creatine and protein powder must never be silently omitted.',
       'CARE ROUTINES ARE THE DAILY SOURCE OF TRUTH: do not require a product to be pre-entered before writing the routine. Use configured/owned products where suitable; otherwise use the strategy recommendation. EVERY skincare, haircare and bodyCare step must begin with exactly one status tag: [OWNED] when an existing configured product can be used, [BUY] when an OTC product/form should be shortlisted before the step can be followed, or [REVIEW] when owner/professional confirmation is needed. Do not auto-purchase, auto-accept, or silently add prescription treatments.',
       'SKINCARE AM: return a complete ordered routine, not generic advice. Usually cover cleansing, an evidence-suitable treatment decision, moisturising when needed, and sunscreen as the final morning step. Vitamin C or caffeine/eye treatment may be selected when supported by the owner baseline/goals/tolerance; never force them just because they are examples.',
