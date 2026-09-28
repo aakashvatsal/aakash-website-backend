@@ -34,12 +34,14 @@ import {
   SupersedeMemoryDto,
 } from './dto/manage-memory-lifecycle.dto';
 import { MemoryInboxQueryDto } from './dto/memory-inbox-query.dto';
+import { GeneratePublicMemoryCandidatesDto } from './dto/generate-public-memory-candidates.dto';
 import { UpdateMemoryDto } from './dto/update-memory.dto';
 import { UpdateMemoryScoreDto } from './dto/update-memory-score.dto';
 import { UpdateMemoryTagsDto } from './dto/update-memory-tags.dto';
 import { MemoryService } from './memory.service';
 import { MemoryReviewService } from './memory-review.service';
 import { MemoryInboxService } from './memory-inbox.service';
+import { PublicMemoryImportService } from './public-memory-import.service';
 
 @Controller('memory')
 export class MemoryController {
@@ -47,6 +49,7 @@ export class MemoryController {
     private readonly memoryService: MemoryService,
     private readonly memoryInboxService: MemoryInboxService,
     private readonly memoryReviewService: MemoryReviewService,
+    private readonly publicMemoryImportService: PublicMemoryImportService,
   ) {}
 
   @Post('inbox')
@@ -57,6 +60,13 @@ export class MemoryController {
   @Get('inbox')
   getInbox(@Query() query: MemoryInboxQueryDto) {
     return this.memoryInboxService.findAll(query);
+  }
+
+  @Post('inbox/generate-public-candidates')
+  generatePublicMemoryCandidates(
+    @Body() dto: GeneratePublicMemoryCandidatesDto,
+  ) {
+    return this.publicMemoryImportService.generate(dto);
   }
 
   @Post('inbox/:inboxItemId/accept')

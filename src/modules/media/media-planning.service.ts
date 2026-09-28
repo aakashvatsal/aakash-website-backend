@@ -2,31 +2,31 @@ import {
   BadRequestException,
   Injectable,
   ServiceUnavailableException,
-} from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { AiGenerationUsage, AiService } from '../ai/ai.service';
-import { GenerateMediaPlanningCycleDto } from './dto/media-planning.dto';
-import { MediaCalendarService } from './media-calendar.service';
-import { MediaContentIntelligenceService } from './media-content-intelligence.service';
-import { MediaGrowthService } from './media-growth.service';
-import { MediaLearningService } from './media-learning.service';
-import { MediaLaunchService } from './media-launch.service';
-import { MediaPresenceService } from './media-presence.service';
-import { MediaSocialPresenceService } from './media-social-presence.service';
-import { MediaStrategyAdaptationService } from './media-strategy-adaptation.service';
+} from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
+import { AiGenerationUsage, AiService } from "../ai/ai.service";
+import { GenerateMediaPlanningCycleDto } from "./dto/media-planning.dto";
+import { MediaCalendarService } from "./media-calendar.service";
+import { MediaContentIntelligenceService } from "./media-content-intelligence.service";
+import { MediaGrowthService } from "./media-growth.service";
+import { MediaLearningService } from "./media-learning.service";
+import { MediaLaunchService } from "./media-launch.service";
+import { MediaPresenceService } from "./media-presence.service";
+import { MediaSocialPresenceService } from "./media-social-presence.service";
+import { MediaStrategyAdaptationService } from "./media-strategy-adaptation.service";
 import {
   MediaPlanningCycle,
   MediaPlanningCycleDocument,
   MediaPlanningDailyStory,
   MediaPlanningExecution,
   MediaPlanningYoutubeCommunityPost,
-} from './schemas/media-planning-cycle.schema';
+} from "./schemas/media-planning-cycle.schema";
 import {
   MEDIA_PUBLIC_IDENTITY_PILLARS,
   MediaPublicIdentityPillar,
-} from './media-public-identity';
-import { MediaPlatform, MediaPostType } from './schemas/media-post.schema';
+} from "./media-public-identity";
+import { MediaPlatform, MediaPostType } from "./schemas/media-post.schema";
 import {
   MEDIA_CURRENT_GROWTH_SEASON,
   MEDIA_HEALTH_CONTENT_POLICY,
@@ -37,18 +37,18 @@ import {
   MEDIA_STORYTELLING_VERSION,
   MEDIA_WEEKLY_HUMANITY_CONTRACT,
   mediaStorytellingPromptPolicy,
-} from './media-storytelling-policy';
+} from "./media-storytelling-policy";
 import {
   MediaDailyExecution,
   MediaDailyExecutionDocument,
   MediaExecutionKind,
   MediaExecutionStatus,
-} from './schemas/media-daily-execution.schema';
+} from "./schemas/media-daily-execution.schema";
 import {
   MediaDeliveryStatus,
   MediaPublication,
   MediaPublicationDocument,
-} from './schemas/media-publication.schema';
+} from "./schemas/media-publication.schema";
 
 const GROWTH_PLATFORMS = [
   MediaPlatform.LINKEDIN,
@@ -57,20 +57,20 @@ const GROWTH_PLATFORMS = [
   MediaPlatform.X,
   MediaPlatform.WHATSAPP,
 ];
-const TZ = 'Asia/Kolkata';
-const ROLLING_PLANNING_EPOCH = '2026-09-07';
+const TZ = "Asia/Kolkata";
+const ROLLING_PLANNING_EPOCH = "2026-09-07";
 const ROLLING_WINDOW_DAYS = 7;
 const GROWTH_TARGET_FOLLOWERS = 100_000;
 const WHOLE_PERSON_STRATEGY_NARRATIVES = new Set([
-  'learning_experiments',
-  'building_aakash',
-  'human_personality',
+  "learning_experiments",
+  "building_aakash",
+  "human_personality",
 ]);
 const PERSONAL_STRATEGY_NARRATIVES = new Set([
-  'learning_experiments',
-  'building_aakash',
-  'human_personality',
-  'personal_intelligence',
+  "learning_experiments",
+  "building_aakash",
+  "human_personality",
+  "personal_intelligence",
 ]);
 const HOBBY_MAX_WEEKLY_SURFACES_PER_SIGNAL = 2;
 const VIDEO_FORMATS = new Set<MediaPostType>([
@@ -124,47 +124,47 @@ type PlanningGrowthObjective = {
   remainingToTarget: number;
   knownPlatforms: string[];
   unknownPlatforms: string[];
-  mode: 'fastest_sustainable';
+  mode: "fastest_sustainable";
   priorities: string[];
   guardrails: string[];
 };
 
 type GeneratedPlan = Omit<
   MediaPlanningCycle,
-  | 'key'
-  | 'strategyFingerprint'
-  | 'contextFingerprint'
-  | 'aiModel'
-  | 'aiResponseId'
-  | 'generatedAt'
-  | 'isActive'
-  | 'weekContext'
+  | "key"
+  | "strategyFingerprint"
+  | "contextFingerprint"
+  | "aiModel"
+  | "aiResponseId"
+  | "generatedAt"
+  | "isActive"
+  | "weekContext"
 >;
 
 type PlanningMemory = Awaited<
-  ReturnType<MediaContentIntelligenceService['planningFingerprintContext']>
+  ReturnType<MediaContentIntelligenceService["planningFingerprintContext"]>
 >[number];
 
 type PlanningExecutionSkeleton = Pick<
   MediaPlanningExecution,
-  | 'platform'
-  | 'action'
-  | 'time'
-  | 'format'
-  | 'opportunityKey'
-  | 'storyArcKey'
-  | 'reason'
+  | "platform"
+  | "action"
+  | "time"
+  | "format"
+  | "opportunityKey"
+  | "storyArcKey"
+  | "reason"
 >;
 
 type PlanningBlueprint = Pick<
   GeneratedPlan,
-  | 'startDate'
-  | 'endDate'
-  | 'timezone'
-  | 'learningStage'
-  | 'summary'
-  | 'opportunities'
-  | 'storyArcs'
+  | "startDate"
+  | "endDate"
+  | "timezone"
+  | "learningStage"
+  | "summary"
+  | "opportunities"
+  | "storyArcs"
 > & {
   days: Array<{
     date: string;
@@ -173,41 +173,41 @@ type PlanningBlueprint = Pick<
     executions: PlanningExecutionSkeleton[];
     instagramStory: Pick<
       MediaPlanningDailyStory,
-      | 'action'
-      | 'time'
-      | 'sourceType'
-      | 'sourceEvidenceIds'
-      | 'reason'
-      | 'captureBrief'
+      | "action"
+      | "time"
+      | "sourceType"
+      | "sourceEvidenceIds"
+      | "reason"
+      | "captureBrief"
     >;
     youtubeCommunity: Pick<
       MediaPlanningYoutubeCommunityPost,
-      | 'action'
-      | 'time'
-      | 'format'
-      | 'sourceType'
-      | 'sourceEvidenceIds'
-      | 'reason'
+      | "action"
+      | "time"
+      | "format"
+      | "sourceType"
+      | "sourceEvidenceIds"
+      | "reason"
     >;
-    engagement: GeneratedPlan['days'][number]['engagement'];
+    engagement: GeneratedPlan["days"][number]["engagement"];
   }>;
 };
 
-type PlanningStrategyCore = Omit<PlanningBlueprint, 'days'>;
+type PlanningStrategyCore = Omit<PlanningBlueprint, "days">;
 
 type PlanningCalendarBlueprint = {
-  days: PlanningBlueprint['days'];
+  days: PlanningBlueprint["days"];
 };
 
 type PlanningWorldContext = Awaited<
-  ReturnType<MediaPresenceService['directorContext']>
->['worldContext'];
+  ReturnType<MediaPresenceService["directorContext"]>
+>["worldContext"];
 type PlanningPresenceStrategy = NonNullable<
   Awaited<
-    ReturnType<MediaPresenceService['directorContext']>
-  >['presenceStrategy']
+    ReturnType<MediaPresenceService["directorContext"]>
+  >["presenceStrategy"]
 >;
-type PlanningWholeLifeSignal = PlanningWorldContext['wholeLifeSignals'][number];
+type PlanningWholeLifeSignal = PlanningWorldContext["wholeLifeSignals"][number];
 
 type PlanningBlueprintRepairContext = {
   startDate: string;
@@ -222,7 +222,7 @@ type PlanningBlueprintRepairContext = {
 type PlanningEvidenceCatalogEntry = {
   key: string;
   id: string;
-  privacy: 'public_safe' | 'internal_safe' | 'identity_safe';
+  privacy: "public_safe" | "internal_safe" | "identity_safe";
   title: string;
   summary: string;
   kind: string;
@@ -317,7 +317,7 @@ export class MediaPlanningService {
     const latestMatchesStrategy = Boolean(
       latest &&
       strategy &&
-      String(latest.key ?? '').split(':')[1] === String(strategy.version),
+      String(latest.key ?? "").split(":")[1] === String(strategy.version),
     );
     const expectedDates = Array.from(
       { length: ROLLING_WINDOW_DAYS },
@@ -335,7 +335,7 @@ export class MediaPlanningService {
     const needsWeeklyContext = Boolean(
       !latestWeekContext ||
       latestWeekContext.weekKey !== currentWeekKey ||
-      latestWeekContext.outingStatus === 'unknown',
+      latestWeekContext.outingStatus === "unknown",
     );
     const canAutoRoll = Boolean(
       latestMatchesStrategy &&
@@ -371,14 +371,14 @@ export class MediaPlanningService {
         needsWeeklyContext,
         weekKey: currentWeekKey,
         weekContext: latestWeekContext ?? {
-          outingStatus: 'unknown',
-          outingDetails: '',
+          outingStatus: "unknown",
+          outingDetails: "",
           weekKey: currentWeekKey,
           capturedAt: null,
         },
       },
       policy: {
-        version: 'v3.16.4',
+        version: "v3.16.4",
         horizonDays: ROLLING_WINDOW_DAYS,
         timezone: TZ,
         postingEveryDayRequired: false,
@@ -400,19 +400,19 @@ export class MediaPlanningService {
           targetSharePercent: item.targetSharePercent,
         })),
         publicIdentity: {
-          archetype: 'thoughtful_builder_building_companies_and_himself',
+          archetype: "thoughtful_builder_building_companies_and_himself",
           traits: [
-            'curious',
-            'analytical',
-            'ambitious',
-            'calm',
-            'human',
-            'experimental',
-            'slightly_unconventional',
+            "curious",
+            "analytical",
+            "ambitious",
+            "calm",
+            "human",
+            "experimental",
+            "slightly_unconventional",
           ],
           pillars: MEDIA_PUBLIC_IDENTITY_PILLARS,
           professionalPersonalBalance:
-            'professional authority anchors the brand; whole-life context builds familiarity and follow-through',
+            "professional authority anchors the brand; whole-life context builds familiarity and follow-through",
         },
         sustainableWeeklyCadence: {
           longFormVideos: cadence.longFormVideos,
@@ -467,26 +467,26 @@ export class MediaPlanningService {
         min: 2,
         preferred: 3,
         max: 4,
-        label: 'LinkedIn',
+        label: "LinkedIn",
       },
       [MediaPlatform.INSTAGRAM]: {
         min: 2,
         preferred: 3,
         max: 4,
-        label: 'Instagram',
+        label: "Instagram",
       },
       [MediaPlatform.YOUTUBE]: {
         min: 1,
         preferred: 2,
         max: 2,
-        label: 'YouTube',
+        label: "YouTube",
       },
-      [MediaPlatform.X]: { min: 2, preferred: 4, max: 7, label: 'X' },
+      [MediaPlatform.X]: { min: 2, preferred: 4, max: 7, label: "X" },
       [MediaPlatform.WHATSAPP]: {
         min: 0,
         preferred: 1,
         max: 3,
-        label: 'WhatsApp',
+        label: "WhatsApp",
       },
     };
     for (const role of strategy?.platformRoles ?? []) {
@@ -497,7 +497,7 @@ export class MediaPlanningService {
         max: Math.max(0, Math.trunc(role.maxPostsPerWeek ?? 0)),
         label:
           role.platform === MediaPlatform.X
-            ? 'X'
+            ? "X"
             : role.platform.charAt(0).toUpperCase() + role.platform.slice(1),
       };
     }
@@ -515,14 +515,14 @@ export class MediaPlanningService {
 
   private cadenceLabel(cadence: PlanningCadence, platform: MediaPlatform) {
     const role = cadence.platforms[platform];
-    if (!role) return '0';
+    if (!role) return "0";
     if (role.min === role.max) return `${role.preferred}`;
     if (role.min === 0) return `~${role.preferred} (max ${role.max})`;
     return `${role.min}-${role.max} (pref ${role.preferred})`;
   }
 
   private growthObjective(
-    socialPresence: Awaited<ReturnType<MediaSocialPresenceService['overview']>>,
+    socialPresence: Awaited<ReturnType<MediaSocialPresenceService["overview"]>>,
   ): PlanningGrowthObjective {
     let currentKnownFollowers = 0;
     const knownPlatforms: string[] = [];
@@ -535,7 +535,7 @@ export class MediaPlanningService {
       }
       seen.add(platform);
       const count = item.profile?.followerCount;
-      if (typeof count === 'number' && Number.isFinite(count) && count >= 0) {
+      if (typeof count === "number" && Number.isFinite(count) && count >= 0) {
         currentKnownFollowers += count;
         knownPlatforms.push(platform);
       } else {
@@ -551,20 +551,20 @@ export class MediaPlanningService {
       ),
       knownPlatforms,
       unknownPlatforms,
-      mode: 'fastest_sustainable',
+      mode: "fastest_sustainable",
       priorities: [
-        'increase qualified discovery and non-follower reach',
-        'convert profile visits and viewers into followers by making the ongoing Aakash journey clear',
-        'build recurring series and recognizable formats that reward returning',
-        'maximize impressions/recommendation eligibility, qualified choice-to-view, shares/saves, completion/watch time and meaningful conversation where they predict follow-through',
-        'optimize titles, thumbnails/covers and first-seconds packaging for strangers before asking existing followers to care',
-        'use platform-native distribution rather than identical cross-posts',
+        "increase qualified discovery and non-follower reach",
+        "convert profile visits and viewers into followers by making the ongoing Aakash journey clear",
+        "build recurring series and recognizable formats that reward returning",
+        "maximize impressions/recommendation eligibility, qualified choice-to-view, shares/saves, completion/watch time and meaningful conversation where they predict follow-through",
+        "optimize titles, thumbnails/covers and first-seconds packaging for strangers before asking existing followers to care",
+        "use platform-native distribution rather than identical cross-posts",
       ],
       guardrails: [
-        'no bought followers, engagement pods or artificial amplification',
-        'no fake controversy, manufactured vulnerability or unrelated trend-chasing',
-        'do not sacrifice Aakash voice, privacy or factual integrity for reach',
-        'do not increase posting volume when quality or real context is missing',
+        "no bought followers, engagement pods or artificial amplification",
+        "no fake controversy, manufactured vulnerability or unrelated trend-chasing",
+        "do not sacrifice Aakash voice, privacy or factual integrity for reach",
+        "do not increase posting volume when quality or real context is missing",
       ],
     };
   }
@@ -593,7 +593,7 @@ export class MediaPlanningService {
     const dayByDate = new Map<
       string,
       {
-        day: MediaPlanningCycle['days'][number];
+        day: MediaPlanningCycle["days"][number];
         planId: string;
         generatedAt: Date;
       }
@@ -605,7 +605,7 @@ export class MediaPlanningService {
         if (dayByDate.has(day.date)) continue;
         dayByDate.set(day.date, {
           day,
-          planId: String(plan._id ?? ''),
+          planId: String(plan._id ?? ""),
           generatedAt: plan.generatedAt,
         });
       }
@@ -670,7 +670,7 @@ export class MediaPlanningService {
       const plannedPlatforms = [
         ...new Set(
           (record.day.executions ?? [])
-            .filter((item) => item.action === 'post')
+            .filter((item) => item.action === "post")
             .map((item) => item.platform),
         ),
       ];
@@ -719,7 +719,7 @@ export class MediaPlanningService {
     const presence = await this.presenceService.directorContext();
     if (!presence.presenceStrategy || !presence.voiceProfile) {
       throw new BadRequestException(
-        'Build the Media Presence Strategy and Aakash Voice Profile before generating the 7-day plan.',
+        "Build the Media Presence Strategy and Aakash Voice Profile before generating the 7-day plan.",
       );
     }
 
@@ -735,7 +735,7 @@ export class MediaPlanningService {
       { length: ROLLING_WINDOW_DAYS },
       (_, index) => this.addDays(startDate, index),
     );
-    const ensureMode = dto.mode === 'ensure';
+    const ensureMode = dto.mode === "ensure";
     const ensureBase = ensureMode
       ? await this.findRollingBasePlan(
           startDate,
@@ -763,7 +763,7 @@ export class MediaPlanningService {
       return this.generateSingleDayIntoRollingPlan(
         ensureBase,
         targetDate,
-        { ...dto, mode: 'ensure', targetDate },
+        { ...dto, mode: "ensure", targetDate },
         onProgress,
       );
     }
@@ -799,7 +799,7 @@ export class MediaPlanningService {
       ],
     );
     const growthObjective = this.growthObjective(socialPresence);
-    const baseKey = `${startDate}:${presence.presenceStrategy.version}:${presence.voiceProfile.version}:${weeklyAdaptation?.key ?? 'no-weekly-review'}:${launchContext.phase}:${MEDIA_STORYTELLING_VERSION}`;
+    const baseKey = `${startDate}:${presence.presenceStrategy.version}:${presence.voiceProfile.version}:${weeklyAdaptation?.key ?? "no-weekly-review"}:${launchContext.phase}:${MEDIA_STORYTELLING_VERSION}`;
     const existing = await this.planModel.findOne({
       key: baseKey,
       isActive: true,
@@ -833,7 +833,7 @@ export class MediaPlanningService {
     ] as PlanningMemory[];
 
     try {
-      await report('strategy', 5, 0, null);
+      await report("strategy", 5, 0, null);
       const publicEvidenceIds = this.planningPublicEvidence(
         presence.worldContext,
       ).map((item) => item.id);
@@ -857,16 +857,16 @@ export class MediaPlanningService {
         presence.voiceProfile,
       );
       const blueprintInput = {
-        owner: 'Aakash',
+        owner: "Aakash",
         startDate,
         endDate,
         timezone: TZ,
         notes: dto.notes?.trim() || null,
-        generationMode: ensureMode ? 'ensure_missing_days' : 'full_week',
+        generationMode: ensureMode ? "ensure_missing_days" : "full_week",
         requestedMissingDates: ensureMode ? generationTargetDates : [],
         currentRollingWindow:
           ensureMode && ensureBase
-            ? this.compactRollingPlan(ensureBase, '')
+            ? this.compactRollingPlan(ensureBase, "")
             : null,
         learningStage: launchContext.phase,
         launchCalibration: launchContext,
@@ -907,7 +907,7 @@ export class MediaPlanningService {
         evidenceCatalog,
         usage,
         ensureMode && ensureBase
-          ? `ENSURE-MISSING-DAYS MODE: dates ${generationTargetDates.join(', ')} are the only missing dates. Existing dates in currentRollingWindow are immutable and will not be regenerated or replaced. Build a coherent seven-day blueprint that complements those existing days, but only the requested missing dates will be materialized. Avoid repeating the topics, hooks, examples, structures or wording already present in currentRollingWindow.`
+          ? `ENSURE-MISSING-DAYS MODE: dates ${generationTargetDates.join(", ")} are the only missing dates. Existing dates in currentRollingWindow are immutable and will not be regenerated or replaced. Build a coherent seven-day blueprint that complements those existing days, but only the requested missing dates will be materialized. Avoid repeating the topics, hooks, examples, structures or wording already present in currentRollingWindow.`
           : undefined,
         cadence,
       );
@@ -941,7 +941,7 @@ export class MediaPlanningService {
           blueprintInput,
           evidenceCatalog,
           usage,
-          `REPAIR REQUIRED: the previous blueprint starved or malformed the calendar (${this.errorMessage(error)}). Re-plan from the supplied public-safe facts plus internal-safe reflection material. Do not solve evidence uncertainty by skipping the whole week.${ensureMode && ensureBase ? ` Existing dates are immutable; only missing dates ${generationTargetDates.join(', ')} will be materialized, so make those dates complement currentRollingWindow.` : ''}`,
+          `REPAIR REQUIRED: the previous blueprint starved or malformed the calendar (${this.errorMessage(error)}). Re-plan from the supplied public-safe facts plus internal-safe reflection material. Do not solve evidence uncertainty by skipping the whole week.${ensureMode && ensureBase ? ` Existing dates are immutable; only missing dates ${generationTargetDates.join(", ")} will be materialized, so make those dates complement currentRollingWindow.` : ""}`,
           cadence,
         );
         blueprintResponse.data = this.repairBlueprintPortfolio(
@@ -978,7 +978,7 @@ export class MediaPlanningService {
         storyArcs: blueprintResponse.data.storyArcs,
         days: [],
       };
-      await report('blueprint_ready', 20, 0, partialBase);
+      await report("blueprint_ready", 20, 0, partialBase);
 
       const materializationBlueprint = ensureMode
         ? {
@@ -1002,15 +1002,15 @@ export class MediaPlanningService {
         usage,
       );
 
-      const generatedDays: GeneratedPlan['days'] = [];
+      const generatedDays: GeneratedPlan["days"] = [];
       const responseIds = [
-        ...blueprintResponse.responseId.split(',').filter(Boolean),
+        ...blueprintResponse.responseId.split(",").filter(Boolean),
         ...weeklyStories.responseIds,
         ...weeklyYoutubeCommunity.responseIds,
       ];
       const models = new Set(
         [
-          ...blueprintResponse.model.split(',').filter(Boolean),
+          ...blueprintResponse.model.split(",").filter(Boolean),
           ...weeklyStories.models,
           ...weeklyYoutubeCommunity.models,
         ].filter(Boolean),
@@ -1018,12 +1018,12 @@ export class MediaPlanningService {
       const priorWeekCopies: Array<{
         platform: MediaPlatform;
         text: string;
-      }> = ensureBase ? this.currentRollingFeedCopies(ensureBase, '') : [];
+      }> = ensureBase ? this.currentRollingFeedCopies(ensureBase, "") : [];
       const priorStoryCopies: string[] = ensureBase
-        ? this.currentRollingStoryCopies(ensureBase, '')
+        ? this.currentRollingStoryCopies(ensureBase, "")
         : [];
       const priorYoutubeCommunityCopies: string[] = ensureBase
-        ? this.currentRollingCommunityCopies(ensureBase, '')
+        ? this.currentRollingCommunityCopies(ensureBase, "")
         : [];
       const opportunities = new Map(
         blueprintResponse.data.opportunities.map((item) => [item.key, item]),
@@ -1036,7 +1036,7 @@ export class MediaPlanningService {
       ) {
         const day = materializationBlueprint.days[dayIndex];
         const expectedPosts = day.executions.filter(
-          (item) => item.action === 'post',
+          (item) => item.action === "post",
         );
         const relevantOpportunityKeys = new Set(
           expectedPosts
@@ -1067,7 +1067,7 @@ export class MediaPlanningService {
         );
 
         const dayInput = {
-          owner: 'Aakash',
+          owner: "Aakash",
           date: day.date,
           timezone: TZ,
           weekSummary: blueprintResponse.data.summary,
@@ -1168,21 +1168,21 @@ export class MediaPlanningService {
         generatedDays.push(generatedDay);
 
         for (const item of executions) {
-          if (item.action !== 'post') continue;
+          if (item.action !== "post") continue;
           priorWeekCopies.push({
             platform: item.platform,
             text: this.executionPublicText(item),
           });
         }
-        if (instagramStory.action === 'post') {
+        if (instagramStory.action === "post") {
           priorStoryCopies.push(this.storyCopy(instagramStory));
         }
-        if (youtubeCommunity.action === 'post') {
+        if (youtubeCommunity.action === "post") {
           priorYoutubeCommunityCopies.push(youtubeCommunity.publishCopy);
         }
 
         await report(
-          'generating_days',
+          "generating_days",
           Math.min(
             92,
             25 +
@@ -1228,7 +1228,7 @@ export class MediaPlanningService {
       } else {
         this.assertRollingWindowDates(plan, startDate, endDate);
       }
-      await report('saving_plan', 96, generationTotalDays, plan);
+      await report("saving_plan", 96, generationTotalDays, plan);
       const saved = await this.planModel.findOneAndUpdate(
         { key },
         {
@@ -1240,8 +1240,8 @@ export class MediaPlanningService {
             timezone: TZ,
             strategyFingerprint: presence.presenceStrategy.sourceFingerprint,
             contextFingerprint: presence.worldContext.fingerprint,
-            aiModel: [...models].join(','),
-            aiResponseId: responseIds.join(','),
+            aiModel: [...models].join(","),
+            aiResponseId: responseIds.join(","),
             generatedAt: new Date(),
             weekContext,
             isActive: true,
@@ -1249,11 +1249,11 @@ export class MediaPlanningService {
         },
         { new: true, upsert: true, setDefaultsOnInsert: true },
       );
-      await report('completed', 100, generationTotalDays, plan);
+      await report("completed", 100, generationTotalDays, plan);
       return saved;
     } catch (error) {
       throw new ServiceUnavailableException(
-        `HSAKAA could not generate the seven-day Media Presence plan. ${error instanceof Error ? error.message : 'Unknown planning error.'}`,
+        `HSAKAA could not generate the seven-day Media Presence plan. ${error instanceof Error ? error.message : "Unknown planning error."}`,
       );
     }
   }
@@ -1274,7 +1274,7 @@ export class MediaPlanningService {
     const presence = await this.presenceService.directorContext();
     if (!presence.presenceStrategy || !presence.voiceProfile) {
       throw new BadRequestException(
-        'Build the Media Presence Strategy and Aakash Voice Profile before refreshing a planning day.',
+        "Build the Media Presence Strategy and Aakash Voice Profile before refreshing a planning day.",
       );
     }
     const base = await this.findRollingBasePlan(
@@ -1283,13 +1283,13 @@ export class MediaPlanningService {
     );
     if (!base) {
       throw new BadRequestException(
-        'Generate the fresh rolling seven-day plan first, then refresh individual days.',
+        "Generate the fresh rolling seven-day plan first, then refresh individual days.",
       );
     }
     return this.generateSingleDayIntoRollingPlan(
       base,
       targetDate,
-      { ...dto, mode: 'day', targetDate },
+      { ...dto, mode: "day", targetDate },
       onProgress,
     );
   }
@@ -1302,7 +1302,7 @@ export class MediaPlanningService {
     const presence = await this.presenceService.directorContext();
     if (!presence.presenceStrategy || !presence.voiceProfile) {
       throw new BadRequestException(
-        'Build the Media Presence Strategy and Aakash Voice Profile before rolling the plan forward.',
+        "Build the Media Presence Strategy and Aakash Voice Profile before rolling the plan forward.",
       );
     }
     const base = await this.findRollingBasePlan(
@@ -1311,7 +1311,7 @@ export class MediaPlanningService {
     );
     if (!base) {
       throw new BadRequestException(
-        'A fresh rolling plan is required. Create the seven-day rolling window first.',
+        "A fresh rolling plan is required. Create the seven-day rolling window first.",
       );
     }
     const inheritedContext = this.resolveWeekContext(
@@ -1334,7 +1334,7 @@ export class MediaPlanningService {
         targetDate,
         {
           ...dto,
-          mode: 'roll',
+          mode: "roll",
           targetDate,
           outingStatus: inheritedContext.outingStatus,
           outingDetails: inheritedContext.outingDetails,
@@ -1346,7 +1346,7 @@ export class MediaPlanningService {
     return this.generate(
       {
         ...dto,
-        mode: 'ensure',
+        mode: "ensure",
         startDate,
         targetDate: undefined,
         outingStatus: inheritedContext.outingStatus,
@@ -1366,7 +1366,7 @@ export class MediaPlanningService {
     const endDate = this.addDays(startDate, ROLLING_WINDOW_DAYS - 1);
     const presence = await this.presenceService.directorContext();
     if (!presence.presenceStrategy || !presence.voiceProfile) {
-      throw new BadRequestException('Media Presence is not ready.');
+      throw new BadRequestException("Media Presence is not ready.");
     }
     const cadence = this.planningCadence(presence.presenceStrategy);
     const usage = this.emptyPlanningUsage();
@@ -1440,14 +1440,14 @@ export class MediaPlanningService {
     const currentRollingWindow = this.compactRollingPlan(base, targetDate);
 
     try {
-      await report('single_day_strategy', 10, 0, null);
+      await report("single_day_strategy", 10, 0, null);
       const blueprintInput = {
-        owner: 'Aakash',
+        owner: "Aakash",
         startDate: targetDate,
         endDate: targetDate,
         timezone: TZ,
         notes: dto.notes?.trim() || null,
-        generationMode: dto.mode ?? 'day',
+        generationMode: dto.mode ?? "day",
         learningStage: launchContext.phase,
         launchCalibration: launchContext,
         presenceStrategy: presence.presenceStrategy,
@@ -1593,7 +1593,7 @@ export class MediaPlanningService {
         );
       }
 
-      await report('single_day_blueprint_ready', 35, 0, {
+      await report("single_day_blueprint_ready", 35, 0, {
         startDate,
         endDate,
         timezone: TZ,
@@ -1618,13 +1618,13 @@ export class MediaPlanningService {
         usage,
       );
       const responseIds = [
-        ...blueprintResponse.responseId.split(',').filter(Boolean),
+        ...blueprintResponse.responseId.split(",").filter(Boolean),
         ...weeklyStories.responseIds,
         ...weeklyYoutubeCommunity.responseIds,
       ];
       const models = new Set(
         [
-          ...blueprintResponse.model.split(',').filter(Boolean),
+          ...blueprintResponse.model.split(",").filter(Boolean),
           ...weeklyStories.models,
           ...weeklyYoutubeCommunity.models,
         ].filter(Boolean),
@@ -1633,7 +1633,7 @@ export class MediaPlanningService {
         blueprintResponse.data.opportunities.map((item) => [item.key, item]),
       );
       const expectedPosts = day.executions.filter(
-        (item) => item.action === 'post',
+        (item) => item.action === "post",
       );
       const relevantOpportunityKeys = new Set(
         expectedPosts
@@ -1653,7 +1653,7 @@ export class MediaPlanningService {
         targetDate,
       );
       const dayInput = {
-        owner: 'Aakash',
+        owner: "Aakash",
         date: targetDate,
         timezone: TZ,
         weekSummary: base.summary,
@@ -1741,7 +1741,7 @@ export class MediaPlanningService {
         models,
         validEvidence,
       });
-      const generatedDay: GeneratedPlan['days'][number] = {
+      const generatedDay: GeneratedPlan["days"][number] = {
         date: targetDate,
         theme: day.theme,
         workload: day.workload,
@@ -1770,8 +1770,8 @@ export class MediaPlanningService {
         { historicalNoveltyDates: new Set([targetDate]) },
       );
 
-      await report('saving_single_day', 92, 1, mergedPlan);
-      const key = `${startDate}:${presence.presenceStrategy.version}:${presence.voiceProfile.version}:${weeklyAdaptation?.key ?? 'no-weekly-review'}:${launchContext.phase}:v3.16.4:${dto.mode ?? 'day'}:${targetDate}:${Date.now()}`;
+      await report("saving_single_day", 92, 1, mergedPlan);
+      const key = `${startDate}:${presence.presenceStrategy.version}:${presence.voiceProfile.version}:${weeklyAdaptation?.key ?? "no-weekly-review"}:${launchContext.phase}:v3.16.4:${dto.mode ?? "day"}:${targetDate}:${Date.now()}`;
       const saved = await this.planModel.findOneAndUpdate(
         { key },
         {
@@ -1783,8 +1783,8 @@ export class MediaPlanningService {
             timezone: TZ,
             strategyFingerprint: presence.presenceStrategy.sourceFingerprint,
             contextFingerprint: presence.worldContext.fingerprint,
-            aiModel: [...models].join(','),
-            aiResponseId: responseIds.join(','),
+            aiModel: [...models].join(","),
+            aiResponseId: responseIds.join(","),
             generatedAt: new Date(),
             weekContext,
             isActive: true,
@@ -1807,11 +1807,11 @@ export class MediaPlanningService {
         },
         { $set: { isActive: false } },
       );
-      await report('completed', 100, 1, mergedPlan);
+      await report("completed", 100, 1, mergedPlan);
       return saved;
     } catch (error) {
       throw new ServiceUnavailableException(
-        `HSAKAA could not ${dto.mode === 'roll' ? 'roll the planning window forward' : `refresh ${targetDate}`}. ${this.errorMessage(error)}`,
+        `HSAKAA could not ${dto.mode === "roll" ? "roll the planning window forward" : `refresh ${targetDate}`}. ${this.errorMessage(error)}`,
       );
     }
   }
@@ -1830,7 +1830,7 @@ export class MediaPlanningService {
   }
 
   private addUsage(
-    target: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+    target: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
     next: AiGenerationUsage | undefined,
   ) {
     if (!next) return;
@@ -1842,7 +1842,7 @@ export class MediaPlanningService {
   }
 
   private captureFailureUsage(
-    target: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+    target: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
     error: unknown,
   ) {
     if (!(error instanceof Error)) return;
@@ -1861,12 +1861,12 @@ export class MediaPlanningService {
       schema: Record<string, unknown>;
       instructions: string;
       input: string;
-      verbosity?: 'low' | 'medium' | 'high';
+      verbosity?: "low" | "medium" | "high";
       reasoningEffort?:
-        'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+        "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
       maxOutputTokens?: number;
     },
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
     isRetry = false,
   ) {
     usage.calls += 1;
@@ -1885,8 +1885,8 @@ export class MediaPlanningService {
 
   private compactVoiceProfile(
     voiceProfile: Awaited<
-      ReturnType<MediaPresenceService['directorContext']>
-    >['voiceProfile'],
+      ReturnType<MediaPresenceService["directorContext"]>
+    >["voiceProfile"],
   ) {
     if (!voiceProfile) return null;
     return {
@@ -1910,10 +1910,10 @@ export class MediaPlanningService {
     blueprint: PlanningBlueprint,
     worldContext: PlanningWorldContext,
     voiceProfile: Record<string, unknown> | null,
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
   ) {
     const planned = blueprint.days.filter(
-      (day) => day.instagramStory.action === 'post',
+      (day) => day.instagramStory.action === "post",
     );
     const byDate = new Map<string, MediaPlanningDailyStory>();
     const responseIds: string[] = [];
@@ -1924,7 +1924,7 @@ export class MediaPlanningService {
       planned.flatMap((day) => day.instagramStory.sourceEvidenceIds),
     );
     const input = {
-      owner: 'Aakash',
+      owner: "Aakash",
       timezone: TZ,
       weekSummary: blueprint.summary,
       storyPlans: planned.map((day) => ({
@@ -1958,15 +1958,15 @@ export class MediaPlanningService {
       const response =
         await this.generateTrackedStructuredResponse<GeneratedWeeklyStories>(
           {
-            name: 'hsakaa_media_presence_weekly_stories_v3125',
+            name: "hsakaa_media_presence_weekly_stories_v3125",
             instructions: [
               this.dailyStoryInstructions(),
-              'Generate all supplied Story plans in one compact weekly pack. Return exactly one story object per supplied date and do not add dates.',
-              'Keep each Story to 1-3 lightweight frames. Do not repeat the same visual concept or opening wording on adjacent days.',
-            ].join('\n'),
+              "Generate all supplied Story plans in one compact weekly pack. Return exactly one story object per supplied date and do not add dates.",
+              "Keep each Story to 1-3 lightweight frames. Do not repeat the same visual concept or opening wording on adjacent days.",
+            ].join("\n"),
             input: JSON.stringify(input),
-            verbosity: 'medium',
-            reasoningEffort: 'low',
+            verbosity: "medium",
+            reasoningEffort: "low",
             maxOutputTokens: 5600,
             schema: this.weeklyStoriesSchema(),
           },
@@ -1990,10 +1990,10 @@ export class MediaPlanningService {
     blueprint: PlanningBlueprint,
     worldContext: PlanningWorldContext,
     voiceProfile: Record<string, unknown> | null,
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
   ) {
     const planned = blueprint.days.filter(
-      (day) => day.youtubeCommunity?.action === 'post',
+      (day) => day.youtubeCommunity?.action === "post",
     );
     const byDate = new Map<string, MediaPlanningYoutubeCommunityPost>();
     const responseIds: string[] = [];
@@ -2004,7 +2004,7 @@ export class MediaPlanningService {
       planned.flatMap((day) => day.youtubeCommunity?.sourceEvidenceIds ?? []),
     );
     const input = {
-      owner: 'Aakash',
+      owner: "Aakash",
       timezone: TZ,
       weekSummary: blueprint.summary,
       communityPlans: planned.map((day) => ({
@@ -2038,15 +2038,15 @@ export class MediaPlanningService {
       const response =
         await this.generateTrackedStructuredResponse<GeneratedWeeklyYoutubeCommunity>(
           {
-            name: 'hsakaa_media_presence_youtube_community_v3131',
+            name: "hsakaa_media_presence_youtube_community_v3131",
             instructions: [
               this.youtubeCommunityInstructions(),
-              'Generate all supplied YouTube Community plans in one compact weekly pack. Return exactly one post object per supplied date and do not add dates.',
-              'Keep each post lightweight and native. Do not duplicate the same-day YouTube video/Short title, hook or caption; Community should extend the relationship, ask a useful question, share a small thought, or offer a visual/poll.',
-            ].join('\n'),
+              "Generate all supplied YouTube Community plans in one compact weekly pack. Return exactly one post object per supplied date and do not add dates.",
+              "Keep each post lightweight and native. Do not duplicate the same-day YouTube video/Short title, hook or caption; Community should extend the relationship, ask a useful question, share a small thought, or offer a visual/poll.",
+            ].join("\n"),
             input: JSON.stringify(input),
-            verbosity: 'low',
-            reasoningEffort: 'low',
+            verbosity: "low",
+            reasoningEffort: "low",
             maxOutputTokens: 3200,
             schema: this.weeklyYoutubeCommunitySchema(),
           },
@@ -2067,12 +2067,12 @@ export class MediaPlanningService {
   }
 
   private async resolveReliableYoutubeCommunity(params: {
-    day: PlanningBlueprint['days'][number];
+    day: PlanningBlueprint["days"][number];
     candidate: MediaPlanningYoutubeCommunityPost | undefined;
     worldContext: PlanningWorldContext;
     voiceProfile: Record<string, unknown> | null;
     priorCopies: string[];
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>;
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>;
     responseIds: string[];
     models: Set<string>;
     validEvidence: Set<string>;
@@ -2088,7 +2088,7 @@ export class MediaPlanningService {
       validEvidence,
     } = params;
     const skeleton = day.youtubeCommunity;
-    if (!skeleton || skeleton.action !== 'post') {
+    if (!skeleton || skeleton.action !== "post") {
       return this.skipYoutubeCommunity(skeleton);
     }
 
@@ -2102,7 +2102,7 @@ export class MediaPlanningService {
           validEvidence,
           priorCopies,
         )
-      : 'Weekly YouTube Community pack did not return this date.';
+      : "Weekly YouTube Community pack did not return this date.";
 
     if (failure) {
       const evidenceIds = new Set(skeleton.sourceEvidenceIds);
@@ -2110,13 +2110,13 @@ export class MediaPlanningService {
         const response =
           await this.generateTrackedStructuredResponse<GeneratedYoutubeCommunityPost>(
             {
-              name: 'hsakaa_media_presence_youtube_community_repair_v3131',
+              name: "hsakaa_media_presence_youtube_community_repair_v3131",
               instructions: [
                 this.youtubeCommunityInstructions(),
-                'Return only this date. Preserve the supplied source evidence, format and time. Repair the execution contract without adding a new topic.',
-              ].join('\n'),
+                "Return only this date. Preserve the supplied source evidence, format and time. Repair the execution contract without adding a new topic.",
+              ].join("\n"),
               input: JSON.stringify({
-                owner: 'Aakash',
+                owner: "Aakash",
                 date: day.date,
                 communityPlan: skeleton,
                 priorCommunityCopies: priorCopies.slice(-3),
@@ -2132,8 +2132,8 @@ export class MediaPlanningService {
                 ).filter((item) => evidenceIds.has(item.id)),
                 voiceProfile,
               }),
-              verbosity: 'low',
-              reasoningEffort: 'low',
+              verbosity: "low",
+              reasoningEffort: "low",
               maxOutputTokens: 1400,
               schema: this.youtubeCommunitySchema(),
             },
@@ -2161,30 +2161,30 @@ export class MediaPlanningService {
       ? normalized
       : this.skipYoutubeCommunity({
           ...skeleton,
-          reason: `YouTube Community isolated after execution repair: ${failure || 'unknown issue'}`,
+          reason: `YouTube Community isolated after execution repair: ${failure || "unknown issue"}`,
         });
   }
 
   private normalizeYoutubeCommunity(
     candidate: MediaPlanningYoutubeCommunityPost,
     skeleton: NonNullable<
-      PlanningBlueprint['days'][number]['youtubeCommunity']
+      PlanningBlueprint["days"][number]["youtubeCommunity"]
     >,
   ): MediaPlanningYoutubeCommunityPost {
-    const format = ['text', 'image', 'poll'].includes(candidate.format)
+    const format = ["text", "image", "poll"].includes(candidate.format)
       ? candidate.format
       : skeleton.format;
     const imageBrief = candidate.imageBrief ?? this.emptyImageBrief();
     return {
-      action: 'post',
-      time: this.normalizeLocalTime(candidate.time || skeleton.time, '16:30'),
+      action: "post",
+      time: this.normalizeLocalTime(candidate.time || skeleton.time, "16:30"),
       format,
       sourceType: skeleton.sourceType,
       sourceEvidenceIds: skeleton.sourceEvidenceIds,
       reason: candidate.reason?.trim() || skeleton.reason,
-      publishCopy: candidate.publishCopy?.trim() || '',
+      publishCopy: candidate.publishCopy?.trim() || "",
       imageBrief,
-      pollQuestion: candidate.pollQuestion?.trim() || '',
+      pollQuestion: candidate.pollQuestion?.trim() || "",
       pollOptions: (candidate.pollOptions ?? [])
         .map((item) => item.trim())
         .filter(Boolean),
@@ -2215,7 +2215,7 @@ export class MediaPlanningService {
       );
       if (missing.length) {
         throw new Error(
-          `YouTube Community post on ${date} references unavailable evidence IDs: ${missing.join(', ')}.`,
+          `YouTube Community post on ${date} references unavailable evidence IDs: ${missing.join(", ")}.`,
         );
       }
       if (!post.publishCopy || post.publishCopy.length < 20) {
@@ -2228,7 +2228,7 @@ export class MediaPlanningService {
         MediaPlatform.YOUTUBE,
         date,
       );
-      if (post.format === 'poll') {
+      if (post.format === "poll") {
         if (
           !post.pollQuestion.trim() ||
           post.pollOptions.length < 2 ||
@@ -2239,8 +2239,8 @@ export class MediaPlanningService {
           );
         }
       }
-      if (post.format === 'image') {
-        if (post.imageBrief.mode === 'none') {
+      if (post.format === "image") {
+        if (post.imageBrief.mode === "none") {
           throw new Error(
             `YouTube Community image post on ${date} needs a complete image brief.`,
           );
@@ -2262,38 +2262,38 @@ export class MediaPlanningService {
           );
         }
       }
-      return '';
+      return "";
     } catch (error) {
       return this.errorMessage(error);
     }
   }
 
-  private emptyImageBrief(): MediaPlanningYoutubeCommunityPost['imageBrief'] {
+  private emptyImageBrief(): MediaPlanningYoutubeCommunityPost["imageBrief"] {
     return {
-      mode: 'none',
-      aspectRatio: '',
-      overlayText: '',
-      prompt: '',
-      description: '',
-      sourceGuidance: '',
+      mode: "none",
+      aspectRatio: "",
+      overlayText: "",
+      prompt: "",
+      description: "",
+      sourceGuidance: "",
     };
   }
 
   private assertImageBrief(
-    imageBrief: MediaPlanningYoutubeCommunityPost['imageBrief'],
+    imageBrief: MediaPlanningYoutubeCommunityPost["imageBrief"],
     label: string,
   ) {
     if (!imageBrief.aspectRatio.trim()) {
       throw new Error(`${label} is missing aspect ratio.`);
     }
     if (
-      imageBrief.mode === 'ai_generation' &&
+      imageBrief.mode === "ai_generation" &&
       imageBrief.prompt.trim().length < 60
     ) {
       throw new Error(`${label} has an incomplete AI image prompt.`);
     }
     if (
-      imageBrief.mode !== 'ai_generation' &&
+      imageBrief.mode !== "ai_generation" &&
       imageBrief.description.trim().length < 40
     ) {
       throw new Error(
@@ -2303,18 +2303,18 @@ export class MediaPlanningService {
   }
 
   private skipYoutubeCommunity(
-    post?: PlanningBlueprint['days'][number]['youtubeCommunity'],
+    post?: PlanningBlueprint["days"][number]["youtubeCommunity"],
   ): MediaPlanningYoutubeCommunityPost {
     return {
-      action: 'skip',
-      time: '',
-      format: post?.format ?? 'text',
-      sourceType: post?.sourceType ?? 'human_moment',
+      action: "skip",
+      time: "",
+      format: post?.format ?? "text",
+      sourceType: post?.sourceType ?? "human_moment",
       sourceEvidenceIds: post?.sourceEvidenceIds ?? [],
-      reason: post?.reason || 'No YouTube Community moment planned.',
-      publishCopy: '',
+      reason: post?.reason || "No YouTube Community moment planned.",
+      publishCopy: "",
       imageBrief: this.emptyImageBrief(),
-      pollQuestion: '',
+      pollQuestion: "",
       pollOptions: [],
       executionReady: false,
       readinessIssues: [],
@@ -2322,16 +2322,16 @@ export class MediaPlanningService {
   }
 
   private async generateReliableDayPosts(params: {
-    day: PlanningBlueprint['days'][number];
+    day: PlanningBlueprint["days"][number];
     expectedPosts: PlanningExecutionSkeleton[];
     dayInput: Record<string, unknown>;
-    opportunities: Map<string, GeneratedPlan['opportunities'][number]>;
+    opportunities: Map<string, GeneratedPlan["opportunities"][number]>;
     publicEvidenceSet: Set<string>;
     reflectionEvidenceSet: Set<string>;
     identityEvidenceSet: Set<string>;
     historicalFingerprints: PlanningMemory[];
     priorWeekCopies: Array<{ platform: MediaPlatform; text: string }>;
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>;
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>;
     responseIds: string[];
     models: Set<string>;
   }) {
@@ -2359,11 +2359,11 @@ export class MediaPlanningService {
       const response =
         await this.generateTrackedStructuredResponse<GeneratedDayPosts>(
           {
-            name: 'hsakaa_media_presence_day_pack_v3125',
+            name: "hsakaa_media_presence_day_pack_v3125",
             instructions: this.dayPackInstructions(),
             input: JSON.stringify(dayInput),
-            verbosity: 'medium',
-            reasoningEffort: 'low',
+            verbosity: "medium",
+            reasoningEffort: "low",
             maxOutputTokens: 9000,
             schema: this.dayPostsSchema(),
           },
@@ -2402,7 +2402,7 @@ export class MediaPlanningService {
       let normalized = this.normalizeExecutionPack(
         candidate,
         skeleton,
-        opportunities.get(skeleton.opportunityKey ?? ''),
+        opportunities.get(skeleton.opportunityKey ?? ""),
       );
       normalized = this.repairReflectionOnlyExecutions(
         [normalized],
@@ -2448,7 +2448,7 @@ export class MediaPlanningService {
         normalized = this.normalizeExecutionPack(
           repaired,
           skeleton,
-          opportunities.get(skeleton.opportunityKey ?? ''),
+          opportunities.get(skeleton.opportunityKey ?? ""),
         );
         normalized = this.repairReflectionOnlyExecutions(
           [normalized],
@@ -2482,10 +2482,10 @@ export class MediaPlanningService {
   }
 
   private async tryGenerateSinglePost(
-    day: PlanningBlueprint['days'][number],
+    day: PlanningBlueprint["days"][number],
     skeleton: PlanningExecutionSkeleton,
     dayInput: Record<string, unknown>,
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
     responseIds: string[],
     models: Set<string>,
     repair: { candidate: MediaPlanningExecution; failure: string } | null,
@@ -2495,15 +2495,15 @@ export class MediaPlanningService {
         await this.generateTrackedStructuredResponse<GeneratedDayPosts>(
           {
             name: repair
-              ? 'hsakaa_media_presence_single_post_repair_v3125'
-              : 'hsakaa_media_presence_single_post_v3125',
+              ? "hsakaa_media_presence_single_post_repair_v3125"
+              : "hsakaa_media_presence_single_post_v3125",
             instructions: [
               this.dayPackInstructions(),
               repair
                 ? `REPAIR ONLY THIS ONE POST. The prior candidate failed the deterministic contract for this reason: ${repair.failure}. Return a corrected final asset; do not change platform/date/format/opportunity/evidence thesis.`
-                : 'BOUNDED FALLBACK: generate exactly this one expected post. Return one complete final asset and nothing else.',
-              'Keep compatibility caption/script/description fields concise. Put the finished publishable content in the canonical execution fields.',
-            ].join('\n'),
+                : "BOUNDED FALLBACK: generate exactly this one expected post. Return one complete final asset and nothing else.",
+              "Keep compatibility caption/script/description fields concise. Put the finished publishable content in the canonical execution fields.",
+            ].join("\n"),
             input: JSON.stringify({
               owner: dayInput.owner,
               date: day.date,
@@ -2523,8 +2523,8 @@ export class MediaPlanningService {
               alreadyGeneratedThisWeek: dayInput.alreadyGeneratedThisWeek,
               previousCandidate: repair?.candidate ?? null,
             }),
-            verbosity: 'medium',
-            reasoningEffort: 'low',
+            verbosity: "medium",
+            reasoningEffort: "low",
             maxOutputTokens: 8500,
             schema: this.dayPostsSchema(),
           },
@@ -2545,11 +2545,11 @@ export class MediaPlanningService {
   private normalizeExecutionPack(
     candidate: MediaPlanningExecution,
     skeleton: PlanningExecutionSkeleton,
-    opportunity: GeneratedPlan['opportunities'][number] | undefined,
+    opportunity: GeneratedPlan["opportunities"][number] | undefined,
   ): MediaPlanningExecution {
     const strings = (value: unknown) =>
       Array.isArray(value)
-        ? value.filter((item): item is string => typeof item === 'string')
+        ? value.filter((item): item is string => typeof item === "string")
         : [];
     const whatsappSequence = strings(candidate.whatsappSequence);
     const xThread = strings(candidate.xThread);
@@ -2562,25 +2562,25 @@ export class MediaPlanningService {
 
     const firstAvailable = (...values: Array<string | undefined | null>) =>
       values
-        .find((value) => typeof value === 'string' && value.trim())
-        ?.trim() ?? '';
+        .find((value) => typeof value === "string" && value.trim())
+        ?.trim() ?? "";
 
     const sequenceText =
       skeleton.platform === MediaPlatform.WHATSAPP
-        ? whatsappSequence.join('\n\n').trim()
+        ? whatsappSequence.join("\n\n").trim()
         : skeleton.platform === MediaPlatform.X &&
             skeleton.format === MediaPostType.THREAD
-          ? xThread.join('\n\n').trim()
-          : '';
-    const videoScript = candidate.videoPack?.fullScript?.trim() ?? '';
+          ? xThread.join("\n\n").trim()
+          : "";
+    const videoScript = candidate.videoPack?.fullScript?.trim() ?? "";
     const carouselCopy = Array.isArray(candidate.carouselSlides)
       ? candidate.carouselSlides
           .map((slide) =>
-            `${slide.headline ?? ''}\n${slide.bodyCopy ?? ''}`.trim(),
+            `${slide.headline ?? ""}\n${slide.bodyCopy ?? ""}`.trim(),
           )
           .filter(Boolean)
-          .join('\n\n')
-      : '';
+          .join("\n\n")
+      : "";
 
     const publishCopy = firstAvailable(
       candidate.publishCopy,
@@ -2607,20 +2607,20 @@ export class MediaPlanningService {
     return {
       ...candidate,
       platform: skeleton.platform,
-      action: 'post',
+      action: "post",
       time: this.normalizeLocalTime(
         skeleton.time || candidate.time,
         this.defaultPostingTime(skeleton.platform),
       ),
       format: skeleton.format,
       opportunityKey: skeleton.opportunityKey,
-      storyArcKey: skeleton.storyArcKey ?? '',
+      storyArcKey: skeleton.storyArcKey ?? "",
       reason: skeleton.reason || candidate.reason,
       hook,
       caption: firstAvailable(candidate.caption, publishCopy),
-      script: candidate.script ?? '',
+      script: candidate.script ?? "",
       description: firstAvailable(candidate.description, publishCopy),
-      cta: candidate.cta ?? '',
+      cta: candidate.cta ?? "",
       hashtags: strings(candidate.hashtags),
       slides: strings(candidate.slides),
       publishCopy,
@@ -2638,23 +2638,23 @@ export class MediaPlanningService {
         ? candidate.carouselSlides
         : [],
       imageBrief: candidate.imageBrief ?? {
-        mode: 'none',
-        aspectRatio: '',
-        overlayText: '',
-        prompt: '',
-        description: '',
-        sourceGuidance: '',
+        mode: "none",
+        aspectRatio: "",
+        overlayText: "",
+        prompt: "",
+        description: "",
+        sourceGuidance: "",
       },
       videoPack: candidate.videoPack ?? {
-        fullScript: '',
+        fullScript: "",
         targetDurationSeconds: 0,
-        deliveryInstructions: '',
-        cameraInstructions: '',
+        deliveryInstructions: "",
+        cameraInstructions: "",
         punchIns: [],
         broll: [],
         onScreenText: [],
-        musicDirection: '',
-        coverDirection: '',
+        musicDirection: "",
+        coverDirection: "",
       },
       executionReady: true,
       readinessIssues: [],
@@ -2668,7 +2668,7 @@ export class MediaPlanningService {
   private executionPreflightError(
     item: MediaPlanningExecution,
     date: string,
-    opportunities: Map<string, GeneratedPlan['opportunities'][number]>,
+    opportunities: Map<string, GeneratedPlan["opportunities"][number]>,
     publicEvidence: Set<string>,
     reflectionEvidence: Set<string>,
     identityEvidence: Set<string>,
@@ -2678,7 +2678,7 @@ export class MediaPlanningService {
     try {
       this.assertExecutionReady(item, date, opportunities);
       const combined = this.executionPublicText(item);
-      const opportunity = opportunities.get(item.opportunityKey ?? '');
+      const opportunity = opportunities.get(item.opportunityKey ?? "");
       this.assertReflectionSafeCopy(
         combined,
         item,
@@ -2698,19 +2698,19 @@ export class MediaPlanningService {
           );
         }
       }
-      return '';
+      return "";
     } catch (error) {
       return this.errorMessage(error);
     }
   }
 
   private async resolveReliableDailyStory(params: {
-    day: PlanningBlueprint['days'][number];
+    day: PlanningBlueprint["days"][number];
     candidate: MediaPlanningDailyStory | undefined;
     worldContext: PlanningWorldContext;
     voiceProfile: Record<string, unknown> | null;
     priorStoryCopies: string[];
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>;
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>;
     responseIds: string[];
     models: Set<string>;
     validEvidence: Set<string>;
@@ -2725,7 +2725,7 @@ export class MediaPlanningService {
       models,
       validEvidence,
     } = params;
-    if (day.instagramStory.action !== 'post') {
+    if (day.instagramStory.action !== "post") {
       return this.skipDailyStory(day.instagramStory);
     }
 
@@ -2740,7 +2740,7 @@ export class MediaPlanningService {
           validEvidence,
           priorStoryCopies,
         )
-      : 'Weekly Story pack did not return this date.';
+      : "Weekly Story pack did not return this date.";
 
     if (failure) {
       const evidenceIds = new Set(day.instagramStory.sourceEvidenceIds);
@@ -2748,14 +2748,14 @@ export class MediaPlanningService {
         const response =
           await this.generateTrackedStructuredResponse<GeneratedDailyStory>(
             {
-              name: 'hsakaa_media_presence_story_repair_v3125',
+              name: "hsakaa_media_presence_story_repair_v3125",
               instructions: [
                 this.dailyStoryInstructions(),
                 `BOUNDED STORY REPAIR: ${failure}`,
-                'Return only this date. Preserve the supplied evidence IDs/source type/time and make the Story execution-ready.',
-              ].join('\n'),
+                "Return only this date. Preserve the supplied evidence IDs/source type/time and make the Story execution-ready.",
+              ].join("\n"),
               input: JSON.stringify({
-                owner: 'Aakash',
+                owner: "Aakash",
                 date: day.date,
                 timezone: TZ,
                 storyPlan: day.instagramStory,
@@ -2773,8 +2773,8 @@ export class MediaPlanningService {
                 voiceProfile,
                 recentStoryCopies: priorStoryCopies.slice(-2),
               }),
-              verbosity: 'low',
-              reasoningEffort: 'low',
+              verbosity: "low",
+              reasoningEffort: "low",
               maxOutputTokens: 2400,
               schema: this.dailyStorySchema(),
             },
@@ -2802,30 +2802,30 @@ export class MediaPlanningService {
       ? normalized
       : this.skipDailyStory({
           ...day.instagramStory,
-          action: 'skip',
-          reason: `Story isolated after execution repair: ${failure || 'unknown issue'}`,
+          action: "skip",
+          reason: `Story isolated after execution repair: ${failure || "unknown issue"}`,
         });
   }
 
   private normalizeDailyStory(
     candidate: MediaPlanningDailyStory,
-    skeleton: PlanningBlueprint['days'][number]['instagramStory'],
+    skeleton: PlanningBlueprint["days"][number]["instagramStory"],
   ): MediaPlanningDailyStory {
     const frames = Array.isArray(candidate.frames)
       ? candidate.frames.map((frame, index) => ({
           ...frame,
           order: index + 1,
-          overlayText: frame.overlayText?.trim() ?? '',
-          spokenText: frame.spokenText?.trim() ?? '',
-          visualDescription: frame.visualDescription?.trim() ?? '',
-          captureInstruction: frame.captureInstruction?.trim() ?? '',
-          interactiveElement: frame.interactiveElement?.trim() ?? '',
+          overlayText: frame.overlayText?.trim() ?? "",
+          spokenText: frame.spokenText?.trim() ?? "",
+          visualDescription: frame.visualDescription?.trim() ?? "",
+          captureInstruction: frame.captureInstruction?.trim() ?? "",
+          interactiveElement: frame.interactiveElement?.trim() ?? "",
         }))
       : [];
     return {
       ...candidate,
-      action: 'post',
-      time: this.normalizeLocalTime(skeleton.time, '08:30'),
+      action: "post",
+      time: this.normalizeLocalTime(skeleton.time, "08:30"),
       sourceType: skeleton.sourceType,
       sourceEvidenceIds: [...skeleton.sourceEvidenceIds],
       reason: skeleton.reason || candidate.reason,
@@ -2839,10 +2839,10 @@ export class MediaPlanningService {
   private storyCopy(story: MediaPlanningDailyStory) {
     return (story.frames ?? [])
       .map((frame) =>
-        `${frame.overlayText ?? ''} ${frame.spokenText ?? ''}`.trim(),
+        `${frame.overlayText ?? ""} ${frame.spokenText ?? ""}`.trim(),
       )
       .filter(Boolean)
-      .join('\n')
+      .join("\n")
       .trim();
   }
 
@@ -2859,10 +2859,10 @@ export class MediaPlanningService {
       this.assertNoPlaceholderCopy(copy, MediaPlatform.INSTAGRAM, date);
       for (const previous of priorStoryCopies.slice(-2)) {
         if (copy && this.textSimilarity(copy, previous) >= 0.86) {
-          throw new Error('Story copy is too similar to a recent Story.');
+          throw new Error("Story copy is too similar to a recent Story.");
         }
       }
-      return '';
+      return "";
     } catch (error) {
       return this.errorMessage(error);
     }
@@ -2871,34 +2871,34 @@ export class MediaPlanningService {
   private async generateBlueprint(
     blueprintInput: Record<string, unknown>,
     evidenceCatalog: PlanningEvidenceCatalogEntry[],
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
     repairInstruction: string | undefined,
     cadence: PlanningCadence,
     dayCount = ROLLING_WINDOW_DAYS,
   ) {
     const baseInstructions = [
       this.blueprintInstructions(),
-      repairInstruction ?? '',
+      repairInstruction ?? "",
       dayCount === 1
-        ? 'SINGLE-DAY MODE: create one fresh day that complements the supplied current rolling window. Do not try to satisfy the entire weekly cadence in this one day. Avoid every archived/current topic cluster, thesis, hook, example and wording unless an explicit intentional continuation is supplied.'
-        : '',
+        ? "SINGLE-DAY MODE: create one fresh day that complements the supplied current rolling window. Do not try to satisfy the entire weekly cadence in this one day. Avoid every archived/current topic cluster, thesis, hook, example and wording unless an explicit intentional continuation is supplied."
+        : "",
     ]
       .filter(Boolean)
-      .join('\n');
+      .join("\n");
 
     let strategicCoreResponse =
       await this.generateBlueprintStage<PlanningStrategyCore>({
         name: repairInstruction
-          ? 'hsakaa_media_presence_strategy_core_repair_v3122'
-          : 'hsakaa_media_presence_strategy_core_v3122',
+          ? "hsakaa_media_presence_strategy_core_repair_v3122"
+          : "hsakaa_media_presence_strategy_core_v3122",
         instructions: [
           baseInstructions,
-          'STAGE 1 OF 2 — STRATEGY CORE ONLY. Return startDate, endDate, timezone, learningStage, summary, opportunities and storyArcs. Do NOT return days.',
+          "STAGE 1 OF 2 — STRATEGY CORE ONLY. Return startDate, endDate, timezone, learningStage, summary, opportunities and storyArcs. Do NOT return days.",
           dayCount === 1
-            ? 'Keep this stage very compact: return 2-5 fresh opportunities and at most 1 story arc for this one day. The calendar is generated separately.'
-            : 'Keep this stage compact: prefer 6-10 strong opportunities over 14 weak ones; use at most 2 story arcs; titles and reasons should be concise. The calendar is generated separately.',
-          'EVIDENCE REFERENCES: worldContext.publicSafe[].id, worldContext.internalSafe[].id and worldContext.wholeLifeSignals[].id are short evidence keys such as E001. For every usable public_safe opportunity, evidenceIds MUST contain one or more of those exact E### keys. Never put an opportunity key (opp_...), title, source name or invented identifier in evidenceIds.',
-        ].join('\n'),
+            ? "Keep this stage very compact: return 2-5 fresh opportunities and at most 1 story arc for this one day. The calendar is generated separately."
+            : "Keep this stage compact: prefer 6-10 strong opportunities over 14 weak ones; use at most 2 story arcs; titles and reasons should be concise. The calendar is generated separately.",
+          "EVIDENCE REFERENCES: worldContext.publicSafe[].id, worldContext.internalSafe[].id and worldContext.wholeLifeSignals[].id are short evidence keys such as E001. For every usable public_safe opportunity, evidenceIds MUST contain one or more of those exact E### keys. Never put an opportunity key (opp_...), title, source name or invented identifier in evidenceIds.",
+        ].join("\n"),
         input: JSON.stringify(blueprintInput),
         maxOutputTokens: 5200,
         schema: this.blueprintStrategySchema(dayCount),
@@ -2913,14 +2913,14 @@ export class MediaPlanningService {
     if (evidenceResolution.unresolvedOpportunityKeys.length) {
       const evidenceRepairResponse =
         await this.generateBlueprintStage<PlanningStrategyCore>({
-          name: 'hsakaa_media_presence_strategy_evidence_repair_v3122',
+          name: "hsakaa_media_presence_strategy_evidence_repair_v3122",
           instructions: [
             baseInstructions,
-            'EVIDENCE REPAIR ONLY. Return a complete strategy core using the same dates and overall strategic intent.',
-            'Some usable opportunities in the prior strategy core were not grounded to real evidence. Repair or replace those opportunities instead of leaving evidenceIds empty.',
-            'Every usable public_safe opportunity MUST cite one or more exact E### keys visible in worldContext.publicSafe, worldContext.internalSafe or worldContext.wholeLifeSignals. Do not use opp_ keys as evidence. If an idea cannot be grounded, set privacy=needs_review and usable=false and replace it with a different grounded opportunity so the week still has enough usable material.',
-            `Unresolved opportunity keys: ${evidenceResolution.unresolvedOpportunityKeys.join(', ')}`,
-          ].join('\n'),
+            "EVIDENCE REPAIR ONLY. Return a complete strategy core using the same dates and overall strategic intent.",
+            "Some usable opportunities in the prior strategy core were not grounded to real evidence. Repair or replace those opportunities instead of leaving evidenceIds empty.",
+            "Every usable public_safe opportunity MUST cite one or more exact E### keys visible in worldContext.publicSafe, worldContext.internalSafe or worldContext.wholeLifeSignals. Do not use opp_ keys as evidence. If an idea cannot be grounded, set privacy=needs_review and usable=false and replace it with a different grounded opportunity so the week still has enough usable material.",
+            `Unresolved opportunity keys: ${evidenceResolution.unresolvedOpportunityKeys.join(", ")}`,
+          ].join("\n"),
           input: JSON.stringify({
             ...blueprintInput,
             previousStrategyCore: evidenceResolution.data,
@@ -2941,19 +2941,19 @@ export class MediaPlanningService {
     const calendarResponse =
       await this.generateBlueprintStage<PlanningCalendarBlueprint>({
         name: repairInstruction
-          ? 'hsakaa_media_presence_calendar_repair_v3122'
-          : 'hsakaa_media_presence_calendar_v3122',
+          ? "hsakaa_media_presence_calendar_repair_v3122"
+          : "hsakaa_media_presence_calendar_v3122",
         instructions: [
           baseInstructions,
           dayCount === 1
-            ? 'STAGE 2 OF 2 — SINGLE-DAY CALENDAR ONLY. Return exactly one day for the requested date. Do NOT repeat opportunities or storyArcs in the response.'
-            : 'STAGE 2 OF 2 — WEEKLY CALENDAR ONLY. Return exactly seven days. Do NOT repeat opportunities or storyArcs in the response.',
-          'Use strategyCore as fixed source material. Keep theme/workload/reasons concise. Return exactly five POST/SKIP decisions per day, the Instagram Story skeleton, and only engagement tasks that are strategically useful.',
-          'LIGHTWEIGHT EVIDENCE SELF-CHECK: every Instagram Story POST and every YouTube Community POST must carry 1-3 sourceEvidenceIds copied exactly from real supplied HSAKAA context/strategy evidence. Never return action=POST with an empty evidence array, aliases that are not supplied, or invented IDs. If a lightweight surface cannot be grounded, choose another grounded context signal rather than emitting an ungrounded POST.',
+            ? "STAGE 2 OF 2 — SINGLE-DAY CALENDAR ONLY. Return exactly one day for the requested date. Do NOT repeat opportunities or storyArcs in the response."
+            : "STAGE 2 OF 2 — WEEKLY CALENDAR ONLY. Return exactly seven days. Do NOT repeat opportunities or storyArcs in the response.",
+          "Use strategyCore as fixed source material. Keep theme/workload/reasons concise. Return exactly five POST/SKIP decisions per day, the Instagram Story skeleton, and only engagement tasks that are strategically useful.",
+          "LIGHTWEIGHT EVIDENCE SELF-CHECK: every Instagram Story POST and every YouTube Community POST must carry 1-3 sourceEvidenceIds copied exactly from real supplied HSAKAA context/strategy evidence. Never return action=POST with an empty evidence array, aliases that are not supplied, or invented IDs. If a lightweight surface cannot be grounded, choose another grounded context signal rather than emitting an ungrounded POST.",
           dayCount === 1
-            ? 'Before returning, audit the candidate day against currentRollingWindow and planningCadence. The merged seven-day window must remain inside every platform range and the weekly long-form/short-form/Story/Community contract. Also preserve the 100K growth portfolio across distinct topicClusterKeys: at least two discovery clusters, one conversion cluster and one authority cluster.'
-            : 'CADENCE + GROWTH SELF-CHECK BEFORE RETURN: count the calendar you are returning. It must contain exactly planningCadence.longFormVideos YouTube VIDEO posts; planningCadence.shortFormAndCarouselsMin..Max REEL/SHORT/CAROUSEL feed pieces; exactly planningCadence.instagramStories Instagram Story POST skeletons; planningCadence.youtubeCommunityMin..Max Community POST skeletons; and each platform POST count must stay within planningCadence.platforms[platform].min..max. Then count DISTINCT topicClusterKeys actually used by POST feed executions: use at least four distinct clusters so the 100K portfolio can include at least two discovery clusters, one conversion cluster and one authority cluster. Cross-platform derivatives of one topicClusterKey still count as one cluster. Fix the calendar yourself before returning it. Do not rely on downstream validation.',
-        ].join('\n'),
+            ? "Before returning, audit the candidate day against currentRollingWindow and planningCadence. The merged seven-day window must remain inside every platform range and the weekly long-form/short-form/Story/Community contract. Also preserve the 100K growth portfolio across distinct topicClusterKeys: at least two discovery clusters, one conversion cluster and one authority cluster."
+            : "CADENCE + GROWTH SELF-CHECK BEFORE RETURN: count the calendar you are returning. It must contain exactly planningCadence.longFormVideos YouTube VIDEO posts; planningCadence.shortFormAndCarouselsMin..Max REEL/SHORT/CAROUSEL feed pieces; exactly planningCadence.instagramStories Instagram Story POST skeletons; planningCadence.youtubeCommunityMin..Max Community POST skeletons; and each platform POST count must stay within planningCadence.platforms[platform].min..max. Then count DISTINCT topicClusterKeys actually used by POST feed executions: use at least four distinct clusters so the 100K portfolio can include at least two discovery clusters, one conversion cluster and one authority cluster. Cross-platform derivatives of one topicClusterKey still count as one cluster. Fix the calendar yourself before returning it. Do not rely on downstream validation.",
+        ].join("\n"),
         input: JSON.stringify({
           startDate: blueprintInput.startDate,
           endDate: blueprintInput.endDate,
@@ -2982,13 +2982,13 @@ export class MediaPlanningService {
       } satisfies PlanningBlueprint,
       model: [strategicCoreResponse.model, calendarResponse.model]
         .filter(Boolean)
-        .join(','),
+        .join(","),
       responseId: [
         strategicCoreResponse.responseId,
         calendarResponse.responseId,
       ]
         .filter(Boolean)
-        .join(','),
+        .join(","),
     };
   }
 
@@ -2998,12 +2998,12 @@ export class MediaPlanningService {
     input: string;
     maxOutputTokens: number;
     schema: Record<string, unknown>;
-    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>;
+    usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>;
   }) {
     try {
       const { usage, ...params } = request;
       return await this.generateTrackedStructuredResponse<T>(
-        { ...params, verbosity: 'medium', reasoningEffort: 'medium' },
+        { ...params, verbosity: "medium", reasoningEffort: "medium" },
         usage,
       );
     } catch (error) {
@@ -3015,10 +3015,10 @@ export class MediaPlanningService {
           name: `${request.name}_token_fallback`,
           instructions: [
             request.instructions,
-            'TOKEN FALLBACK: the prior structured response hit its output ceiling. Be maximally concise while preserving every required schema field. Do not add explanations outside the schema.',
-          ].join('\n'),
-          verbosity: 'low',
-          reasoningEffort: 'low',
+            "TOKEN FALLBACK: the prior structured response hit its output ceiling. Be maximally concise while preserving every required schema field. Do not add explanations outside the schema.",
+          ].join("\n"),
+          verbosity: "low",
+          reasoningEffort: "low",
           maxOutputTokens: 12000,
         },
         usage,
@@ -3029,118 +3029,119 @@ export class MediaPlanningService {
 
   private blueprintInstructions() {
     return [
-      'You are HSAKAA Media V3.14, the strategic public-figure growth system for Aakash. Build only the compact seven-day BLUEPRINT; final copy is generated later.',
+      "You are HSAKAA Media V3.14, the strategic public-figure growth system for Aakash. Build only the compact seven-day BLUEPRINT; final copy is generated later.",
       mediaStorytellingPromptPolicy(),
-      'CURRENT SIX-MONTH GROWTH SEASON: use storytellingPolicy.currentGrowthSeason as the active development arc. Track all five pursuits through evidence, but do not force all five into feed posts. Reading is the daily anchor. Spanish, guitar, voice improvement and chess are active six-month pursuits. Surface a pursuit when there is a real change, attempt, mistake, breakthrough, funny moment or visually useful checkpoint; quieter practice can remain in Stories.',
-      'TRAVEL ARC: storytellingPolicy.currentGrowthSeason.travel defines the six-month travel rhythm. Treat destination research, budgeting and preparation as story material when grounded. Never claim a booking or trip has happened unless evidence says so.',
-      'PLATFORM-NATIVE PLANNING: use storytellingPolicy.platformNativeRules before assigning a platform. The same event may travel across platforms only when each derivative has a genuinely different job and treatment.',
-      'PRIMARY OBJECTIVE: reach the supplied 100K-follower growthObjective as quickly as sustainably possible while making Aakash increasingly recognisable, trusted and worth following across topics. Optimise for discovery + follower conversion + retention/recognition + authority + affinity. Never buy reach with spam, fake controversy, trend-chasing disconnected from Aakash or generic viral bait.',
-      'STORY SELECTION ORDER: first reject anything ungrounded. Then rank the remaining truthful candidates using storytellingPolicy.storySelectionDimensions. A story should not win a major slot merely because it is technically interesting or evidence-rich. Prefer the candidate a stranger is most likely to understand, care about, watch through, share/reply to and return for.',
-      'WEEKLY HUMANITY FLOOR: when grounded whole-person context exists, at least 40% of the ranked opportunity pool should come from learning/building-Aakash/human-personality/travel/pets/life rather than company-system analysis. This is an opportunity-pool target, not permission to invent activity. Feed selection can still favour professional content on LinkedIn.',
-      'STRANGER-FRIENDLY DISCOVERY: include at least two ranked opportunities whose hook/premise is understandable without knowing any company/product name. A company may be the case study, but the opening tension should be universal enough to travel beyond current followers.',
-      'LIGHTNESS / HUMOUR: actively look for one grounded warm, awkward, playful, surprising or self-aware opportunity each week. It can be a Story-only or feed opportunity. Do not manufacture jokes or force humour onto serious events.',
-      'DOGS AS RECURRING CAST: storytellingPolicy.recurringCast contains Pixel, Cosmo and Happy. Actively consider whether a real walk, home, practice or routine scene becomes warmer or more watchable if one of them is genuinely present. Their entrance, companionship or interruption may be used as an opening beat or B-roll when captured; never invent what a dog did, assume presence, or force a pet cameo into a technical post.',
-      'HEALTH / FITNESS OPPORTUNITY: inspect Health OS for fresh source-grounded gym, training, walk, run or movement signals. When such a signal has visual action, tension, humour, consistency, a setback/return, or a real reaction, let it compete normally for Instagram/YouTube/Story slots. Do not force a feed post merely because a workout exists.',
-      'HEALTH PRIVACY: storytellingPolicy.healthContentPolicy overrides the broad PUBLIC_SAFE label for Health. Routine fitness items in allowedByDefault may be used when grounded; fields in requiresExplicitApproval must stay private unless the supplied per-asset evidence explicitly says owner-approved-for-media. Never expose medical, biometric or body-measurement detail just because Health OS contains it.',
-      'ACTUAL-LIFE FLOOR: storytellingPolicy.weeklyHumanityContract is a real planning constraint. When grounded routine/hobby/learning/human evidence exists, ensure the week contains at least two distinct actual-life feed clusters, including at least one Instagram feed cluster, plus at least three Instagram Story days grounded in whole-life signals. A HSAKAA privacy discussion about Health does NOT count as actual-life fitness content.',
-      'FITNESS PLATFORM FIT: Instagram/YouTube may use gym/walk material for movement, documentary texture, human struggle and recurring progress. LinkedIn should use Health only when there is a genuinely professional story rather than a forced discipline analogy. Stories may use low-production gym/walk context freely when grounded and privacy-safe.',
-      'PUBLIC IDENTITY: Aakash is the thoughtful builder who is deliberately building companies and himself. He should feel curious, analytical, ambitious, calm, human, experimental and slightly unconventional—not like a product-management instructor, AI influencer, motivational creator or lifestyle influencer.',
-      'For every opportunity set identityPillar for backward-compatible high-level identity AND strategyNarrativeKey copied exactly from presenceStrategy.narratives[].key. Also set a stable topicClusterKey: all derivatives of the same underlying idea/event must share one cluster key even across platforms. Set growthIntent to authority, discovery, conversion, affinity or conversation based on the primary growth job of the idea.',
-      'Do not translate every personal signal into a professional framework. A chess moment may simply be about chess; a guitar/voice/fitness/reading moment may simply show the journey, struggle, taste or curiosity. Human_unfiltered content should usually contain no business analogy. Building_aakash should centre Aakash improving himself. Learning_experiments should centre the journey/progress/question before any generalized lesson.',
-      'WHOLE-PERSONAL-OS CONTEXT: inspect every supplied Personal OS source across Tasks, Brain Dump, Journal, Library, Highlights, Decisions, Health, Hobbies, Media history, Companies and HSAKAA. PEOPLE and MEMORY are intentionally excluded from Media and must never be inferred, reconstructed or requested through another source. By owner policy, every other supplied Personal OS source is PUBLIC_SAFE Media context.',
-      'ROUTINES + HEALTH: Health is PUBLIC_SAFE Media context by owner policy. Source-grounded workouts, sleep/recovery/fitness metrics, diet/supplement context, progress and routines may be used when supplied. Never invent a diagnosis, result, improvement or completed activity; distinguish a planned routine from a completed one.',
-      'HOBBIES + SKILLS: worldContext.hobbies is the first-class source of truth for active HSAKAA Hobbies. Prefer actual active/maintenance tracks, current stage, real recorded practice pace and latest coaching focus. A keyword appearing elsewhere is not enough to make a hobby a weekly theme. Never invent practice. Before ranking opportunities, explicitly consider all five active six-month pursuits: reading, Spanish, guitar, voice improvement and chess. It is valid for a pursuit to produce no feed post when nothing interesting happened, but do not silently ignore a pursuit that has fresh evidence. A normal hobby event gets one primary content surface plus at most one lightweight secondary surface; do not flood YouTube + X + WhatsApp + Stories with the same moment.',
-      'BOOKS + LEARNING: books/highlights can inspire thinking, but vary the expression: a question, disagreement, passage reaction, experiment, visual note or changed view. Do not make every reading signal a framework post and do not claim reading progress unless evidence supports it.',
-      'Professional authority should come from lived builder/operator reasoning, real decisions, mistakes, trade-offs and company-building experience—not generic product-management education. Prefer “what I am seeing/trying/changing” over textbook frameworks.',
-      'Use whole-HSAKAA context to understand who Aakash is. The context is creative/strategic memory and anti-repetition memory; it is NOT a requirement that every personal reflection was previously approved as a public claim.',
-      'Aakash should be seen as a builder/operator/technologist with real depth across startups, AI, grassroots sports-tech, freight-tech, product thinking and operations, while also showing learning, books, health/routine, experiments and human personality. Do not make the brand only about companies or only about motivation.',
-      'CADENCE: obey planningCadence from input, which is derived from the active Presence Strategy platformRoles. Never substitute old hard-coded channel cadences. Feed posting every day is NOT required and WhatsApp must stay deliberately low-volume when the strategy says so.',
-      'LIGHTWEIGHT PRESENCE IS FIRST-CLASS: Instagram Stories should be planned 7/7 when usable context exists. YouTube Stories was retired by YouTube, so use YouTube Community posts as the native lightweight equivalent roughly 3-5 times per week. Community posts may be text, image or poll and should deepen familiarity/conversation rather than duplicate the same-day video.',
-      'Instagram Stories are a separate daily lightweight presence layer. Plan one Story pack for every day when any usable context exists, usually 1-3 frames. Derive it from known routine/current work/learning/personal growth/professional context. Never fabricate that Aakash completed an activity: when based on a routine, make the captureBrief contingent (for example, “during the morning walk, capture…”).',
-      'PORTFOLIO: use presenceStrategy.narratives as the real weekly narrative system. Aim broadly toward their targetSharePercent across DISTINCT topic clusters, not raw cross-platform post count. Use at least five distinct strategy narratives when enough grounded context exists. No single narrative or company should dominate simply because one source idea is easy to repurpose.',
-      'NARRATIVE CLASSIFICATION: strategyNarrativeKey describes the audience-facing story, not merely the source module. A lived founder/operator decision, mistake, trade-off or operating constraint belongs to builder_operator when that is the real premise. A changed belief, unresolved idea or reconsideration belongs to ideas_thinking. Use sports_workflows/freight_workflows when the industry workflow itself is the story, personal_intelligence when HSAKAA/personal-intelligence design is the story, and learning_experiments/building_aakash/human_personality for actual-life growth and personality chapters. Do not classify a gym/walk/hobby scene as personal_intelligence merely because Health/HSAKAA supplied the evidence.',
-      'OWNED BUILDER JOURNEY IS MANDATORY: when worldContext.companies contains one or more configured companies, the seven-day plan must use at least one DISTINCT topic cluster that names one of those companies and shows Aakash actually building/operating it. Configured company fields and supplied company evidence are PUBLIC_SAFE by owner policy, so current focus, priorities, products, markets, principles, target customer, status and stage may be used exactly when supplied. Never invent a customer name, metric, launch, capability, outcome or implementation detail that is not in supplied evidence.',
-      'HSAKAA / PERSONAL INTELLIGENCE: treat HSAKAA as an owned public builder journey, not merely an internal planning system. Supplied HSAKAA brief/review context is PUBLIC_SAFE by owner policy. Actively look for a truthful builder checkpoint, design decision, failure, boundary, experiment or before/after learning. Use only the supplied detail and never invent implementation status or capability.',
-      'REPURPOSING: cross-platform derivatives count as ONE topic cluster for diversity. A strong source can have native derivatives, but do not use repurposing to fake diversity or saturate the week. Personal/hobby clusters should normally appear on no more than two surfaces total. Professional anchor clusters may travel farther only when each treatment has a distinct job.',
-      'Every day must still contain one explicit POST or SKIP decision for LinkedIn, Instagram feed, YouTube, X and WhatsApp so the calendar is unambiguous. SKIP is healthy when no feed asset is needed. A blank/invalid time on SKIP is acceptable; actual POST times must be exact local HH:MM Asia/Kolkata.',
-      'For WhatsApp, follow the Presence Strategy cadence and keep it personal/high-trust. Default to Status when genuinely relevant; direct whatsapp_message needs a real warm-contact reason. Never prepend generic templates such as “One thing I have been learning in my own work” to unrelated hobbies, astronomy or human moments.',
+      "CURRENT SIX-MONTH GROWTH SEASON: use storytellingPolicy.currentGrowthSeason as the active development arc. Track all five pursuits through evidence, but do not force all five into feed posts. Reading is the daily anchor. Spanish, guitar, voice improvement and chess are active six-month pursuits. Surface a pursuit when there is a real change, attempt, mistake, breakthrough, funny moment or visually useful checkpoint; quieter practice can remain in Stories.",
+      "TRAVEL ARC: storytellingPolicy.currentGrowthSeason.travel defines the six-month travel rhythm. Treat destination research, budgeting and preparation as story material when grounded. Never claim a booking or trip has happened unless evidence says so.",
+      "PLATFORM-NATIVE PLANNING: use storytellingPolicy.platformNativeRules before assigning a platform. The same event may travel across platforms only when each derivative has a genuinely different job and treatment.",
+      "PRIMARY OBJECTIVE: reach the supplied 100K-follower growthObjective as quickly as sustainably possible while making Aakash increasingly recognisable, trusted and worth following across topics. Optimise for discovery + follower conversion + retention/recognition + authority + affinity. Never buy reach with spam, fake controversy, trend-chasing disconnected from Aakash or generic viral bait.",
+      "STORY SELECTION ORDER: first reject anything ungrounded. Then rank the remaining truthful candidates using storytellingPolicy.storySelectionDimensions. A story should not win a major slot merely because it is technically interesting or evidence-rich. Prefer the candidate a stranger is most likely to understand, care about, watch through, share/reply to and return for.",
+      "WEEKLY HUMANITY FLOOR: when grounded whole-person context exists, at least 40% of the ranked opportunity pool should come from learning/building-Aakash/human-personality/travel/pets/life rather than company-system analysis. This is an opportunity-pool target, not permission to invent activity. Feed selection can still favour professional content on LinkedIn.",
+      "STRANGER-FRIENDLY DISCOVERY: include at least two ranked opportunities whose hook/premise is understandable without knowing any company/product name. A company may be the case study, but the opening tension should be universal enough to travel beyond current followers.",
+      "LIGHTNESS / HUMOUR: actively look for one grounded warm, awkward, playful, surprising or self-aware opportunity each week. It can be a Story-only or feed opportunity. Do not manufacture jokes or force humour onto serious events.",
+      "DOGS AS RECURRING CAST: storytellingPolicy.recurringCast contains Pixel, Cosmo and Happy. Actively consider whether a real walk, home, practice or routine scene becomes warmer or more watchable if one of them is genuinely present. Their entrance, companionship or interruption may be used as an opening beat or B-roll when captured; never invent what a dog did, assume presence, or force a pet cameo into a technical post.",
+      "HEALTH / FITNESS OPPORTUNITY: inspect Health OS for fresh source-grounded gym, training, walk, run or movement signals. When such a signal has visual action, tension, humour, consistency, a setback/return, or a real reaction, let it compete normally for Instagram/YouTube/Story slots. Do not force a feed post merely because a workout exists.",
+      "HEALTH PRIVACY: storytellingPolicy.healthContentPolicy overrides the broad PUBLIC_SAFE label for Health. Routine fitness items in allowedByDefault may be used when grounded; fields in requiresExplicitApproval must stay private unless the supplied per-asset evidence explicitly says owner-approved-for-media. Never expose medical, biometric or body-measurement detail just because Health OS contains it.",
+      "ACTUAL-LIFE FLOOR: storytellingPolicy.weeklyHumanityContract is a real planning constraint. When grounded routine/hobby/learning/human evidence exists, ensure the week contains at least two distinct actual-life feed clusters, including at least one Instagram feed cluster, plus at least three Instagram Story days grounded in whole-life signals. A HSAKAA privacy discussion about Health does NOT count as actual-life fitness content.",
+      "FITNESS PLATFORM FIT: Instagram/YouTube may use gym/walk material for movement, documentary texture, human struggle and recurring progress. LinkedIn should use Health only when there is a genuinely professional story rather than a forced discipline analogy. Stories may use low-production gym/walk context freely when grounded and privacy-safe.",
+      "PUBLIC IDENTITY: Aakash is the thoughtful builder who is deliberately building companies and himself. He should feel curious, analytical, ambitious, calm, human, experimental and slightly unconventional—not like a product-management instructor, AI influencer, motivational creator or lifestyle influencer.",
+      "For every opportunity set identityPillar for backward-compatible high-level identity AND strategyNarrativeKey copied exactly from presenceStrategy.narratives[].key. Also set a stable topicClusterKey: all derivatives of the same underlying idea/event must share one cluster key even across platforms. Set growthIntent to authority, discovery, conversion, affinity or conversation based on the primary growth job of the idea.",
+      "Do not translate every personal signal into a professional framework. A chess moment may simply be about chess; a guitar/voice/fitness/reading moment may simply show the journey, struggle, taste or curiosity. Human_unfiltered content should usually contain no business analogy. Building_aakash should centre Aakash improving himself. Learning_experiments should centre the journey/progress/question before any generalized lesson.",
+      "WHOLE-PERSONAL-OS CONTEXT: inspect every supplied Personal OS source across Tasks, Brain Dump, Journal, Library, Highlights, Decisions, Health, Hobbies, Media history, Companies and HSAKAA. PEOPLE and MEMORY are intentionally excluded from Media and must never be inferred, reconstructed or requested through another source. By owner policy, every other supplied Personal OS source is PUBLIC_SAFE Media context.",
+      "ROUTINES + HEALTH: Health is PUBLIC_SAFE Media context by owner policy. Source-grounded workouts, sleep/recovery/fitness metrics, diet/supplement context, progress and routines may be used when supplied. Never invent a diagnosis, result, improvement or completed activity; distinguish a planned routine from a completed one.",
+      "HOBBIES + SKILLS: worldContext.hobbies is the first-class source of truth for active HSAKAA Hobbies. Prefer actual active/maintenance tracks, current stage, real recorded practice pace and latest coaching focus. A keyword appearing elsewhere is not enough to make a hobby a weekly theme. Never invent practice. Before ranking opportunities, explicitly consider all five active six-month pursuits: reading, Spanish, guitar, voice improvement and chess. It is valid for a pursuit to produce no feed post when nothing interesting happened, but do not silently ignore a pursuit that has fresh evidence. A normal hobby event gets one primary content surface plus at most one lightweight secondary surface; do not flood YouTube + X + WhatsApp + Stories with the same moment.",
+      "BOOKS + LEARNING: books/highlights can inspire thinking, but vary the expression: a question, disagreement, passage reaction, experiment, visual note or changed view. Do not make every reading signal a framework post and do not claim reading progress unless evidence supports it.",
+      "Professional authority should come from lived builder/operator reasoning, real decisions, mistakes, trade-offs and company-building experience—not generic product-management education. Prefer “what I am seeing/trying/changing” over textbook frameworks.",
+      "Use whole-HSAKAA context to understand who Aakash is. The context is creative/strategic memory and anti-repetition memory; it is NOT a requirement that every personal reflection was previously approved as a public claim.",
+      "Aakash should be seen as a builder/operator/technologist with real depth across startups, AI, grassroots sports-tech, freight-tech, product thinking and operations, while also showing learning, books, health/routine, experiments and human personality. Do not make the brand only about companies or only about motivation.",
+      "CADENCE: obey planningCadence from input, which is derived from the active Presence Strategy platformRoles. Never substitute old hard-coded channel cadences. Feed posting every day is NOT required and WhatsApp must stay deliberately low-volume when the strategy says so.",
+      "LIGHTWEIGHT PRESENCE IS FIRST-CLASS: Instagram Stories should be planned 7/7 when usable context exists. YouTube Stories was retired by YouTube, so use YouTube Community posts as the native lightweight equivalent roughly 3-5 times per week. Community posts may be text, image or poll and should deepen familiarity/conversation rather than duplicate the same-day video.",
+      "Instagram Stories are a separate daily lightweight presence layer. Plan one Story pack for every day when any usable context exists, usually 1-3 frames. Derive it from known routine/current work/learning/personal growth/professional context. Never fabricate that Aakash completed an activity: when based on a routine, make the captureBrief contingent (for example, “during the morning walk, capture…”).",
+      "PORTFOLIO: use presenceStrategy.narratives as the real weekly narrative system. Aim broadly toward their targetSharePercent across DISTINCT topic clusters, not raw cross-platform post count. Use at least five distinct strategy narratives when enough grounded context exists. No single narrative or company should dominate simply because one source idea is easy to repurpose.",
+      "NARRATIVE CLASSIFICATION: strategyNarrativeKey describes the audience-facing story, not merely the source module. A lived founder/operator decision, mistake, trade-off or operating constraint belongs to builder_operator when that is the real premise. A changed belief, unresolved idea or reconsideration belongs to ideas_thinking. Use sports_workflows/freight_workflows when the industry workflow itself is the story, personal_intelligence when HSAKAA/personal-intelligence design is the story, and learning_experiments/building_aakash/human_personality for actual-life growth and personality chapters. Do not classify a gym/walk/hobby scene as personal_intelligence merely because Health/HSAKAA supplied the evidence.",
+      "OWNED BUILDER JOURNEY IS MANDATORY: when worldContext.companies contains one or more configured companies, the seven-day plan must use at least one DISTINCT topic cluster that names one of those companies and shows Aakash actually building/operating it. Configured company fields and supplied company evidence are PUBLIC_SAFE by owner policy, so current focus, priorities, products, markets, principles, target customer, status and stage may be used exactly when supplied. Never invent a customer name, metric, launch, capability, outcome or implementation detail that is not in supplied evidence.",
+      "HSAKAA / PERSONAL INTELLIGENCE: treat HSAKAA as an owned public builder journey, not merely an internal planning system. Supplied HSAKAA brief/review context is PUBLIC_SAFE by owner policy. Actively look for a truthful builder checkpoint, design decision, failure, boundary, experiment or before/after learning. Use only the supplied detail and never invent implementation status or capability.",
+      "HSAKAA AID: treat HSAKAA Aid as a first-class owned builder/public-service chapter when worldContext.hsakaaAid is supplied. Public facts such as launch date, monthly allocation, human-approval rule and review target may be used exactly as supplied. Never expose applicant PII, evidence, payment destinations, case transcripts or identifiable hardship. Do not use saviour/pity framing or claim impact that is not separately verified. Prefer transparent system-building, verification design, aggregate learning and accountable monthly updates.",
+      "REPURPOSING: cross-platform derivatives count as ONE topic cluster for diversity. A strong source can have native derivatives, but do not use repurposing to fake diversity or saturate the week. Personal/hobby clusters should normally appear on no more than two surfaces total. Professional anchor clusters may travel farther only when each treatment has a distinct job.",
+      "Every day must still contain one explicit POST or SKIP decision for LinkedIn, Instagram feed, YouTube, X and WhatsApp so the calendar is unambiguous. SKIP is healthy when no feed asset is needed. A blank/invalid time on SKIP is acceptable; actual POST times must be exact local HH:MM Asia/Kolkata.",
+      "For WhatsApp, follow the Presence Strategy cadence and keep it personal/high-trust. Default to Status when genuinely relevant; direct whatsapp_message needs a real warm-contact reason. Never prepend generic templates such as “One thing I have been learning in my own work” to unrelated hobbies, astronomy or human moments.",
       "HSAKAA is a content creation system, not an evidence-review checklist. Use PUBLIC_SAFE Personal OS context aggressively enough that Aakash's real companies, privacy-safe health/routines, learning and current work remain visible. PEOPLE and MEMORY stay excluded. Health is additionally constrained by storytellingPolicy.healthContentPolicy. If a fact is absent from supplied evidence, remove only that unsupported fact rather than erasing the whole narrative.",
-      'INTERNAL MEDIA STRATEGY IS NEVER PUBLIC CONTENT. Cadence tests, algorithm experiments, first-post strategy, impression testing and HSAKAA operating instructions guide planning but can never be selected as a public thesis.',
-      'Create 8-14 ranked opportunities from real whole-HSAKAA context where possible. Every opportunity must include strategyNarrativeKey, topicClusterKey and growthIntent. Plan at least two authentic discovery-oriented opportunities and at least one conversion-oriented opportunity that gives a new viewer a reason to follow Aakash for the ongoing journey, without generic “follow for more” copy. Prefer a conversion opportunity with a concrete continuation: baseline -> experiment -> checkpoint -> result, an unresolved build decision, or a promised future comparison. Evidence IDs shown in worldContext are short backend-issued keys such as E001. For every usable public_safe opportunity, evidenceIds must contain one or more exact E### keys copied from worldContext.publicSafe[].id, worldContext.companyEvidence[].id, worldContext.hsakaaEvidence[].id, worldContext.wholeLifeSignals[].id or worldContext.identityEvidence[].id. worldContext.internalSafe exists only for backward compatibility and should normally be empty. Never put opp_ opportunity keys in evidenceIds and never invent evidence references.',
-      'Evidence has two active modes plus one legacy compatibility mode. PUBLIC_SAFE may support factual public claims exactly as supplied, except Health is not blanket-publishable: apply storytellingPolicy.healthContentPolicy before using Health fields. IDENTITY_SAFE may support stable identity-level facts explicitly supplied in identityEvidence. INTERNAL_SAFE is legacy/backward-compatible only. Never infer PEOPLE or MEMORY details, and never invent metrics, capabilities, outcomes or facts absent from supplied evidence.',
-      'An opportunity should normally be privacy=public_safe whenever its evidence comes from the supplied non-People/non-Memory Personal OS context. A named company opportunity may use PUBLIC_SAFE companyEvidence for supplied facts and IDENTITY_SAFE evidence for stable identity facts. Do not clear companyName merely because a particular company field is absent; remove only the unsupported field.',
-      'needs_review opportunities must have usable=false and cannot be referenced by a POST. PEOPLE and MEMORY are never supplied as Media evidence.',
-      'Historical fingerprints are hard anti-repetition memory. Avoid repeating topic+thesis+angle, hook archetype, opening pattern, stories/examples, structure, CTA pattern, visual concept, key phrases and lexical signature. Also avoid repeating the same routine Story concept on consecutive days.',
-      'Use Buffer/direct-platform performance to calibrate story choice, packaging, format, hooks, timing, length and topic mix, but never turn analytics strategy into public content and never blindly repeat a previously successful post. Learn at the STORY dimension too: which tensions, failures, transformations, visual openings and recurring characters drive non-follower reach, impressions, choice-to-view, watch time/completion, shares/saves, comments/replies and follower conversion.',
-      'Create 1-3 story arcs where continuity helps. Prefer repeatable SERIES that can compound recognition toward 100K rather than one-off random themes. The goal is recognisable continuity across weeks, not disconnected daily posts.',
-      'For each feed execution return only planning decision fields in the schema. Final copy, captions, carousel slides and scripts are generated in a bounded second stage.',
-      'For instagramStory return only the Story planning skeleton: action, time, sourceType, sourceEvidenceIds, reason and captureBrief. Final Story frames are generated separately.',
-      'For youtubeCommunity return only the lightweight Community skeleton: action, time, format (text|image|poll), sourceType, sourceEvidenceIds and reason. Plan 3-5 POSTs/week when usable context exists; final Community copy/visual/poll execution is generated separately.',
-      'LONG-FORM BALANCE + VIABILITY: when real whole-person context exists, at least one of the two weekly long-form YouTube videos should come from learning_experiments, building_aakash or human_personality rather than making both long videos professional systems/technology essays. But do not force a long video merely to satisfy balance. A long-form candidate must have enough real scenes, progression, tension/questions and payoff to justify its length. If the only event is preparation, absence of action or a proposed framework, use a Short/Story/LinkedIn treatment instead and SKIP long-form.',
-      'This plan never publishes autonomously. Aakash approval remains required before canonical acceptance or publishing.',
-    ].join('\n');
+      "INTERNAL MEDIA STRATEGY IS NEVER PUBLIC CONTENT. Cadence tests, algorithm experiments, first-post strategy, impression testing and HSAKAA operating instructions guide planning but can never be selected as a public thesis.",
+      "Create 8-14 ranked opportunities from real whole-HSAKAA context where possible. Every opportunity must include strategyNarrativeKey, topicClusterKey and growthIntent. Plan at least two authentic discovery-oriented opportunities and at least one conversion-oriented opportunity that gives a new viewer a reason to follow Aakash for the ongoing journey, without generic “follow for more” copy. Prefer a conversion opportunity with a concrete continuation: baseline -> experiment -> checkpoint -> result, an unresolved build decision, or a promised future comparison. Evidence IDs shown in worldContext are short backend-issued keys such as E001. For every usable public_safe opportunity, evidenceIds must contain one or more exact E### keys copied from worldContext.publicSafe[].id, worldContext.companyEvidence[].id, worldContext.hsakaaEvidence[].id, worldContext.wholeLifeSignals[].id or worldContext.identityEvidence[].id. worldContext.internalSafe exists only for backward compatibility and should normally be empty. Never put opp_ opportunity keys in evidenceIds and never invent evidence references.",
+      "Evidence has two active modes plus one legacy compatibility mode. PUBLIC_SAFE may support factual public claims exactly as supplied, except Health is not blanket-publishable: apply storytellingPolicy.healthContentPolicy before using Health fields. IDENTITY_SAFE may support stable identity-level facts explicitly supplied in identityEvidence. INTERNAL_SAFE is legacy/backward-compatible only. Never infer PEOPLE or MEMORY details, and never invent metrics, capabilities, outcomes or facts absent from supplied evidence.",
+      "An opportunity should normally be privacy=public_safe whenever its evidence comes from the supplied non-People/non-Memory Personal OS context. A named company opportunity may use PUBLIC_SAFE companyEvidence for supplied facts and IDENTITY_SAFE evidence for stable identity facts. Do not clear companyName merely because a particular company field is absent; remove only the unsupported field.",
+      "needs_review opportunities must have usable=false and cannot be referenced by a POST. PEOPLE and MEMORY are never supplied as Media evidence.",
+      "Historical fingerprints are hard anti-repetition memory. Avoid repeating topic+thesis+angle, hook archetype, opening pattern, stories/examples, structure, CTA pattern, visual concept, key phrases and lexical signature. Also avoid repeating the same routine Story concept on consecutive days.",
+      "Use Buffer/direct-platform performance to calibrate story choice, packaging, format, hooks, timing, length and topic mix, but never turn analytics strategy into public content and never blindly repeat a previously successful post. Learn at the STORY dimension too: which tensions, failures, transformations, visual openings and recurring characters drive non-follower reach, impressions, choice-to-view, watch time/completion, shares/saves, comments/replies and follower conversion.",
+      "Create 1-3 story arcs where continuity helps. Prefer repeatable SERIES that can compound recognition toward 100K rather than one-off random themes. The goal is recognisable continuity across weeks, not disconnected daily posts.",
+      "For each feed execution return only planning decision fields in the schema. Final copy, captions, carousel slides and scripts are generated in a bounded second stage.",
+      "For instagramStory return only the Story planning skeleton: action, time, sourceType, sourceEvidenceIds, reason and captureBrief. Final Story frames are generated separately.",
+      "For youtubeCommunity return only the lightweight Community skeleton: action, time, format (text|image|poll), sourceType, sourceEvidenceIds and reason. Plan 3-5 POSTs/week when usable context exists; final Community copy/visual/poll execution is generated separately.",
+      "LONG-FORM BALANCE + VIABILITY: when real whole-person context exists, at least one of the two weekly long-form YouTube videos should come from learning_experiments, building_aakash or human_personality rather than making both long videos professional systems/technology essays. But do not force a long video merely to satisfy balance. A long-form candidate must have enough real scenes, progression, tension/questions and payoff to justify its length. If the only event is preparation, absence of action or a proposed framework, use a Short/Story/LinkedIn treatment instead and SKIP long-form.",
+      "This plan never publishes autonomously. Aakash approval remains required before canonical acceptance or publishing.",
+    ].join("\n");
   }
 
   private dayPackInstructions() {
     return [
       mediaStorytellingPromptPolicy(),
       "PLATFORM EXECUTION: obey storytellingPolicy.platformNativeRules. Preserve the same underlying truth but write/film it natively for the selected platform instead of cloning another platform's asset.",
-      'SHOOTING DIRECTION: for every REEL, SHORT or VIDEO, cameraInstructions must specify the shoot style, location/context, opening frame, camera position/movement, live-audio vs voice-over choice and shot progression. Use broll for exact supporting shots. Avoid seated desk talking-head unless it is genuinely the strongest treatment.',
-      'You are HSAKAA Media V3.14. Turn ONLY the supplied feed POST decisions for one day into complete execution-ready content. Do not add posts, remove posts, change platforms, change dates, change formats, change posting times or change opportunity references.',
-      'Write for the long-term public-figure objective: Aakash should become recognisable for a distinct point of view, useful operator depth and a human personality. Prefer specificity and lived thinking over generic advice, influencer language or motivational filler.',
-      'Return exactly one full execution object for every expectedPosts item and no SKIP objects. The service will merge intentional skips deterministically.',
-      'Every returned post must be completely publish-ready: executionReady=true, readinessIssues=[], one exact platform-native publishCopy, final hook, final CTA, and hashtags when useful. Never output duplicate post-text/caption variants, “write a post about”, “caption idea”, placeholders, TODOs or instructions for Aakash to finish the copy.',
-      'supplied publicEvidence may support factual public claims exactly as supplied, except Health must still pass storytellingPolicy.healthContentPolicy. supplied reflectionEvidence is legacy INTERNAL_SAFE context and should normally be empty. supplied identityEvidence may support stable configured identity facts. evidenceIds must come from the referenced opportunity and must never be invented.',
-      'NAMED COMPANY / HSAKAA EXECUTION: preserve the owned builder identity in final copy instead of abstracting it into generic product advice. PUBLIC_SAFE company/HSAKAA evidence may support the exact focus, priority, product, market, principle, target-customer, status, stage or checkpoint supplied. Never invent a feature, launch, customer name, metric, result, status or capability absent from evidence.',
-      'CONVERSION CONTENT: when growthIntent=conversion, the final copy must create a specific reason to come back—what is being tested, what remains unresolved, the next checkpoint, or what Aakash will compare later. Do not use generic “follow for more” language.',
-      'When legacy reflectionEvidence is used without publicEvidence, keep it first-person and abstract. PEOPLE and MEMORY must never be reconstructed. Do not quote book highlights verbatim; turn them into Aakash’s own reflection. PUBLIC_SAFE evidence may be stated as sourced fact, while any inference must be clearly framed as Aakash’s view.',
-      'INTERNAL MEDIA STRATEGY IS NEVER PUBLIC CONTENT. Never publish cadence tests, algorithm experiments, first-post strategy, early-signal/sample language, impression testing or HSAKAA operating instructions.',
-      'For IMAGE choose exactly one imageBrief mode: ai_generation, real_photo or designed_graphic. AI generation requires a complete detailed prompt. Real photo or designed graphic requires a full visual description. Always provide aspect ratio, overlay text and source guidance.',
-      'For CAROUSEL provide the complete carouselSlides array. Every slide needs final headline, final bodyCopy, visualType, overlayText, and either a complete imagePrompt for ai_image or a complete visualDescription otherwise.',
-      'For REEL, SHORT or VIDEO provide videoPack.fullScript word-for-word, targetDurationSeconds, deliveryInstructions, cameraInstructions, punchIns, broll, onScreenText, musicDirection and coverDirection. A YouTube long-form video must contain the full script, never an outline. Distinguish source activity duration from published video runtime: if Aakash practises for 30 minutes but the edit is 210 seconds, title/copy may say “30-minute practice session” but must not imply a 30-minute video.',
-      'For Instagram, prioritise human visual storytelling and familiarity; for LinkedIn, earn professional insight through lived builder/operator evidence; for X, sound like concise thinking-in-public; for YouTube, prioritise retention and story progression; for WhatsApp, keep the treatment intimate and low-volume.',
-      'PUBLIC COPY MUST SOUND HUMAN: factual guardrails should guide the generation silently. Do not turn captions/scripts into evidence audits. Avoid repeated phrases like “this is evidence, not progress”, “one attempt does not prove improvement”, “the capability is not implemented” or multiple disclaimer paragraphs. If a caveat is required, say it once in natural language and return to the story.',
-      'HOOK/PACKAGING TEST: the title, cover/thumbnail text and first spoken/visual beat must make sense to a stranger. For niche company content, lead with the broader tension/problem and bring 8lete/Frayto/HSAKAA in as the real example rather than expecting the viewer to care about internal architecture first.',
-      'RETENTION EDITING: remove setup that can be shown visually, start inside action where possible, and introduce a new visual beat/reveal/reaction/question often enough to prevent a static lecture. Short-form should feel compressed; long-form should have scene/chapter progression and a payoff worth the time.',
-      'DOG CAMEOS: Pixel, Cosmo and Happy may be used in the shot plan only when they naturally belong in the real scene. A dog can provide a warm cold-open, interruption, reaction beat, walk/home texture or B-roll, but never invent behaviour and never use a dog as unrelated clickbait.',
-      'Never force a lesson where the scene itself is enough. Endings such as an honest unresolved question or “try again tomorrow” are valid when they fit the evidence.',
-      'For an X THREAD, write every post in xThread in exact order. For WhatsApp messages/status/templates, write every exact frame/message in whatsappSequence.',
-      'Legacy caption/script/description/slides fields are compatibility fields: keep them concise and do not duplicate long content there. The canonical public-facing text belongs in publishCopy; specialized assets belong in carouselSlides, videoPack, xThread and whatsappSequence. For X threads and WhatsApp Status, publishCopy may be a compact intro while the exact sequence is authoritative.',
-      'Use historicalMediaFingerprints and alreadyGeneratedThisWeek as hard anti-repetition memory. Same-week platform-native wording must be genuinely distinct.',
-      'Preserve Aakash voice: thoughtful, specific, human, evidence-led, not a generic creator. This is execution, not ideation.',
-    ].join('\n');
+      "SHOOTING DIRECTION: for every REEL, SHORT or VIDEO, cameraInstructions must specify the shoot style, location/context, opening frame, camera position/movement, live-audio vs voice-over choice and shot progression. Use broll for exact supporting shots. Avoid seated desk talking-head unless it is genuinely the strongest treatment.",
+      "You are HSAKAA Media V3.14. Turn ONLY the supplied feed POST decisions for one day into complete execution-ready content. Do not add posts, remove posts, change platforms, change dates, change formats, change posting times or change opportunity references.",
+      "Write for the long-term public-figure objective: Aakash should become recognisable for a distinct point of view, useful operator depth and a human personality. Prefer specificity and lived thinking over generic advice, influencer language or motivational filler.",
+      "Return exactly one full execution object for every expectedPosts item and no SKIP objects. The service will merge intentional skips deterministically.",
+      "Every returned post must be completely publish-ready: executionReady=true, readinessIssues=[], one exact platform-native publishCopy, final hook, final CTA, and hashtags when useful. Never output duplicate post-text/caption variants, “write a post about”, “caption idea”, placeholders, TODOs or instructions for Aakash to finish the copy.",
+      "supplied publicEvidence may support factual public claims exactly as supplied, except Health must still pass storytellingPolicy.healthContentPolicy. supplied reflectionEvidence is legacy INTERNAL_SAFE context and should normally be empty. supplied identityEvidence may support stable configured identity facts. evidenceIds must come from the referenced opportunity and must never be invented.",
+      "NAMED COMPANY / HSAKAA EXECUTION: preserve the owned builder identity in final copy instead of abstracting it into generic product advice. PUBLIC_SAFE company/HSAKAA evidence may support the exact focus, priority, product, market, principle, target-customer, status, stage or checkpoint supplied. Never invent a feature, launch, customer name, metric, result, status or capability absent from evidence.",
+      "CONVERSION CONTENT: when growthIntent=conversion, the final copy must create a specific reason to come back—what is being tested, what remains unresolved, the next checkpoint, or what Aakash will compare later. Do not use generic “follow for more” language.",
+      "When legacy reflectionEvidence is used without publicEvidence, keep it first-person and abstract. PEOPLE and MEMORY must never be reconstructed. Do not quote book highlights verbatim; turn them into Aakash’s own reflection. PUBLIC_SAFE evidence may be stated as sourced fact, while any inference must be clearly framed as Aakash’s view.",
+      "INTERNAL MEDIA STRATEGY IS NEVER PUBLIC CONTENT. Never publish cadence tests, algorithm experiments, first-post strategy, early-signal/sample language, impression testing or HSAKAA operating instructions.",
+      "For IMAGE choose exactly one imageBrief mode: ai_generation, real_photo or designed_graphic. AI generation requires a complete detailed prompt. Real photo or designed graphic requires a full visual description. Always provide aspect ratio, overlay text and source guidance.",
+      "For CAROUSEL provide the complete carouselSlides array. Every slide needs final headline, final bodyCopy, visualType, overlayText, and either a complete imagePrompt for ai_image or a complete visualDescription otherwise.",
+      "For REEL, SHORT or VIDEO provide videoPack.fullScript word-for-word, targetDurationSeconds, deliveryInstructions, cameraInstructions, punchIns, broll, onScreenText, musicDirection and coverDirection. A YouTube long-form video must contain the full script, never an outline. Distinguish source activity duration from published video runtime: if Aakash practises for 30 minutes but the edit is 210 seconds, title/copy may say “30-minute practice session” but must not imply a 30-minute video.",
+      "For Instagram, prioritise human visual storytelling and familiarity; for LinkedIn, earn professional insight through lived builder/operator evidence; for X, sound like concise thinking-in-public; for YouTube, prioritise retention and story progression; for WhatsApp, keep the treatment intimate and low-volume.",
+      "PUBLIC COPY MUST SOUND HUMAN: factual guardrails should guide the generation silently. Do not turn captions/scripts into evidence audits. Avoid repeated phrases like “this is evidence, not progress”, “one attempt does not prove improvement”, “the capability is not implemented” or multiple disclaimer paragraphs. If a caveat is required, say it once in natural language and return to the story.",
+      "HOOK/PACKAGING TEST: the title, cover/thumbnail text and first spoken/visual beat must make sense to a stranger. For niche company content, lead with the broader tension/problem and bring 8lete/Frayto/HSAKAA in as the real example rather than expecting the viewer to care about internal architecture first.",
+      "RETENTION EDITING: remove setup that can be shown visually, start inside action where possible, and introduce a new visual beat/reveal/reaction/question often enough to prevent a static lecture. Short-form should feel compressed; long-form should have scene/chapter progression and a payoff worth the time.",
+      "DOG CAMEOS: Pixel, Cosmo and Happy may be used in the shot plan only when they naturally belong in the real scene. A dog can provide a warm cold-open, interruption, reaction beat, walk/home texture or B-roll, but never invent behaviour and never use a dog as unrelated clickbait.",
+      "Never force a lesson where the scene itself is enough. Endings such as an honest unresolved question or “try again tomorrow” are valid when they fit the evidence.",
+      "For an X THREAD, write every post in xThread in exact order. For WhatsApp messages/status/templates, write every exact frame/message in whatsappSequence.",
+      "Legacy caption/script/description/slides fields are compatibility fields: keep them concise and do not duplicate long content there. The canonical public-facing text belongs in publishCopy; specialized assets belong in carouselSlides, videoPack, xThread and whatsappSequence. For X threads and WhatsApp Status, publishCopy may be a compact intro while the exact sequence is authoritative.",
+      "Use historicalMediaFingerprints and alreadyGeneratedThisWeek as hard anti-repetition memory. Same-week platform-native wording must be genuinely distinct.",
+      "Preserve Aakash voice: thoughtful, specific, human, evidence-led, not a generic creator. This is execution, not ideation.",
+    ].join("\n");
   }
 
   private dailyStoryInstructions() {
     return [
       mediaStorytellingPromptPolicy(),
-      'You are HSAKAA Media V3.14 generating ONLY Aakash’s Instagram Story pack for the supplied day.',
-      'Stories are the daily lightweight human-presence layer, not miniature feed posts. Return 1-3 frames that feel natural, current and easy to capture.',
-      'Use the supplied storyPlan and evidence only. publicEvidence may support factual claims exactly as supplied, but Health fields must also pass storytellingPolicy.healthContentPolicy. reflectionEvidence is legacy only. identityEvidence supports stable identity facts. If sourceType=routine and evidence describes a plan rather than completion, write capture instructions conditionally so you never claim completion before it happens.',
-      'For a company/HSAKAA Story, preserve the named builder journey. PUBLIC_SAFE evidence may support supplied priorities/products/markets/checkpoints/metrics; identity-only evidence must stay at identity level. Never invent capabilities, customers, metrics or outcomes.',
-      'Each frame must include exact overlayText, optional spokenText, a concrete visualDescription/captureInstruction, and an interactiveElement only when genuinely useful (poll/question/slider or empty string).',
-      'Stories are the human-presence layer, not mini LinkedIn posts. Prefer real routine/current-life moments: work desk/building, books/learning, walk/gym/training, recording, guitar/voice/chess/Spanish/other hobbies, travel, food/drink/environment, small frustrations, wins, mistakes and reflective micro-thoughts. Pixel, Cosmo and Happy may appear naturally when they are genuinely present, especially as low-production warmth around practice, walks, work or home life; never invent their behaviour. Use wholeLifeSignals when relevant. Routine gym/walk/run details may be used when source-grounded and allowed by storytellingPolicy.healthContentPolicy; deeper Health data remains approval-gated. When at least three whole-life signals are available for the week, use whole-life evidence on at least three Story days instead of filling Stories with professional diagrams. Do not force a business lesson onto the moment. Never expose or infer PEOPLE/MEMORY content or internal Media strategy.',
-      'FITNESS STORY MODE: when a real gym/walk/run signal exists, prefer one simple moving capture over a designed graphic: shoes/door/start, walking POV, one exercise/set, between-set reaction, end-of-session moment, or environmental detail. Keep exact route/location and approval-gated Health fields out.',
-      'Do not repeat yesterday’s Story concept or wording. Keep it low-production and authentic enough to sustain daily.',
-      'executionReady must be true and readinessIssues must be empty for a POST Story pack.',
-    ].join('\n');
+      "You are HSAKAA Media V3.14 generating ONLY Aakash’s Instagram Story pack for the supplied day.",
+      "Stories are the daily lightweight human-presence layer, not miniature feed posts. Return 1-3 frames that feel natural, current and easy to capture.",
+      "Use the supplied storyPlan and evidence only. publicEvidence may support factual claims exactly as supplied, but Health fields must also pass storytellingPolicy.healthContentPolicy. reflectionEvidence is legacy only. identityEvidence supports stable identity facts. If sourceType=routine and evidence describes a plan rather than completion, write capture instructions conditionally so you never claim completion before it happens.",
+      "For a company/HSAKAA Story, preserve the named builder journey. PUBLIC_SAFE evidence may support supplied priorities/products/markets/checkpoints/metrics; identity-only evidence must stay at identity level. Never invent capabilities, customers, metrics or outcomes.",
+      "Each frame must include exact overlayText, optional spokenText, a concrete visualDescription/captureInstruction, and an interactiveElement only when genuinely useful (poll/question/slider or empty string).",
+      "Stories are the human-presence layer, not mini LinkedIn posts. Prefer real routine/current-life moments: work desk/building, books/learning, walk/gym/training, recording, guitar/voice/chess/Spanish/other hobbies, travel, food/drink/environment, small frustrations, wins, mistakes and reflective micro-thoughts. Pixel, Cosmo and Happy may appear naturally when they are genuinely present, especially as low-production warmth around practice, walks, work or home life; never invent their behaviour. Use wholeLifeSignals when relevant. Routine gym/walk/run details may be used when source-grounded and allowed by storytellingPolicy.healthContentPolicy; deeper Health data remains approval-gated. When at least three whole-life signals are available for the week, use whole-life evidence on at least three Story days instead of filling Stories with professional diagrams. Do not force a business lesson onto the moment. Never expose or infer PEOPLE/MEMORY content or internal Media strategy.",
+      "FITNESS STORY MODE: when a real gym/walk/run signal exists, prefer one simple moving capture over a designed graphic: shoes/door/start, walking POV, one exercise/set, between-set reaction, end-of-session moment, or environmental detail. Keep exact route/location and approval-gated Health fields out.",
+      "Do not repeat yesterday’s Story concept or wording. Keep it low-production and authentic enough to sustain daily.",
+      "executionReady must be true and readinessIssues must be empty for a POST Story pack.",
+    ].join("\n");
   }
 
   private youtubeCommunityInstructions() {
     return [
       mediaStorytellingPromptPolicy(),
-      'You are HSAKAA Media V3.14 generating ONLY Aakash’s YouTube Community post for the supplied date.',
-      'YouTube Stories no longer exists. Community posts are the lightweight relationship layer on YouTube, alongside Shorts and long-form video.',
-      'Keep Community native and low-production: a concise text thought, one image-backed note, or a poll. Do not write a miniature YouTube description or simply repeat the same-day video/Short.',
-      'Use the supplied source evidence only. publicEvidence may support factual claims exactly as supplied, but Health fields must also pass storytellingPolicy.healthContentPolicy. reflectionEvidence is legacy only; identityEvidence supports stable configured identity facts.',
-      'For company/HSAKAA Community content, keep the named builder journey. PUBLIC_SAFE evidence may support supplied priorities/products/markets/checkpoints/metrics; identity-only evidence stays at identity level. Never invent a capability, customer, metric, launch or outcome.',
-      'For format=text: write one exact publishCopy and leave imageBrief mode=none and poll fields empty.',
-      'For format=image: write exact publishCopy plus a complete imageBrief. Prefer a real/current photo when the supplied plan is personal or routine-led; otherwise use a restrained designed graphic. Never invent an event that did not happen.',
-      'For format=poll: write a short publishCopy, exact pollQuestion and 2-4 concise pollOptions. Use polls to create genuine conversation, not generic engagement bait.',
-      'Keep it useful but more conversational than feed essays. Human/unfiltered, routines, hobbies, books/learning and building-Aakash moments are welcome and do not need a business lesson. Use wholeLifeSignals to keep Aakash present as a real person between uploads.',
-      'Never expose or infer PEOPLE/MEMORY content or raw evidence IDs. Use company detail only when present in supplied PUBLIC_SAFE evidence. Use Health detail only when both source-grounded and permitted by storytellingPolicy.healthContentPolicy. Internal Media strategy remains non-public.',
-      'executionReady must be true and readinessIssues must be empty for a POST.',
-    ].join('\n');
+      "You are HSAKAA Media V3.14 generating ONLY Aakash’s YouTube Community post for the supplied date.",
+      "YouTube Stories no longer exists. Community posts are the lightweight relationship layer on YouTube, alongside Shorts and long-form video.",
+      "Keep Community native and low-production: a concise text thought, one image-backed note, or a poll. Do not write a miniature YouTube description or simply repeat the same-day video/Short.",
+      "Use the supplied source evidence only. publicEvidence may support factual claims exactly as supplied, but Health fields must also pass storytellingPolicy.healthContentPolicy. reflectionEvidence is legacy only; identityEvidence supports stable configured identity facts.",
+      "For company/HSAKAA Community content, keep the named builder journey. PUBLIC_SAFE evidence may support supplied priorities/products/markets/checkpoints/metrics; identity-only evidence stays at identity level. Never invent a capability, customer, metric, launch or outcome.",
+      "For format=text: write one exact publishCopy and leave imageBrief mode=none and poll fields empty.",
+      "For format=image: write exact publishCopy plus a complete imageBrief. Prefer a real/current photo when the supplied plan is personal or routine-led; otherwise use a restrained designed graphic. Never invent an event that did not happen.",
+      "For format=poll: write a short publishCopy, exact pollQuestion and 2-4 concise pollOptions. Use polls to create genuine conversation, not generic engagement bait.",
+      "Keep it useful but more conversational than feed essays. Human/unfiltered, routines, hobbies, books/learning and building-Aakash moments are welcome and do not need a business lesson. Use wholeLifeSignals to keep Aakash present as a real person between uploads.",
+      "Never expose or infer PEOPLE/MEMORY content or raw evidence IDs. Use company detail only when present in supplied PUBLIC_SAFE evidence. Use Health detail only when both source-grounded and permitted by storytellingPolicy.healthContentPolicy. Internal Media strategy remains non-public.",
+      "executionReady must be true and readinessIssues must be empty for a POST.",
+    ].join("\n");
   }
 
   private planningPublicCompanyEvidence(worldContext: PlanningWorldContext) {
@@ -3150,35 +3151,35 @@ export class MediaPlanningService {
       summary: [
         `${company.name} is a configured company Aakash is building/operating.`,
         company.roles?.length
-          ? `Aakash roles: ${company.roles.slice(0, 6).join(', ')}.`
-          : '',
+          ? `Aakash roles: ${company.roles.slice(0, 6).join(", ")}.`
+          : "",
         company.industries?.length
-          ? `Industries: ${company.industries.slice(0, 6).join(', ')}.`
-          : '',
+          ? `Industries: ${company.industries.slice(0, 6).join(", ")}.`
+          : "",
         company.products?.length
-          ? `Products: ${company.products.slice(0, 8).join(', ')}.`
-          : '',
+          ? `Products: ${company.products.slice(0, 8).join(", ")}.`
+          : "",
         company.markets?.length
-          ? `Markets: ${company.markets.slice(0, 8).join(', ')}.`
-          : '',
-        company.currentFocus ? `Current focus: ${company.currentFocus}.` : '',
+          ? `Markets: ${company.markets.slice(0, 8).join(", ")}.`
+          : "",
+        company.currentFocus ? `Current focus: ${company.currentFocus}.` : "",
         company.currentPriorities?.length
-          ? `Current priorities: ${company.currentPriorities.slice(0, 8).join(', ')}.`
-          : '',
+          ? `Current priorities: ${company.currentPriorities.slice(0, 8).join(", ")}.`
+          : "",
         company.principles?.length
-          ? `Principles: ${company.principles.slice(0, 8).join(', ')}.`
-          : '',
+          ? `Principles: ${company.principles.slice(0, 8).join(", ")}.`
+          : "",
         company.targetCustomer
           ? `Target customer: ${company.targetCustomer}.`
-          : '',
-        company.status ? `Status: ${company.status}.` : '',
-        company.stage ? `Stage: ${company.stage}.` : '',
-        'Owner Media policy classifies supplied company context as PUBLIC_SAFE. Use exactly what is supplied; never invent missing customers, metrics, capabilities, launches or outcomes.',
+          : "",
+        company.status ? `Status: ${company.status}.` : "",
+        company.stage ? `Stage: ${company.stage}.` : "",
+        "Owner Media policy classifies supplied company context as PUBLIC_SAFE. Use exactly what is supplied; never invent missing customers, metrics, capabilities, launches or outcomes.",
       ]
         .filter(Boolean)
-        .join(' '),
-      kind: 'company_context',
-      source: 'company',
+        .join(" "),
+      kind: "company_context",
+      source: "company",
       significantChange: false,
       companyName: company.name,
     }));
@@ -3194,44 +3195,61 @@ export class MediaPlanningService {
       significantChange: boolean;
       companyName?: string;
     }> = [];
+    if (worldContext.hsakaaAid) {
+      const aid = worldContext.hsakaaAid;
+      evidence.push({
+        id: "public:hsakaa:aid",
+        title: "HSAKAA Aid",
+        summary: [
+          `HSAKAA Aid starts ${aid.startsAt}.`,
+          `Monthly allocation: INR ${aid.monthlyAllocationInr}.`,
+          `Review target: ${aid.reviewTargetHours} hours after contact capture.`,
+          "Applications happen inside the existing HSAKAA chat and final decisions require human approval.",
+          ...(aid.publicContentRules ?? []),
+        ].join(" "),
+        kind: "hsakaa_aid",
+        source: "hsakaa_aid",
+        significantChange: true,
+      });
+    }
     if (worldContext.hsakaa?.latestBrief) {
       const brief = worldContext.hsakaa.latestBrief;
       evidence.push({
-        id: 'public:hsakaa:latest-brief',
-        title: brief.headline || 'HSAKAA latest brief',
+        id: "public:hsakaa:latest-brief",
+        title: brief.headline || "HSAKAA latest brief",
         summary: [
           brief.summary,
           brief.opportunities?.length
-            ? `Opportunities: ${brief.opportunities.slice(0, 8).join('; ')}.`
-            : '',
-          brief.generatedAt ? `Generated at: ${brief.generatedAt}.` : '',
+            ? `Opportunities: ${brief.opportunities.slice(0, 8).join("; ")}.`
+            : "",
+          brief.generatedAt ? `Generated at: ${brief.generatedAt}.` : "",
         ]
           .filter(Boolean)
-          .join(' '),
-        kind: 'hsakaa_brief',
-        source: 'hsakaa',
+          .join(" "),
+        kind: "hsakaa_brief",
+        source: "hsakaa",
         significantChange: true,
       });
     }
     if (worldContext.hsakaa?.latestWeeklyReview) {
       const review = worldContext.hsakaa.latestWeeklyReview;
       evidence.push({
-        id: 'public:hsakaa:weekly-review',
-        title: review.headline || 'HSAKAA weekly review',
+        id: "public:hsakaa:weekly-review",
+        title: review.headline || "HSAKAA weekly review",
         summary: [
           review.summary,
           review.lessons?.length
-            ? `Lessons: ${review.lessons.slice(0, 8).join('; ')}.`
-            : '',
+            ? `Lessons: ${review.lessons.slice(0, 8).join("; ")}.`
+            : "",
           review.nextWeekPriorities?.length
-            ? `Next priorities: ${review.nextWeekPriorities.slice(0, 8).join('; ')}.`
-            : '',
-          review.generatedAt ? `Generated at: ${review.generatedAt}.` : '',
+            ? `Next priorities: ${review.nextWeekPriorities.slice(0, 8).join("; ")}.`
+            : "",
+          review.generatedAt ? `Generated at: ${review.generatedAt}.` : "",
         ]
           .filter(Boolean)
-          .join(' '),
-        kind: 'hsakaa_weekly_review',
-        source: 'hsakaa',
+          .join(" "),
+        kind: "hsakaa_weekly_review",
+        source: "hsakaa",
         significantChange: true,
       });
     }
@@ -3254,20 +3272,20 @@ export class MediaPlanningService {
       summary: [
         `${company.name} is a configured company in Aakash's Personal OS.`,
         company.roles?.length
-          ? `Aakash roles: ${company.roles.slice(0, 4).join(', ')}.`
-          : '',
+          ? `Aakash roles: ${company.roles.slice(0, 4).join(", ")}.`
+          : "",
         company.industries?.length
-          ? `Broad industries: ${company.industries.slice(0, 4).join(', ')}.`
-          : '',
+          ? `Broad industries: ${company.industries.slice(0, 4).join(", ")}.`
+          : "",
         company.markets?.length
-          ? `Broad markets: ${company.markets.slice(0, 4).join(', ')}.`
-          : '',
-        'This identity evidence permits naming the company and these stable identity-level fields only. It does not verify current priorities, products/capabilities, customers, metrics, launches, outcomes or status.',
+          ? `Broad markets: ${company.markets.slice(0, 4).join(", ")}.`
+          : "",
+        "This identity evidence permits naming the company and these stable identity-level fields only. It does not verify current priorities, products/capabilities, customers, metrics, launches, outcomes or status.",
       ]
         .filter(Boolean)
-        .join(' '),
-      kind: 'company_identity',
-      source: 'company_identity',
+        .join(" "),
+      kind: "company_identity",
+      source: "company_identity",
       significantChange: false,
       companyName: company.name,
     }));
@@ -3275,14 +3293,14 @@ export class MediaPlanningService {
     return [
       ...companyEvidence,
       {
-        id: 'identity:hsakaa',
-        title: 'HSAKAA · personal intelligence builder identity',
+        id: "identity:hsakaa",
+        title: "HSAKAA · personal intelligence builder identity",
         summary:
-          'Aakash is building HSAKAA as his personal intelligence / digital-twin system. This identity evidence permits naming HSAKAA and the fact that Aakash is building it. It does not verify any specific capability, integration, autonomy level, implementation status, performance result or outcome unless separate PUBLIC_SAFE evidence supports that claim.',
-        kind: 'hsakaa_identity',
-        source: 'hsakaa_identity',
+          "Aakash is building HSAKAA as his personal intelligence / digital-twin system. This identity evidence permits naming HSAKAA and the fact that Aakash is building it. It does not verify any specific capability, integration, autonomy level, implementation status, performance result or outcome unless separate PUBLIC_SAFE evidence supports that claim.",
+        kind: "hsakaa_identity",
+        source: "hsakaa_identity",
         significantChange: false,
-        companyName: '',
+        companyName: "",
       },
     ];
   }
@@ -3302,27 +3320,27 @@ export class MediaPlanningService {
         significantChange?: boolean;
         companyName?: string;
       }>,
-      privacy: PlanningEvidenceCatalogEntry['privacy'],
+      privacy: PlanningEvidenceCatalogEntry["privacy"],
     ) => {
       for (const item of items ?? []) {
         if (!item.id || seenIds.has(item.id)) continue;
         seenIds.add(item.id);
         entries.push({
-          key: `E${String(entries.length + 1).padStart(3, '0')}`,
+          key: `E${String(entries.length + 1).padStart(3, "0")}`,
           id: item.id,
           privacy,
-          title: item.title ?? '',
-          summary: item.summary ?? '',
-          kind: item.kind ?? '',
-          source: typeof item.source === 'string' ? item.source : '',
+          title: item.title ?? "",
+          summary: item.summary ?? "",
+          kind: item.kind ?? "",
+          source: typeof item.source === "string" ? item.source : "",
           significantChange: Boolean(item.significantChange),
           companyName: item.companyName?.trim() || undefined,
         });
       }
     };
-    append(this.planningPublicEvidence(worldContext), 'public_safe');
-    append(worldContext.internalSafe ?? [], 'internal_safe');
-    append(this.planningIdentityEvidence(worldContext), 'identity_safe');
+    append(this.planningPublicEvidence(worldContext), "public_safe");
+    append(worldContext.internalSafe ?? [], "internal_safe");
+    append(this.planningIdentityEvidence(worldContext), "identity_safe");
     return entries;
   }
 
@@ -3404,23 +3422,23 @@ export class MediaPlanningService {
 
       let evidenceIds = resolved;
       if (
-        opportunity.privacy === 'public_safe' &&
+        opportunity.privacy === "public_safe" &&
         opportunity.usable &&
         !evidenceIds.length
       ) {
         evidenceIds = this.inferOpportunityEvidence(opportunity, catalog);
       }
-      const companyName = opportunity.companyName?.trim() ?? '';
+      const companyName = opportunity.companyName?.trim() ?? "";
       const requiredIdentityEvidence = catalog
         .filter(
           (entry) =>
-            entry.privacy === 'identity_safe' &&
+            entry.privacy === "identity_safe" &&
             ((companyName &&
               entry.companyName?.trim().toLowerCase() ===
                 companyName.toLowerCase()) ||
               (!companyName &&
-                opportunity.strategyNarrativeKey === 'personal_intelligence' &&
-                entry.kind === 'hsakaa_identity')),
+                opportunity.strategyNarrativeKey === "personal_intelligence" &&
+                entry.kind === "hsakaa_identity")),
         )
         .map((entry) => entry.id)
         .slice(0, 1);
@@ -3437,27 +3455,27 @@ export class MediaPlanningService {
         );
       const hasMatchingIdentityEvidence = evidenceEntries.some(
         (entry) =>
-          entry.privacy === 'identity_safe' &&
+          entry.privacy === "identity_safe" &&
           (!companyName ||
             entry.companyName?.trim().toLowerCase() ===
               companyName.toLowerCase() ||
-            (opportunity.strategyNarrativeKey === 'personal_intelligence' &&
-              entry.kind === 'hsakaa_identity')),
+            (opportunity.strategyNarrativeKey === "personal_intelligence" &&
+              entry.kind === "hsakaa_identity")),
       );
 
       if (
-        opportunity.privacy === 'public_safe' &&
+        opportunity.privacy === "public_safe" &&
         opportunity.usable &&
         (!evidenceIds.length ||
           (companyName &&
             !hasMatchingIdentityEvidence &&
-            !evidenceEntries.some((entry) => entry.privacy === 'public_safe')))
+            !evidenceEntries.some((entry) => entry.privacy === "public_safe")))
       ) {
         unresolvedOpportunityKeys.push(opportunity.key);
         return {
           ...opportunity,
           evidenceIds: [],
-          privacy: 'needs_review' as const,
+          privacy: "needs_review" as const,
           usable: false,
           evidenceStrength: Math.min(opportunity.evidenceStrength, 25),
         };
@@ -3476,7 +3494,7 @@ export class MediaPlanningService {
   }
 
   private inferOpportunityEvidence(
-    opportunity: PlanningStrategyCore['opportunities'][number],
+    opportunity: PlanningStrategyCore["opportunities"][number],
     catalog: PlanningEvidenceCatalogEntry[],
   ) {
     const searchText = [
@@ -3489,26 +3507,26 @@ export class MediaPlanningService {
       opportunity.companyName,
     ]
       .filter(Boolean)
-      .join(' ');
+      .join(" ");
     const searchTokens = this.tokens(searchText);
     if (!searchTokens.length) return [];
 
-    const companyName = opportunity.companyName?.trim().toLowerCase() ?? '';
+    const companyName = opportunity.companyName?.trim().toLowerCase() ?? "";
     const identityMatches = catalog.filter((entry) => {
-      if (entry.privacy !== 'identity_safe') return false;
+      if (entry.privacy !== "identity_safe") return false;
       if (companyName) {
         return entry.companyName?.trim().toLowerCase() === companyName;
       }
       return (
-        opportunity.strategyNarrativeKey === 'personal_intelligence' &&
-        entry.kind === 'hsakaa_identity'
+        opportunity.strategyNarrativeKey === "personal_intelligence" &&
+        entry.kind === "hsakaa_identity"
       );
     });
 
     const ranked = catalog
       .map((entry) => {
         const evidenceTokens = this.tokens(
-          [entry.title, entry.summary, entry.kind, entry.source].join(' '),
+          [entry.title, entry.summary, entry.kind, entry.source].join(" "),
         );
         const intersection = searchTokens.filter((token) =>
           evidenceTokens.includes(token),
@@ -3518,7 +3536,7 @@ export class MediaPlanningService {
           intersection * 2 +
           similarity * 5 +
           (entry.significantChange ? 0.25 : 0) +
-          (entry.privacy === 'identity_safe' ? 0.5 : 0);
+          (entry.privacy === "identity_safe" ? 0.5 : 0);
         return { entry, score };
       })
       .filter((candidate) => candidate.score >= 2)
@@ -3668,19 +3686,19 @@ export class MediaPlanningService {
     return (worldContext.wholeLifeSignals ?? [])
       .filter((signal) => {
         if (
-          !['routine', 'hobby', 'learning', 'human'].includes(signal.category)
+          !["routine", "hobby", "learning", "human"].includes(signal.category)
         ) {
           return false;
         }
-        if (signal.category !== 'routine') return true;
-        const text = `${signal.title ?? ''} ${signal.summary ?? ''}`;
+        if (signal.category !== "routine") return true;
+        const text = `${signal.title ?? ""} ${signal.summary ?? ""}`;
         return routinePattern.test(text) && !sensitiveHealthPattern.test(text);
       })
       .sort((left, right) => {
         if (left.significantChange !== right.significantChange) {
           return left.significantChange ? -1 : 1;
         }
-        return (right.occurredAt ?? '').localeCompare(left.occurredAt ?? '');
+        return (right.occurredAt ?? "").localeCompare(left.occurredAt ?? "");
       });
   }
 
@@ -3708,7 +3726,7 @@ export class MediaPlanningService {
     if (!additionsNeeded) return repaired;
 
     const categoryPriority: Record<
-      PlanningWholeLifeSignal['category'],
+      PlanningWholeLifeSignal["category"],
       number
     > = {
       routine: 0,
@@ -3723,49 +3741,49 @@ export class MediaPlanningService {
         const categoryDelta =
           categoryPriority[left.category] - categoryPriority[right.category];
         if (categoryDelta) return categoryDelta;
-        return (right.occurredAt ?? '').localeCompare(left.occurredAt ?? '');
+        return (right.occurredAt ?? "").localeCompare(left.occurredAt ?? "");
       })
       .slice(0, additionsNeeded);
 
     for (const [index, signal] of candidates.entries()) {
       const preferredNarrative =
-        signal.category === 'routine'
-          ? 'building_aakash'
-          : signal.category === 'human'
-            ? 'human_personality'
-            : 'learning_experiments';
+        signal.category === "routine"
+          ? "building_aakash"
+          : signal.category === "human"
+            ? "human_personality"
+            : "learning_experiments";
       const strategyNarrativeKey = narrativeKeys.has(preferredNarrative)
         ? preferredNarrative
         : [...narrativeKeys][0] || preferredNarrative;
       const identityPillar: MediaPublicIdentityPillar =
-        strategyNarrativeKey === 'building_aakash'
-          ? 'building_aakash'
-          : strategyNarrativeKey === 'human_personality'
-            ? 'human_unfiltered'
-            : 'learning_experiments';
+        strategyNarrativeKey === "building_aakash"
+          ? "building_aakash"
+          : strategyNarrativeKey === "human_personality"
+            ? "human_unfiltered"
+            : "learning_experiments";
       const fragment = this.planningKeyFragment(
         `actual_life_${signal.category}_${signal.title}_${index + 1}`,
       );
-      const isRoutine = signal.category === 'routine';
+      const isRoutine = signal.category === "routine";
       repaired.opportunities.push({
         key: `actual_life_${fragment}`,
         title:
           signal.title ||
-          (isRoutine ? 'A real routine checkpoint' : 'A real-life checkpoint'),
+          (isRoutine ? "A real routine checkpoint" : "A real-life checkpoint"),
         thesis: signal.summary,
         whyNow: isRoutine
-          ? 'Use this only as a source-grounded lived fitness/routine scene: visible movement, preparation, effort, environment or an immediate real reaction. Keep sensitive Health data out. If Pixel, Cosmo or Happy naturally joins the moment, a brief candid beat may stay in the story.'
-          : 'Use this as a lived Aakash chapter rather than another professional analysis. Prefer the actual attempt, curiosity, awkwardness, reaction or small unresolved next step. If a dog is genuinely present, a natural cameo may stay in the scene.',
+          ? "Use this only as a source-grounded lived fitness/routine scene: visible movement, preparation, effort, environment or an immediate real reaction. Keep sensitive Health data out. If Pixel, Cosmo or Happy naturally joins the moment, a brief candid beat may stay in the story."
+          : "Use this as a lived Aakash chapter rather than another professional analysis. Prefer the actual attempt, curiosity, awkwardness, reaction or small unresolved next step. If a dog is genuinely present, a natural cameo may stay in the scene.",
         sourceSummary: signal.summary,
         evidenceIds: [signal.id],
-        companyName: '',
-        narrative: 'actual_life',
+        companyName: "",
+        narrative: "actual_life",
         strategyNarrativeKey,
         topicClusterKey: `cluster_actual_life_${fragment}`,
         growthIntent:
-          signal.category === 'hobby' || signal.category === 'learning'
-            ? 'conversion'
-            : 'affinity',
+          signal.category === "hobby" || signal.category === "learning"
+            ? "conversion"
+            : "affinity",
         identityPillar,
         platforms: [
           MediaPlatform.INSTAGRAM,
@@ -3782,7 +3800,7 @@ export class MediaPlanningService {
         strategicFit: isRoutine ? 90 : 86,
         novelty: signal.significantChange ? 88 : 76,
         evidenceStrength: 82,
-        privacy: 'public_safe',
+        privacy: "public_safe",
         usable: true,
       });
     }
@@ -3807,7 +3825,7 @@ export class MediaPlanningService {
     const actualLifeOpportunities = repaired.opportunities.filter(
       (item) =>
         item.usable &&
-        item.privacy === 'public_safe' &&
+        item.privacy === "public_safe" &&
         (item.evidenceIds ?? []).some((id) => signalIds.has(id)),
     );
     if (!actualLifeOpportunities.length) return repaired;
@@ -3816,9 +3834,9 @@ export class MediaPlanningService {
       const clusters = new Set<string>();
       for (const day of repaired.days) {
         for (const execution of day.executions) {
-          if (execution.action !== 'post') continue;
+          if (execution.action !== "post") continue;
           const opportunity = opportunityByKey.get(
-            execution.opportunityKey ?? '',
+            execution.opportunityKey ?? "",
           );
           if (
             opportunity &&
@@ -3833,7 +3851,7 @@ export class MediaPlanningService {
 
     const formatForPlatform = (
       platform: MediaPlatform,
-      opportunity: GeneratedPlan['opportunities'][number],
+      opportunity: GeneratedPlan["opportunities"][number],
     ) => {
       const allowed = new Set(opportunity.formats ?? []);
       if (platform === MediaPlatform.INSTAGRAM) {
@@ -3853,9 +3871,9 @@ export class MediaPlanningService {
         .filter((item) => !excludeClusters.has(item.topicClusterKey))
         .sort((left, right) => {
           const score = (item: (typeof actualLifeOpportunities)[number]) =>
-            (item.strategyNarrativeKey === 'building_aakash' ? 50 : 0) +
-            (item.strategyNarrativeKey === 'human_personality' ? 45 : 0) +
-            (item.growthIntent === 'conversion' ? 35 : 0) +
+            (item.strategyNarrativeKey === "building_aakash" ? 50 : 0) +
+            (item.strategyNarrativeKey === "human_personality" ? 45 : 0) +
+            (item.growthIntent === "conversion" ? 35 : 0) +
             (item.novelty ?? 0) +
             (item.strategicFit ?? 0);
           return score(right) - score(left);
@@ -3866,12 +3884,12 @@ export class MediaPlanningService {
         day.executions.some((execution) => {
           if (
             execution.platform !== MediaPlatform.INSTAGRAM ||
-            execution.action !== 'post'
+            execution.action !== "post"
           ) {
             return false;
           }
           const opportunity = opportunityByKey.get(
-            execution.opportunityKey ?? '',
+            execution.opportunityKey ?? "",
           );
           return Boolean(
             opportunity &&
@@ -3890,20 +3908,20 @@ export class MediaPlanningService {
           ({ day, execution }) =>
             mutable(day.date) &&
             execution.platform === MediaPlatform.INSTAGRAM &&
-            execution.action === 'post',
+            execution.action === "post",
         )
         .sort((left, right) => {
           const professionalWeight = (entry: typeof left) => {
             const current = opportunityByKey.get(
-              entry.execution.opportunityKey ?? '',
+              entry.execution.opportunityKey ?? "",
             );
             if (!current) return 0;
             return [
-              'builder_operator',
-              'ideas_thinking',
-              'sports_workflows',
-              'freight_workflows',
-              'personal_intelligence',
+              "builder_operator",
+              "ideas_thinking",
+              "sports_workflows",
+              "freight_workflows",
+              "personal_intelligence",
             ].includes(current.strategyNarrativeKey)
               ? 10
               : 0;
@@ -3912,13 +3930,13 @@ export class MediaPlanningService {
         })[0];
       if (opportunity && replacement) {
         replacement.execution.opportunityKey = opportunity.key;
-        replacement.execution.storyArcKey = '';
+        replacement.execution.storyArcKey = "";
         replacement.execution.format = formatForPlatform(
           MediaPlatform.INSTAGRAM,
           opportunity,
         );
         replacement.execution.reason =
-          'Instagram rebalanced automatically so grounded actual life is not crowded out by professional/system analysis for the entire week.';
+          "Instagram rebalanced automatically so grounded actual life is not crowded out by professional/system analysis for the entire week.";
       }
     }
 
@@ -3945,7 +3963,7 @@ export class MediaPlanningService {
           day.executions.map((execution) => ({ day, execution })),
         )
         .find(({ day, execution }) => {
-          if (!mutable(day.date) || execution.action !== 'post') return false;
+          if (!mutable(day.date) || execution.action !== "post") return false;
           if (execution.platform !== platform) return false;
           if (
             execution.platform === MediaPlatform.YOUTUBE &&
@@ -3953,7 +3971,7 @@ export class MediaPlanningService {
           ) {
             return false;
           }
-          const current = opportunityByKey.get(execution.opportunityKey ?? '');
+          const current = opportunityByKey.get(execution.opportunityKey ?? "");
           return !(
             current &&
             (current.evidenceIds ?? []).some((id) => signalIds.has(id))
@@ -3961,10 +3979,10 @@ export class MediaPlanningService {
         });
       if (!replacement) continue;
       replacement.execution.opportunityKey = opportunity.key;
-      replacement.execution.storyArcKey = '';
+      replacement.execution.storyArcKey = "";
       replacement.execution.format = formatForPlatform(platform, opportunity);
       replacement.execution.reason =
-        'Weekly actual-life floor restored automatically from grounded whole-life evidence so Aakash remains present as a person, not only as an analyst of systems.';
+        "Weekly actual-life floor restored automatically from grounded whole-life evidence so Aakash remains present as a person, not only as an analyst of systems.";
       usedClusters = usedActualClusters();
     }
 
@@ -3991,7 +4009,7 @@ export class MediaPlanningService {
       repaired.days
         .filter(
           (day) =>
-            day.instagramStory.action === 'post' &&
+            day.instagramStory.action === "post" &&
             (day.instagramStory.sourceEvidenceIds ?? []).some((id) =>
               signalIds.has(id),
             ),
@@ -4015,7 +4033,7 @@ export class MediaPlanningService {
 
     for (const day of repaired.days) {
       if (currentDays.size >= target) break;
-      if (!mutable(day.date) || day.instagramStory.action !== 'post') continue;
+      if (!mutable(day.date) || day.instagramStory.action !== "post") continue;
       if (
         (day.instagramStory.sourceEvidenceIds ?? []).some((id) =>
           signalIds.has(id),
@@ -4027,17 +4045,17 @@ export class MediaPlanningService {
       if (!signal) break;
       day.instagramStory.sourceEvidenceIds = [signal.id];
       day.instagramStory.sourceType =
-        signal.category === 'routine'
-          ? 'routine'
-          : signal.category === 'hobby'
-            ? 'hobby'
-            : signal.category === 'learning'
-              ? 'learning'
-              : 'human_moment';
+        signal.category === "routine"
+          ? "routine"
+          : signal.category === "hobby"
+            ? "hobby"
+            : signal.category === "learning"
+              ? "learning"
+              : "human_moment";
       day.instagramStory.reason =
-        'Whole-life Story balance restored from a grounded real-life signal so the week contains lightweight human familiarity as well as professional thinking.';
+        "Whole-life Story balance restored from a grounded real-life signal so the week contains lightweight human familiarity as well as professional thinking.";
       day.instagramStory.captureBrief =
-        signal.category === 'routine'
+        signal.category === "routine"
           ? `If “${signal.title}” genuinely happens today, capture one ordinary movement/setup/end-of-session moment without health metrics or sensitive detail. If Pixel, Cosmo or Happy naturally joins, one candid frame is welcome; do not stage a reaction.`
           : `If “${signal.title}” genuinely happens today, capture one unpolished real moment from it. Preserve the attempt, curiosity or environment rather than turning it into a lesson. If a dog is naturally present, keep the moment candid.`;
       currentDays.add(day.date);
@@ -4067,11 +4085,11 @@ export class MediaPlanningService {
         .map((item) => [item.companyName.trim().toLowerCase(), item.id]),
     );
     const hsakaaIdentity = identityEvidence.find(
-      (item) => item.id === 'identity:hsakaa',
+      (item) => item.id === "identity:hsakaa",
     )?.id;
 
     const fallbackNarrative = (
-      opportunity: GeneratedPlan['opportunities'][number],
+      opportunity: GeneratedPlan["opportunities"][number],
     ) => {
       if (!narrativeKeys.length) return opportunity.strategyNarrativeKey;
       const text = [
@@ -4082,28 +4100,30 @@ export class MediaPlanningService {
         opportunity.identityPillar,
       ]
         .filter(Boolean)
-        .join(' ')
+        .join(" ")
         .toLowerCase();
       const preferred: string[] = [];
       if (/8lete|sport|academy|grassroot/.test(text)) {
-        preferred.push('sports_workflows');
+        preferred.push("sports_workflows");
       }
       if (/frayto|freight|shipment|logistics/.test(text)) {
-        preferred.push('freight_workflows');
+        preferred.push("freight_workflows");
       }
       if (/hsakaa|digital twin|personal intelligence|personal ai/.test(text)) {
-        preferred.push('personal_intelligence');
+        preferred.push("personal_intelligence");
       }
-      if (opportunity.identityPillar === 'builder_operator') {
-        preferred.push('builder_operator');
-      } else if (opportunity.identityPillar === 'ideas_thinking') {
-        preferred.push('ideas_thinking');
-      } else if (opportunity.identityPillar === 'learning_experiments') {
-        preferred.push('learning_experiments');
-      } else if (opportunity.identityPillar === 'building_aakash') {
-        preferred.push('building_aakash');
-      } else if (opportunity.identityPillar === 'human_unfiltered') {
-        preferred.push('human_personality');
+      if (opportunity.identityPillar === "builder_operator") {
+        preferred.push("builder_operator");
+      } else if (opportunity.identityPillar === "ideas_thinking") {
+        preferred.push("ideas_thinking");
+      } else if (opportunity.identityPillar === "learning_experiments") {
+        preferred.push("learning_experiments");
+      } else if (opportunity.identityPillar === "building_aakash") {
+        preferred.push("building_aakash");
+      } else if (opportunity.identityPillar === "human_unfiltered") {
+        preferred.push("human_personality");
+      } else if (opportunity.identityPillar === "hsakaa_aid") {
+        preferred.push("personal_intelligence");
       }
       return preferred.find((key) => narrativeSet.has(key)) ?? narrativeKeys[0];
     };
@@ -4114,24 +4134,24 @@ export class MediaPlanningService {
           opportunity.evidenceIds ?? [],
           validEvidence,
         );
-        let companyName = opportunity.companyName?.trim() ?? '';
+        let companyName = opportunity.companyName?.trim() ?? "";
         if (companyName) {
           const identityId = identityByCompany.get(companyName.toLowerCase());
           const hasIdentity = Boolean(
             identityId && evidenceIds.includes(identityId),
           );
           const hasPublicLikeEvidence = evidenceIds.some(
-            (id) => !id.startsWith('identity:'),
+            (id) => !id.startsWith("identity:"),
           );
           if (identityId && !hasIdentity && validEvidence.has(identityId)) {
             evidenceIds = [...new Set([...evidenceIds, identityId])];
           } else if (!identityId && !hasPublicLikeEvidence) {
             // Do not let a model-invented company name poison an otherwise safe
             // opportunity. The owned-company repair below can insert a real one.
-            companyName = '';
+            companyName = "";
           }
         } else if (
-          opportunity.strategyNarrativeKey === 'personal_intelligence' &&
+          opportunity.strategyNarrativeKey === "personal_intelligence" &&
           hsakaaIdentity &&
           validEvidence.has(hsakaaIdentity) &&
           !evidenceIds.includes(hsakaaIdentity)
@@ -4140,7 +4160,7 @@ export class MediaPlanningService {
         }
 
         const publicSafeWithoutEvidence =
-          opportunity.privacy === 'public_safe' &&
+          opportunity.privacy === "public_safe" &&
           opportunity.usable &&
           evidenceIds.length === 0;
         const strategyNarrativeKey = narrativeSet.has(
@@ -4159,11 +4179,11 @@ export class MediaPlanningService {
           strategyNarrativeKey,
           topicClusterKey,
           usable:
-            opportunity.privacy === 'needs_review' || publicSafeWithoutEvidence
+            opportunity.privacy === "needs_review" || publicSafeWithoutEvidence
               ? false
               : opportunity.usable,
           privacy: publicSafeWithoutEvidence
-            ? ('needs_review' as const)
+            ? ("needs_review" as const)
             : opportunity.privacy,
         };
       },
@@ -4175,7 +4195,7 @@ export class MediaPlanningService {
     const usable = repaired.opportunities.filter(
       (item) =>
         item.usable &&
-        item.privacy === 'public_safe' &&
+        item.privacy === "public_safe" &&
         item.evidenceIds.length > 0,
     );
     const chooseOpportunity = (platform: MediaPlatform) =>
@@ -4202,8 +4222,8 @@ export class MediaPlanningService {
     repaired.days = expectedDates.map((date, index) => {
       const day = sourceDays[index] ?? {
         date,
-        theme: 'Aakash presence',
-        workload: 'light',
+        theme: "Aakash presence",
+        workload: "light",
         executions: [],
         instagramStory: this.fallbackInstagramStorySkeleton(
           usable[index % Math.max(usable.length, 1)],
@@ -4222,7 +4242,7 @@ export class MediaPlanningService {
         const existing = choices.get(item.platform);
         if (
           !existing ||
-          (existing.action === 'skip' && item.action === 'post')
+          (existing.action === "skip" && item.action === "post")
         ) {
           choices.set(item.platform, { ...item });
         }
@@ -4232,26 +4252,26 @@ export class MediaPlanningService {
         if (!existing) {
           return {
             platform,
-            action: 'skip' as const,
-            time: '',
+            action: "skip" as const,
+            time: "",
             format: this.fallbackFormatForPlatform(platform),
-            opportunityKey: '',
-            storyArcKey: '',
+            opportunityKey: "",
+            storyArcKey: "",
             reason:
-              'Missing platform decision repaired deterministically; downstream cadence may activate this slot from grounded strategy material.',
+              "Missing platform decision repaired deterministically; downstream cadence may activate this slot from grounded strategy material.",
           };
         }
-        if (existing.action === 'skip') {
+        if (existing.action === "skip") {
           return {
             ...existing,
-            time: '',
-            opportunityKey: '',
+            time: "",
+            opportunityKey: "",
           };
         }
-        const opportunity = opportunityByKey.get(existing.opportunityKey ?? '');
+        const opportunity = opportunityByKey.get(existing.opportunityKey ?? "");
         if (
           opportunity?.usable &&
-          opportunity.privacy === 'public_safe' &&
+          opportunity.privacy === "public_safe" &&
           opportunity.evidenceIds.length
         ) {
           return existing;
@@ -4259,36 +4279,36 @@ export class MediaPlanningService {
         if (!mutable)
           return {
             ...existing,
-            action: 'skip' as const,
-            time: '',
-            opportunityKey: '',
+            action: "skip" as const,
+            time: "",
+            opportunityKey: "",
           };
         const replacement = chooseOpportunity(platform);
         if (!replacement) {
           return {
             ...existing,
-            action: 'skip' as const,
-            time: '',
-            opportunityKey: '',
-            storyArcKey: '',
+            action: "skip" as const,
+            time: "",
+            opportunityKey: "",
+            storyArcKey: "",
             reason:
-              'Invalid/ungrounded opportunity reference isolated instead of failing the whole week.',
+              "Invalid/ungrounded opportunity reference isolated instead of failing the whole week.",
           };
         }
         return {
           ...existing,
           opportunityKey: replacement.key,
-          storyArcKey: '',
+          storyArcKey: "",
           reason:
-            'Invalid/unknown opportunity reference re-grounded deterministically from a usable HSAKAA opportunity.',
+            "Invalid/unknown opportunity reference re-grounded deterministically from a usable HSAKAA opportunity.",
         };
       });
 
       return {
         ...day,
         date,
-        theme: day.theme?.trim() || 'Aakash presence',
-        workload: day.workload?.trim() || 'light',
+        theme: day.theme?.trim() || "Aakash presence",
+        workload: day.workload?.trim() || "light",
         executions,
         instagramStory: {
           ...(day.instagramStory ??
@@ -4317,9 +4337,9 @@ export class MediaPlanningService {
     return (
       value
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 48) || 'topic'
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "")
+        .slice(0, 48) || "topic"
     );
   }
 
@@ -4345,7 +4365,7 @@ export class MediaPlanningService {
       usableEvidenceCount >= 3 ? 10 : usableEvidenceCount > 0 ? 3 : 0;
     let count = repaired.days.reduce(
       (total, day) =>
-        total + day.executions.filter((item) => item.action === 'post').length,
+        total + day.executions.filter((item) => item.action === "post").length,
       0,
     );
     if (count >= minimumPosts) return repaired;
@@ -4353,7 +4373,7 @@ export class MediaPlanningService {
     const opportunities = repaired.opportunities.filter(
       (item) =>
         item.usable &&
-        item.privacy === 'public_safe' &&
+        item.privacy === "public_safe" &&
         item.evidenceIds.length > 0,
     );
     if (!opportunities.length) return repaired;
@@ -4363,7 +4383,7 @@ export class MediaPlanningService {
         (total, day) =>
           total +
           day.executions.filter(
-            (item) => item.platform === platform && item.action === 'post',
+            (item) => item.platform === platform && item.action === "post",
           ).length,
         0,
       );
@@ -4373,25 +4393,25 @@ export class MediaPlanningService {
       if (!mutable(day.date)) continue;
       for (const execution of day.executions) {
         if (count >= minimumPosts) break;
-        if (execution.action !== 'skip') continue;
+        if (execution.action !== "skip") continue;
         const target = cadence.platforms[execution.platform];
         if (target && platformCount(execution.platform) >= target.max) continue;
         const opportunity = [...opportunities].sort((left, right) => {
           const score = (item: (typeof opportunities)[number]) =>
             ((item.platforms ?? []).includes(execution.platform) ? 30 : 0) +
-            (item.growthIntent === 'conversion' ? 12 : 0) +
-            (item.growthIntent === 'discovery' ? 8 : 0) +
+            (item.growthIntent === "conversion" ? 12 : 0) +
+            (item.growthIntent === "discovery" ? 8 : 0) +
             (item.strategicFit ?? 0) / 5;
           return score(right) - score(left);
         })[0];
         if (!opportunity) continue;
-        execution.action = 'post';
+        execution.action = "post";
         execution.time = this.defaultPostingTime(execution.platform);
         execution.format = this.fallbackFormatForPlatform(execution.platform);
         execution.opportunityKey = opportunity.key;
-        execution.storyArcKey = '';
+        execution.storyArcKey = "";
         execution.reason =
-          'Minimum viable weekly presence restored from grounded strategy material instead of failing the entire plan.';
+          "Minimum viable weekly presence restored from grounded strategy material instead of failing the entire plan.";
         count += 1;
       }
     }
@@ -4422,7 +4442,7 @@ export class MediaPlanningService {
     const usedKeys = new Set(
       repaired.days.flatMap((day) =>
         day.executions
-          .filter((item) => item.action === 'post')
+          .filter((item) => item.action === "post")
           .map((item) => item.opportunityKey)
           .filter((value): value is string => Boolean(value)),
       ),
@@ -4433,8 +4453,8 @@ export class MediaPlanningService {
         item.companyName?.trim() &&
         item.evidenceIds.some(
           (id) =>
-            id.startsWith('identity:company:') ||
-            id.startsWith('public:company:'),
+            id.startsWith("identity:company:") ||
+            id.startsWith("public:company:"),
         ),
     );
     if (alreadyOwned) return repaired;
@@ -4443,12 +4463,12 @@ export class MediaPlanningService {
       .filter(
         (item) =>
           item.usable &&
-          item.privacy === 'public_safe' &&
+          item.privacy === "public_safe" &&
           item.companyName?.trim() &&
           item.evidenceIds.some(
             (id) =>
-              id.startsWith('identity:company:') ||
-              id.startsWith('public:company:'),
+              id.startsWith("identity:company:") ||
+              id.startsWith("public:company:"),
           ),
       )
       .sort(
@@ -4472,23 +4492,23 @@ export class MediaPlanningService {
         ...(company.industries ?? []),
         ...(company.markets ?? []),
       ]
-        .join(' ')
+        .join(" ")
         .toLowerCase();
       const strategyNarrativeKey = /sport|academy|grassroot/.test(contextText)
-        ? narrativeKeys.has('sports_workflows')
-          ? 'sports_workflows'
-          : narrativeKeys.has('builder_operator')
-            ? 'builder_operator'
-            : [...narrativeKeys][0] || 'builder_operator'
+        ? narrativeKeys.has("sports_workflows")
+          ? "sports_workflows"
+          : narrativeKeys.has("builder_operator")
+            ? "builder_operator"
+            : [...narrativeKeys][0] || "builder_operator"
         : /freight|logistic|shipment/.test(contextText)
-          ? narrativeKeys.has('freight_workflows')
-            ? 'freight_workflows'
-            : narrativeKeys.has('builder_operator')
-              ? 'builder_operator'
-              : [...narrativeKeys][0] || 'builder_operator'
-          : narrativeKeys.has('builder_operator')
-            ? 'builder_operator'
-            : [...narrativeKeys][0] || 'builder_operator';
+          ? narrativeKeys.has("freight_workflows")
+            ? "freight_workflows"
+            : narrativeKeys.has("builder_operator")
+              ? "builder_operator"
+              : [...narrativeKeys][0] || "builder_operator"
+          : narrativeKeys.has("builder_operator")
+            ? "builder_operator"
+            : [...narrativeKeys][0] || "builder_operator";
       const fragment = this.planningKeyFragment(company.name);
       candidate = {
         key: `repair_owned_builder_${fragment}`,
@@ -4497,16 +4517,16 @@ export class MediaPlanningService {
         whyNow:
           "This is part of Aakash's ongoing builder journey. Show one real unresolved question or next checkpoint so a viewer has a reason to return.",
         sourceSummary:
-          'Configured-company context is PUBLIC_SAFE by owner policy. Use only supplied company fields and do not invent missing facts.',
+          "Configured-company context is PUBLIC_SAFE by owner policy. Use only supplied company fields and do not invent missing facts.",
         evidenceIds: [publicCompanyId, identityId].filter(
           (value): value is string => Boolean(value),
         ),
         companyName: company.name,
-        narrative: 'owned_builder_journey',
+        narrative: "owned_builder_journey",
         strategyNarrativeKey,
         topicClusterKey: `cluster_owned_builder_${fragment}`,
-        growthIntent: 'authority',
-        identityPillar: 'builder_operator',
+        growthIntent: "authority",
+        identityPillar: "builder_operator",
         platforms: [
           MediaPlatform.LINKEDIN,
           MediaPlatform.INSTAGRAM,
@@ -4522,7 +4542,7 @@ export class MediaPlanningService {
         strategicFit: 95,
         novelty: 80,
         evidenceStrength: 70,
-        privacy: 'public_safe',
+        privacy: "public_safe",
         usable: true,
       };
       repaired.opportunities.push(candidate);
@@ -4535,8 +4555,8 @@ export class MediaPlanningService {
     const clusterCounts = new Map<string, number>();
     for (const day of repaired.days) {
       for (const execution of day.executions) {
-        if (execution.action !== 'post') continue;
-        const opportunity = byKey.get(execution.opportunityKey ?? '');
+        if (execution.action !== "post") continue;
+        const opportunity = byKey.get(execution.opportunityKey ?? "");
         if (!opportunity?.topicClusterKey) continue;
         clusterCounts.set(
           opportunity.topicClusterKey,
@@ -4556,16 +4576,16 @@ export class MediaPlanningService {
       for (const day of repaired.days) {
         if (!mutable(day.date)) continue;
         const skip = day.executions.find(
-          (item) => item.platform === platform && item.action === 'skip',
+          (item) => item.platform === platform && item.action === "skip",
         );
         if (!skip) continue;
-        skip.action = 'post';
+        skip.action = "post";
         skip.time = this.defaultPostingTime(platform);
         skip.format = this.fallbackFormatForPlatform(platform);
         skip.opportunityKey = candidate.key;
-        skip.storyArcKey = '';
+        skip.storyArcKey = "";
         skip.reason =
-          'Owned company-builder journey restored deterministically from identity-safe context.';
+          "Owned company-builder journey restored deterministically from identity-safe context.";
         return repaired;
       }
     }
@@ -4573,8 +4593,8 @@ export class MediaPlanningService {
     const replaceable = repaired.days
       .flatMap((day) => day.executions.map((execution) => ({ day, execution })))
       .filter(({ day, execution }) => {
-        if (!mutable(day.date) || execution.action !== 'post') return false;
-        const opportunity = byKey.get(execution.opportunityKey ?? '');
+        if (!mutable(day.date) || execution.action !== "post") return false;
+        const opportunity = byKey.get(execution.opportunityKey ?? "");
         return Boolean(
           opportunity &&
           !opportunity.companyName?.trim() &&
@@ -4583,9 +4603,9 @@ export class MediaPlanningService {
       })[0];
     if (replaceable) {
       replaceable.execution.opportunityKey = candidate.key;
-      replaceable.execution.storyArcKey = '';
+      replaceable.execution.storyArcKey = "";
       replaceable.execution.reason =
-        'A duplicate derivative was replaced by the owned company-builder journey instead of letting companies disappear from the week.';
+        "A duplicate derivative was replaced by the owned company-builder journey instead of letting companies disappear from the week.";
     }
     return repaired;
   }
@@ -4618,8 +4638,8 @@ export class MediaPlanningService {
       >();
       for (const day of repaired.days) {
         for (const execution of day.executions) {
-          if (execution.action !== 'post') continue;
-          const opportunity = byKey.get(execution.opportunityKey ?? '');
+          if (execution.action !== "post") continue;
+          const opportunity = byKey.get(execution.opportunityKey ?? "");
           if (!opportunity?.topicClusterKey) continue;
           const info = clusters.get(opportunity.topicClusterKey) ?? {
             narrative: opportunity.strategyNarrativeKey,
@@ -4657,7 +4677,7 @@ export class MediaPlanningService {
         .filter(
           (item) =>
             item.usable &&
-            item.privacy === 'public_safe' &&
+            item.privacy === "public_safe" &&
             item.evidenceIds.length > 0 &&
             item.strategyNarrativeKey === targetNarrative &&
             !usedClusters.has(item.topicClusterKey),
@@ -4670,7 +4690,7 @@ export class MediaPlanningService {
         )[0];
       if (!replacementOpportunity) break;
 
-      const sourceNarrative = dominant?.[0] ?? '';
+      const sourceNarrative = dominant?.[0] ?? "";
       const replaceableCluster = [...clusters.entries()]
         .filter(([, info]) =>
           sourceNarrative ? info.narrative === sourceNarrative : true,
@@ -4685,9 +4705,9 @@ export class MediaPlanningService {
       );
       if (!surface) break;
       surface.execution.opportunityKey = replacementOpportunity.key;
-      surface.execution.storyArcKey = '';
+      surface.execution.storyArcKey = "";
       surface.execution.reason =
-        'Narrative diversity reconciled automatically by replacing a repeated cluster with another grounded Presence narrative.';
+        "Narrative diversity reconciled automatically by replacing a repeated cluster with another grounded Presence narrative.";
     }
     return repaired;
   }
@@ -4705,7 +4725,7 @@ export class MediaPlanningService {
       repaired.opportunities.filter(
         (item) =>
           item.usable &&
-          item.privacy === 'public_safe' &&
+          item.privacy === "public_safe" &&
           item.evidenceIds.length > 0,
       );
 
@@ -4716,8 +4736,8 @@ export class MediaPlanningService {
       >();
       for (const day of repaired.days) {
         for (const execution of day.executions) {
-          if (execution.action !== 'post') continue;
-          const opportunity = byKey.get(execution.opportunityKey ?? '');
+          if (execution.action !== "post") continue;
+          const opportunity = byKey.get(execution.opportunityKey ?? "");
           if (
             !opportunity?.topicClusterKey ||
             !PERSONAL_STRATEGY_NARRATIVES.has(opportunity.strategyNarrativeKey)
@@ -4748,9 +4768,9 @@ export class MediaPlanningService {
         })[0];
       if (!replacement) break;
       extra.execution.opportunityKey = replacement.key;
-      extra.execution.storyArcKey = '';
+      extra.execution.storyArcKey = "";
       extra.execution.reason =
-        'Personal topic saturation reconciled automatically; keep one primary and at most one secondary feed treatment.';
+        "Personal topic saturation reconciled automatically; keep one primary and at most one secondary feed treatment.";
     }
     return repaired;
   }
@@ -4801,7 +4821,7 @@ export class MediaPlanningService {
     const opportunities = repaired.opportunities.filter(
       (item) =>
         item.usable &&
-        item.privacy === 'public_safe' &&
+        item.privacy === "public_safe" &&
         item.evidenceIds.length,
     );
     if (!opportunities.length) return repaired;
@@ -4811,7 +4831,7 @@ export class MediaPlanningService {
         (total, day) =>
           total +
           day.executions.filter(
-            (item) => item.platform === platform && item.action === 'post',
+            (item) => item.platform === platform && item.action === "post",
           ).length,
         0,
       );
@@ -4820,7 +4840,7 @@ export class MediaPlanningService {
         (total, day) =>
           total +
           day.executions.filter((item) => {
-            if (item.action !== 'post') return false;
+            if (item.action !== "post") return false;
             const opportunity = repaired.opportunities.find(
               (candidate) => candidate.key === item.opportunityKey,
             );
@@ -4832,7 +4852,7 @@ export class MediaPlanningService {
       const day = repaired.days.find((item) => item.date === date);
       const usedKeys = new Set(
         (day?.executions ?? [])
-          .filter((item) => item.action === 'post')
+          .filter((item) => item.action === "post")
           .map((item) => item.opportunityKey),
       );
       return [...opportunities].sort((left, right) => {
@@ -4844,8 +4864,8 @@ export class MediaPlanningService {
           return (
             ((item.platforms ?? []).includes(platform) ? 35 : 0) +
             (item.companyName?.trim() ? 18 : 0) +
-            (item.growthIntent === 'conversion' ? 14 : 0) +
-            (item.growthIntent === 'discovery' ? 10 : 0) +
+            (item.growthIntent === "conversion" ? 14 : 0) +
+            (item.growthIntent === "discovery" ? 10 : 0) +
             (item.strategicFit ?? 0) / 5 +
             (item.novelty ?? 0) / 8 -
             (usedKeys.has(item.key) ? 12 : 0) -
@@ -4884,7 +4904,7 @@ export class MediaPlanningService {
             ({ day, execution }) =>
               mutable(day.date) &&
               execution.platform === platform &&
-              execution.action === 'post',
+              execution.action === "post",
           )
           .sort((left, right) => {
             const score = (candidate: (typeof removable)[number]) => {
@@ -4897,8 +4917,8 @@ export class MediaPlanningService {
                   ? 100
                   : 0) +
                 (opportunity?.companyName?.trim() ? 30 : 0) +
-                (opportunity?.growthIntent === 'conversion' ? 25 : 0) +
-                (opportunity?.growthIntent === 'authority' ? 15 : 0) +
+                (opportunity?.growthIntent === "conversion" ? 25 : 0) +
+                (opportunity?.growthIntent === "authority" ? 15 : 0) +
                 (opportunity?.strategicFit ?? 0) / 10
               );
             };
@@ -4910,12 +4930,12 @@ export class MediaPlanningService {
             candidate.executionIndex
           ] = {
             ...candidate.execution,
-            action: 'skip',
-            time: '',
-            opportunityKey: '',
-            storyArcKey: '',
+            action: "skip",
+            time: "",
+            opportunityKey: "",
+            storyArcKey: "",
             reason:
-              'Cadence reconciled automatically: this extra feed surface was removed to stay inside the active Presence Strategy range.',
+              "Cadence reconciled automatically: this extra feed surface was removed to stay inside the active Presence Strategy range.",
           };
           count -= 1;
         }
@@ -4927,18 +4947,18 @@ export class MediaPlanningService {
         if (count >= target.min) break;
         if (!mutable(day.date)) continue;
         const execution = day.executions.find(
-          (item) => item.platform === platform && item.action === 'skip',
+          (item) => item.platform === platform && item.action === "skip",
         );
         if (!execution) continue;
         const opportunity = opportunityFor(platform, day.date);
         if (!opportunity) continue;
-        execution.action = 'post';
+        execution.action = "post";
         execution.time = this.defaultPostingTime(platform);
         execution.format = fallbackFormat(platform);
         execution.opportunityKey = opportunity.key;
-        execution.storyArcKey = '';
+        execution.storyArcKey = "";
         execution.reason =
-          'Cadence reconciled automatically from a grounded opportunity so a minor model count miss does not invalidate the whole week.';
+          "Cadence reconciled automatically from a grounded opportunity so a minor model count miss does not invalidate the whole week.";
         count += 1;
       }
     }
@@ -4957,7 +4977,7 @@ export class MediaPlanningService {
     const usable = repaired.opportunities.filter(
       (item) =>
         item.usable &&
-        item.privacy === 'public_safe' &&
+        item.privacy === "public_safe" &&
         item.evidenceIds.length,
     );
     if (!usable.length) return repaired;
@@ -4974,7 +4994,7 @@ export class MediaPlanningService {
           .filter(
             ({ execution }) =>
               execution.platform === MediaPlatform.YOUTUBE &&
-              execution.action === 'post',
+              execution.action === "post",
           ),
       );
     const longPosts = () =>
@@ -4992,7 +5012,7 @@ export class MediaPlanningService {
           const score = (item: (typeof usable)[number]) =>
             ((item.platforms ?? []).includes(MediaPlatform.YOUTUBE) ? 30 : 0) +
             ((item.formats ?? []).includes(MediaPostType.VIDEO) ? 20 : 0) +
-            (item.growthIntent === 'conversion' ? 18 : 0) +
+            (item.growthIntent === "conversion" ? 18 : 0) +
             (item.strategicFit ?? 0) / 4 +
             (item.novelty ?? 0) / 8;
           return score(right) - score(left);
@@ -5005,7 +5025,7 @@ export class MediaPlanningService {
       if (candidate.execution.format === MediaPostType.VIDEO) continue;
       candidate.execution.format = MediaPostType.VIDEO;
       candidate.execution.reason =
-        'YouTube format reconciled automatically to preserve the active long-form cadence.';
+        "YouTube format reconciled automatically to preserve the active long-form cadence.";
       longCount += 1;
     }
 
@@ -5015,24 +5035,24 @@ export class MediaPlanningService {
         if (!mutable(day.date)) continue;
         const execution = day.executions.find(
           (item) =>
-            item.platform === MediaPlatform.YOUTUBE && item.action === 'skip',
+            item.platform === MediaPlatform.YOUTUBE && item.action === "skip",
         );
         if (!execution) continue;
         const opportunity = pickOpportunity();
         if (!opportunity) continue;
-        execution.action = 'post';
+        execution.action = "post";
         execution.time = this.defaultPostingTime(MediaPlatform.YOUTUBE);
         execution.format = MediaPostType.VIDEO;
         execution.opportunityKey = opportunity.key;
-        execution.storyArcKey = '';
+        execution.storyArcKey = "";
         execution.reason =
-          'YouTube long-form slot restored automatically from grounded strategy material.';
+          "YouTube long-form slot restored automatically from grounded strategy material.";
         longCount += 1;
       }
     }
 
     const hasWholePersonEvidence = (wholeLifeSignals ?? []).some((item) =>
-      ['hobby', 'routine', 'learning', 'human'].includes(item.category),
+      ["hobby", "routine", "learning", "human"].includes(item.category),
     );
     if (cadence.longFormVideos >= 2 && hasWholePersonEvidence) {
       const hasWholePersonLongForm = longPosts().some(({ execution }) => {
@@ -5051,9 +5071,9 @@ export class MediaPlanningService {
         const replaceable = longPosts().find(({ day }) => mutable(day.date));
         if (wholePersonOpportunity && replaceable) {
           replaceable.execution.opportunityKey = wholePersonOpportunity.key;
-          replaceable.execution.storyArcKey = '';
+          replaceable.execution.storyArcKey = "";
           replaceable.execution.reason =
-            'Long-form balance reconciled automatically so one weekly video shows Aakash as a whole person, not only professional systems thinking.';
+            "Long-form balance reconciled automatically so one weekly video shows Aakash as a whole person, not only professional systems thinking.";
         }
       }
     }
@@ -5065,8 +5085,8 @@ export class MediaPlanningService {
     blueprint: PlanningBlueprint,
     mutableDates?: Set<string>,
   ): PlanningBlueprint {
-    type Opportunity = GeneratedPlan['opportunities'][number];
-    type GrowthIntent = Opportunity['growthIntent'];
+    type Opportunity = GeneratedPlan["opportunities"][number];
+    type GrowthIntent = Opportunity["growthIntent"];
     type UsedCluster = {
       key: string;
       opportunityKeys: Set<string>;
@@ -5083,9 +5103,9 @@ export class MediaPlanningService {
     );
     const isMutable = (date: string) => !mutableDates || mutableDates.has(date);
     const minimum = (intent: GrowthIntent) =>
-      intent === 'discovery'
+      intent === "discovery"
         ? 2
-        : intent === 'conversion' || intent === 'authority'
+        : intent === "conversion" || intent === "authority"
           ? 1
           : 0;
 
@@ -5093,8 +5113,8 @@ export class MediaPlanningService {
       const result = new Map<string, UsedCluster>();
       for (const day of repaired.days) {
         for (const execution of day.executions) {
-          if (execution.action !== 'post') continue;
-          const opportunity = byKey.get(execution.opportunityKey ?? '');
+          if (execution.action !== "post") continue;
+          const opportunity = byKey.get(execution.opportunityKey ?? "");
           if (!opportunity?.topicClusterKey) continue;
           const cluster = result.get(opportunity.topicClusterKey) ?? {
             key: opportunity.topicClusterKey,
@@ -5124,7 +5144,7 @@ export class MediaPlanningService {
       return undefined;
     };
     const intentFor = (cluster: UsedCluster): GrowthIntent =>
-      representative(cluster)?.growthIntent ?? 'affinity';
+      representative(cluster)?.growthIntent ?? "affinity";
     const counts = () => {
       const result = new Map<GrowthIntent, number>();
       for (const cluster of clusters.values()) {
@@ -5140,7 +5160,7 @@ export class MediaPlanningService {
       for (const opportunity of opportunities) {
         if (opportunity.topicClusterKey !== clusterKey) continue;
         opportunity.growthIntent = target;
-        if (target === 'conversion') {
+        if (target === "conversion") {
           const conversionCue =
             "Shape this as one concrete step in Aakash's ongoing journey: show what is changing, what remains unresolved or what comes next so a new viewer has a real reason to return. Never use generic follow-for-more language.";
           if (!opportunity.whyNow.includes(conversionCue)) {
@@ -5161,30 +5181,30 @@ export class MediaPlanningService {
         (opportunity.novelty ?? 0) +
         (opportunity.growthIntent === target ? 80 : 0) +
         (platform && (opportunity.platforms ?? []).includes(platform) ? 25 : 0);
-      if (target === 'conversion') {
-        if (opportunity.strategyNarrativeKey === 'building_aakash')
+      if (target === "conversion") {
+        if (opportunity.strategyNarrativeKey === "building_aakash")
           score += 140;
-        else if (opportunity.strategyNarrativeKey === 'learning_experiments')
+        else if (opportunity.strategyNarrativeKey === "learning_experiments")
           score += 125;
-        else if (opportunity.strategyNarrativeKey === 'human_personality')
+        else if (opportunity.strategyNarrativeKey === "human_personality")
           score += 115;
-        else if (opportunity.strategyNarrativeKey === 'personal_intelligence')
+        else if (opportunity.strategyNarrativeKey === "personal_intelligence")
           score += 100;
         if (!opportunity.companyName?.trim()) score += 25;
-      } else if (target === 'discovery') {
+      } else if (target === "discovery") {
         score += (opportunity.novelty ?? 0) * 1.5;
         if (platform === MediaPlatform.INSTAGRAM) score += 20;
         if (platform === MediaPlatform.YOUTUBE) score += 15;
         if (platform === MediaPlatform.X) score += 10;
-      } else if (target === 'authority') {
+      } else if (target === "authority") {
         score += (opportunity.evidenceStrength ?? 0) * 1.5;
         if (
           [
-            'builder_operator',
-            'ideas_thinking',
-            'sports_workflows',
-            'freight_workflows',
-            'personal_intelligence',
+            "builder_operator",
+            "ideas_thinking",
+            "sports_workflows",
+            "freight_workflows",
+            "personal_intelligence",
           ].includes(opportunity.strategyNarrativeKey)
         ) {
           score += 60;
@@ -5236,7 +5256,7 @@ export class MediaPlanningService {
         .filter(
           (item) =>
             item.usable &&
-            item.privacy === 'public_safe' &&
+            item.privacy === "public_safe" &&
             item.evidenceIds.length > 0 &&
             item.topicClusterKey?.trim() &&
             !usedClusterKeys.has(item.topicClusterKey),
@@ -5266,9 +5286,9 @@ export class MediaPlanningService {
         for (const day of repaired.days) {
           if (!isMutable(day.date)) continue;
           for (const execution of day.executions) {
-            if (execution.action !== 'post') continue;
+            if (execution.action !== "post") continue;
             const currentOpportunity = byKey.get(
-              execution.opportunityKey ?? '',
+              execution.opportunityKey ?? "",
             );
             if (!currentOpportunity?.topicClusterKey) continue;
             const currentCluster = clusters.get(
@@ -5303,16 +5323,16 @@ export class MediaPlanningService {
       if (!best) return false;
       applyIntent(best.opportunity.topicClusterKey, target);
       best.execution.opportunityKey = best.opportunity.key;
-      best.execution.storyArcKey = '';
+      best.execution.storyArcKey = "";
       best.execution.reason = `100K growth portfolio reconciled automatically: a duplicate derivative was replaced with a distinct grounded ${target} topic cluster instead of failing the whole week.`;
       clusters = collectClusters();
       return true;
     };
 
     const targets: Array<{ intent: GrowthIntent; min: number }> = [
-      { intent: 'conversion', min: 1 },
-      { intent: 'authority', min: 1 },
-      { intent: 'discovery', min: 2 },
+      { intent: "conversion", min: 1 },
+      { intent: "authority", min: 1 },
+      { intent: "discovery", min: 2 },
     ];
 
     for (const target of targets) {
@@ -5334,8 +5354,8 @@ export class MediaPlanningService {
     presenceStrategy: PlanningPresenceStrategy,
     mutableDates?: Set<string>,
   ): PlanningBlueprint {
-    type Opportunity = GeneratedPlan['opportunities'][number];
-    type GrowthIntent = Opportunity['growthIntent'];
+    type Opportunity = GeneratedPlan["opportunities"][number];
+    type GrowthIntent = Opportunity["growthIntent"];
     type EvidenceSeed = {
       id: string;
       title: string;
@@ -5367,8 +5387,8 @@ export class MediaPlanningService {
       >();
       for (const day of repaired.days) {
         for (const execution of day.executions) {
-          if (execution.action !== 'post') continue;
-          const opportunity = map.get(execution.opportunityKey ?? '');
+          if (execution.action !== "post") continue;
+          const opportunity = map.get(execution.opportunityKey ?? "");
           if (!opportunity?.topicClusterKey) continue;
           const info = clusters.get(opportunity.topicClusterKey) ?? {
             intent: opportunity.growthIntent,
@@ -5402,17 +5422,17 @@ export class MediaPlanningService {
     ).map((item) => ({
       id: item.id,
       title: item.title ?? item.summary ?? item.category,
-      kind: 'whole_life',
+      kind: "whole_life",
       category: item.category,
     }));
     const publicSeeds: EvidenceSeed[] = this.planningPublicEvidence(
       worldContext,
     ).map((item) => ({
       id: item.id,
-      title: item.title ?? item.summary ?? item.kind ?? 'current context',
-      kind: item.kind ?? 'public_context',
+      title: item.title ?? item.summary ?? item.kind ?? "current context",
+      kind: item.kind ?? "public_context",
       companyName:
-        'companyName' in item && typeof item.companyName === 'string'
+        "companyName" in item && typeof item.companyName === "string"
           ? item.companyName
           : undefined,
     }));
@@ -5420,8 +5440,8 @@ export class MediaPlanningService {
       worldContext.internalSafe ?? []
     ).map((item) => ({
       id: item.id,
-      title: item.title ?? item.summary ?? item.kind ?? 'current reflection',
-      kind: item.kind ?? 'internal_context',
+      title: item.title ?? item.summary ?? item.kind ?? "current reflection",
+      kind: item.kind ?? "internal_context",
     }));
     const seeds = [
       ...identitySeeds,
@@ -5437,42 +5457,44 @@ export class MediaPlanningService {
     const chooseNarrative = (seed: EvidenceSeed, target: GrowthIntent) => {
       const text = [seed.title, seed.kind, seed.companyName, seed.category]
         .filter(Boolean)
-        .join(' ')
+        .join(" ")
         .toLowerCase();
       const preferred: string[] = [];
       if (/8lete|sport|academy|grassroot/.test(text))
-        preferred.push('sports_workflows');
+        preferred.push("sports_workflows");
       if (/frayto|freight|logistic|shipment/.test(text))
-        preferred.push('freight_workflows');
-      if (/hsakaa|personal intelligence|digital twin/.test(text)) {
-        preferred.push('personal_intelligence');
+        preferred.push("freight_workflows");
+      if (/hsakaa aid|aid|fund|assistance/.test(text)) {
+        preferred.push("personal_intelligence");
+      } else if (/hsakaa|personal intelligence|digital twin/.test(text)) {
+        preferred.push("personal_intelligence");
       }
       if (/hobby|learn|book|reading|spanish|guitar|voice|chess/.test(text)) {
-        preferred.push('learning_experiments', 'building_aakash');
+        preferred.push("learning_experiments", "building_aakash");
       }
       if (/routine|gym|walk|run|practice/.test(text))
-        preferred.push('building_aakash');
-      if (target === 'authority')
-        preferred.push('builder_operator', 'ideas_thinking');
-      if (target === 'conversion') {
+        preferred.push("building_aakash");
+      if (target === "authority")
+        preferred.push("builder_operator", "ideas_thinking");
+      if (target === "conversion") {
         preferred.push(
-          'personal_intelligence',
-          'building_aakash',
-          'learning_experiments',
-          'builder_operator',
+          "personal_intelligence",
+          "building_aakash",
+          "learning_experiments",
+          "builder_operator",
         );
       }
-      if (target === 'discovery') {
+      if (target === "discovery") {
         preferred.push(
-          'learning_experiments',
-          'human_personality',
-          'ideas_thinking',
+          "learning_experiments",
+          "human_personality",
+          "ideas_thinking",
         );
       }
       return (
         preferred.find((key) => narrativeKeys.has(key)) ??
         [...narrativeKeys][0] ??
-        'ideas_thinking'
+        "ideas_thinking"
       );
     };
 
@@ -5485,48 +5507,55 @@ export class MediaPlanningService {
         `${seed.companyName || seed.title || seed.kind}_${target}_${serial}`,
       );
       const strategyNarrativeKey = chooseNarrative(seed, target);
-      const identityPillar: MediaPublicIdentityPillar = seed.companyName
-        ? 'builder_operator'
-        : strategyNarrativeKey === 'building_aakash'
-          ? 'building_aakash'
-          : strategyNarrativeKey === 'learning_experiments'
-            ? 'learning_experiments'
-            : strategyNarrativeKey === 'human_personality'
-              ? 'human_unfiltered'
-              : strategyNarrativeKey === 'builder_operator' ||
-                  strategyNarrativeKey === 'sports_workflows' ||
-                  strategyNarrativeKey === 'freight_workflows'
-                ? 'builder_operator'
-                : 'ideas_thinking';
-      const subject = seed.companyName?.trim() || seed.title || 'this journey';
+      const seedText = [seed.title, seed.kind, seed.companyName, seed.category]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      const identityPillar: MediaPublicIdentityPillar =
+        /hsakaa aid|\baid\b|\bfund\b/.test(seedText)
+          ? "hsakaa_aid"
+          : seed.companyName
+            ? "builder_operator"
+            : strategyNarrativeKey === "building_aakash"
+              ? "building_aakash"
+              : strategyNarrativeKey === "learning_experiments"
+                ? "learning_experiments"
+                : strategyNarrativeKey === "human_personality"
+                  ? "human_unfiltered"
+                  : strategyNarrativeKey === "builder_operator" ||
+                      strategyNarrativeKey === "sports_workflows" ||
+                      strategyNarrativeKey === "freight_workflows"
+                    ? "builder_operator"
+                    : "ideas_thinking";
+      const subject = seed.companyName?.trim() || seed.title || "this journey";
       const title =
-        target === 'conversion'
+        target === "conversion"
           ? `${subject}: the next checkpoint`
-          : target === 'discovery'
+          : target === "discovery"
             ? `One open question from ${subject}`
             : `What I am learning while working on ${subject}`;
       const whyNow =
-        target === 'conversion'
+        target === "conversion"
           ? "Make the future payoff explicit: this is one step in Aakash's ongoing journey, with a real unresolved question, next checkpoint or future comparison worth returning for. Never use generic follow-for-more language."
-          : target === 'discovery'
-            ? 'Use a specific, native, curiosity-led angle that can introduce Aakash to people who do not know him yet without inventing facts.'
-            : 'Use first-person builder/operator reasoning grounded in the supplied context; avoid generic textbook advice.';
+          : target === "discovery"
+            ? "Use a specific, native, curiosity-led angle that can introduce Aakash to people who do not know him yet without inventing facts."
+            : "Use first-person builder/operator reasoning grounded in the supplied context; avoid generic textbook advice.";
       return {
         key: `repair_growth_${fragment}`,
         title,
         thesis:
-          target === 'conversion'
+          target === "conversion"
             ? `Document a truthful current checkpoint and what comes next; do not claim an outcome that has not happened.`
-            : target === 'discovery'
+            : target === "discovery"
               ? `Turn this grounded context into one concrete question, contrast or visual idea with broad entry value.`
               : `Extract one bounded first-person operating judgment from this grounded context.`,
         whyNow,
         sourceSummary:
-          seed.kind.startsWith('company') || seed.kind === 'hsakaa_identity'
-            ? 'Identity-safe evidence. Only stable identity-level facts may be asserted; all current work detail must remain first-person, conditional or abstract unless separately public-safe.'
-            : 'Grounded HSAKAA context used only within its privacy/evidence boundary.',
+          seed.kind.startsWith("company") || seed.kind === "hsakaa_identity"
+            ? "Identity-safe evidence. Only stable identity-level facts may be asserted; all current work detail must remain first-person, conditional or abstract unless separately public-safe."
+            : "Grounded HSAKAA context used only within its privacy/evidence boundary.",
         evidenceIds: [seed.id],
-        companyName: seed.companyName?.trim() || '',
+        companyName: seed.companyName?.trim() || "",
         narrative: `repair_${target}_journey`,
         strategyNarrativeKey,
         topicClusterKey: `cluster_repair_growth_${fragment}`,
@@ -5546,17 +5575,17 @@ export class MediaPlanningService {
           MediaPostType.VIDEO,
         ],
         strategicFit: 88,
-        novelty: target === 'discovery' ? 92 : 82,
+        novelty: target === "discovery" ? 92 : 82,
         evidenceStrength: 70,
-        privacy: 'public_safe',
+        privacy: "public_safe",
         usable: true,
       };
     };
 
     const minimum = (intent: GrowthIntent) =>
-      intent === 'discovery'
+      intent === "discovery"
         ? 2
-        : intent === 'conversion' || intent === 'authority'
+        : intent === "conversion" || intent === "authority"
           ? 1
           : 0;
 
@@ -5582,10 +5611,10 @@ export class MediaPlanningService {
           if (leftDuplicate !== rightDuplicate)
             return rightDuplicate - leftDuplicate;
           const leftOpportunity = map.get(
-            left.surface.execution.opportunityKey ?? '',
+            left.surface.execution.opportunityKey ?? "",
           );
           const rightOpportunity = map.get(
-            right.surface.execution.opportunityKey ?? '',
+            right.surface.execution.opportunityKey ?? "",
           );
           return (
             (leftOpportunity?.strategicFit ?? 0) -
@@ -5594,7 +5623,7 @@ export class MediaPlanningService {
         })[0];
       if (replaceable) {
         replaceable.surface.execution.opportunityKey = opportunity.key;
-        replaceable.surface.execution.storyArcKey = '';
+        replaceable.surface.execution.storyArcKey = "";
         replaceable.surface.execution.reason = `Growth portfolio safety-net replaced a redundant derivative with a distinct grounded ${opportunity.growthIntent} cluster.`;
         return true;
       }
@@ -5603,14 +5632,14 @@ export class MediaPlanningService {
         if (!mutable(day.date)) continue;
         const slot = day.executions.find(
           (item) =>
-            item.action === 'skip' && item.platform !== MediaPlatform.WHATSAPP,
+            item.action === "skip" && item.platform !== MediaPlatform.WHATSAPP,
         );
         if (!slot) continue;
-        slot.action = 'post';
+        slot.action = "post";
         slot.time = this.defaultPostingTime(slot.platform);
         slot.format = this.fallbackFormatForPlatform(slot.platform);
         slot.opportunityKey = opportunity.key;
-        slot.storyArcKey = '';
+        slot.storyArcKey = "";
         slot.reason = `Growth portfolio safety-net activated a grounded ${opportunity.growthIntent} slot instead of failing the week.`;
         return true;
       }
@@ -5618,9 +5647,9 @@ export class MediaPlanningService {
     };
 
     const targets: Array<{ intent: GrowthIntent; min: number }> = [
-      { intent: 'conversion', min: 1 },
-      { intent: 'authority', min: 1 },
-      { intent: 'discovery', min: 2 },
+      { intent: "conversion", min: 1 },
+      { intent: "authority", min: 1 },
+      { intent: "discovery", min: 2 },
     ];
     let seedIndex = 0;
     let serial = 0;
@@ -5662,12 +5691,12 @@ export class MediaPlanningService {
       MediaPostType.SHORT,
       MediaPostType.CAROUSEL,
     ]);
-    const countShortForm = (days: PlanningBlueprint['days']) =>
+    const countShortForm = (days: PlanningBlueprint["days"]) =>
       days.reduce(
         (total, day) =>
           total +
           day.executions.filter(
-            (item) => item.action === 'post' && shortFormats.has(item.format),
+            (item) => item.action === "post" && shortFormats.has(item.format),
           ).length,
         0,
       );
@@ -5735,36 +5764,36 @@ export class MediaPlanningService {
     const candidateFor = (
       dayIndex: number,
       executionIndex: number,
-      direction: 'add_short' | 'remove_short',
+      direction: "add_short" | "remove_short",
     ): CadenceCandidate | null => {
       const day = repaired.days[dayIndex];
       const execution = day?.executions[executionIndex];
       if (
         !day ||
         !execution ||
-        execution.action !== 'post' ||
+        execution.action !== "post" ||
         !mutable(day.date)
       ) {
         return null;
       }
       if (
-        direction === 'add_short' &&
+        direction === "add_short" &&
         (shortFormats.has(execution.format) ||
           (execution.platform === MediaPlatform.YOUTUBE &&
             execution.format === MediaPostType.VIDEO))
       ) {
         return null;
       }
-      if (direction === 'remove_short' && !shortFormats.has(execution.format)) {
+      if (direction === "remove_short" && !shortFormats.has(execution.format)) {
         return null;
       }
 
-      const opportunity = opportunities.get(execution.opportunityKey ?? '');
-      if (!opportunity?.usable || opportunity.privacy !== 'public_safe') {
+      const opportunity = opportunities.get(execution.opportunityKey ?? "");
+      if (!opportunity?.usable || opportunity.privacy !== "public_safe") {
         return null;
       }
       const targets =
-        direction === 'add_short'
+        direction === "add_short"
           ? preferredShortFormats(execution.platform)
           : preferredLongFormats(execution.platform);
       // Opportunity.formats is a planning preference, not a safety gate. If
@@ -5787,11 +5816,11 @@ export class MediaPlanningService {
               ? 20
               : 10;
       const growthScore =
-        opportunity.growthIntent === 'discovery'
+        opportunity.growthIntent === "discovery"
           ? 18
-          : opportunity.growthIntent === 'conversion'
+          : opportunity.growthIntent === "conversion"
             ? 14
-            : opportunity.growthIntent === 'affinity'
+            : opportunity.growthIntent === "affinity"
               ? 8
               : 4;
       return {
@@ -5806,7 +5835,7 @@ export class MediaPlanningService {
       const candidates: CadenceCandidate[] = [];
       for (const [dayIndex, day] of repaired.days.entries()) {
         for (const [executionIndex] of day.executions.entries()) {
-          const candidate = candidateFor(dayIndex, executionIndex, 'add_short');
+          const candidate = candidateFor(dayIndex, executionIndex, "add_short");
           if (candidate) candidates.push(candidate);
         }
       }
@@ -5819,7 +5848,7 @@ export class MediaPlanningService {
           ];
         execution.format = candidate.targetFormat;
         execution.reason =
-          'Format rebalanced automatically to meet the sustainable weekly short-form/carousel cadence without adding another topic or post.';
+          "Format rebalanced automatically to meet the sustainable weekly short-form/carousel cadence without adding another topic or post.";
         shortCount += 1;
       }
 
@@ -5831,7 +5860,7 @@ export class MediaPlanningService {
         const platformCounts = new Map<MediaPlatform, number>();
         for (const day of repaired.days) {
           for (const execution of day.executions) {
-            if (execution.action !== 'post') continue;
+            if (execution.action !== "post") continue;
             platformCounts.set(
               execution.platform,
               (platformCounts.get(execution.platform) ?? 0) + 1,
@@ -5842,7 +5871,7 @@ export class MediaPlanningService {
           .filter(
             (item) =>
               item.usable &&
-              item.privacy === 'public_safe' &&
+              item.privacy === "public_safe" &&
               item.evidenceIds.length,
           )
           .sort((left, right) => {
@@ -5851,7 +5880,7 @@ export class MediaPlanningService {
                 ? 0
                 : 80) +
               (item.companyName?.trim() ? 20 : 0) +
-              (item.growthIntent === 'conversion' ? 15 : 0) +
+              (item.growthIntent === "conversion" ? 15 : 0) +
               (item.strategicFit ?? 0) / 5 +
               (item.novelty ?? 0) / 10;
             return score(right) - score(left);
@@ -5868,7 +5897,7 @@ export class MediaPlanningService {
               break;
             }
             const execution = day.executions.find(
-              (item) => item.platform === platform && item.action === 'skip',
+              (item) => item.platform === platform && item.action === "skip",
             );
             if (!execution) continue;
             const opportunity =
@@ -5878,13 +5907,13 @@ export class MediaPlanningService {
             if (!opportunity) break;
             const targetFormat = preferredShortFormats(platform)[0];
             if (!targetFormat) continue;
-            execution.action = 'post';
+            execution.action = "post";
             execution.time = this.defaultPostingTime(platform);
             execution.format = targetFormat;
             execution.opportunityKey = opportunity.key;
-            execution.storyArcKey = '';
+            execution.storyArcKey = "";
             execution.reason =
-              'Missing short-form cadence slot restored automatically from grounded strategy material; no new factual claim was introduced.';
+              "Missing short-form cadence slot restored automatically from grounded strategy material; no new factual claim was introduced.";
             platformCounts.set(
               platform,
               (platformCounts.get(platform) ?? 0) + 1,
@@ -5900,7 +5929,7 @@ export class MediaPlanningService {
           const candidate = candidateFor(
             dayIndex,
             executionIndex,
-            'remove_short',
+            "remove_short",
           );
           if (candidate) candidates.push(candidate);
         }
@@ -5914,7 +5943,7 @@ export class MediaPlanningService {
           ];
         execution.format = candidate.targetFormat;
         execution.reason =
-          'Format rebalanced automatically to keep the weekly short-form/carousel cadence sustainable without deleting the underlying topic.';
+          "Format rebalanced automatically to keep the weekly short-form/carousel cadence sustainable without deleting the underlying topic.";
         shortCount -= 1;
       }
     }
@@ -5929,7 +5958,7 @@ export class MediaPlanningService {
   ): PlanningBlueprint {
     const hobbyEvidenceIds = new Set(
       (wholeLifeSignals ?? [])
-        .filter((item) => item.category === 'hobby')
+        .filter((item) => item.category === "hobby")
         .map((item) => item.id),
     );
     if (!hobbyEvidenceIds.size) return blueprint;
@@ -5956,7 +5985,7 @@ export class MediaPlanningService {
     type HobbySurfaceUse = {
       evidenceId: string;
       date: string;
-      kind: 'feed' | 'story' | 'community';
+      kind: "feed" | "story" | "community";
       dayIndex: number;
       executionIndex?: number;
       score: number;
@@ -5972,8 +6001,8 @@ export class MediaPlanningService {
       };
       for (const [dayIndex, day] of repaired.days.entries()) {
         for (const [executionIndex, execution] of day.executions.entries()) {
-          if (execution.action !== 'post') continue;
-          const opportunity = opportunities.get(execution.opportunityKey ?? '');
+          if (execution.action !== "post") continue;
+          const opportunity = opportunities.get(execution.opportunityKey ?? "");
           if (!opportunity) continue;
           const platformScore =
             execution.platform === MediaPlatform.INSTAGRAM
@@ -5992,7 +6021,7 @@ export class MediaPlanningService {
             add({
               evidenceId,
               date: day.date,
-              kind: 'feed',
+              kind: "feed",
               dayIndex,
               executionIndex,
               score: platformScore,
@@ -6000,27 +6029,27 @@ export class MediaPlanningService {
             });
           }
         }
-        if (day.instagramStory.action === 'post') {
+        if (day.instagramStory.action === "post") {
           for (const evidenceId of day.instagramStory.sourceEvidenceIds ?? []) {
             if (!hobbyEvidenceIds.has(evidenceId)) continue;
             add({
               evidenceId,
               date: day.date,
-              kind: 'story',
+              kind: "story",
               dayIndex,
               score: 95,
               mutable: mutable(day.date),
             });
           }
         }
-        if (day.youtubeCommunity?.action === 'post') {
+        if (day.youtubeCommunity?.action === "post") {
           for (const evidenceId of day.youtubeCommunity.sourceEvidenceIds ??
             []) {
             if (!hobbyEvidenceIds.has(evidenceId)) continue;
             add({
               evidenceId,
               date: day.date,
-              kind: 'community',
+              kind: "community",
               dayIndex,
               score: 75,
               mutable: mutable(day.date),
@@ -6035,8 +6064,8 @@ export class MediaPlanningService {
       const counts = new Map<string, number>();
       for (const day of repaired.days) {
         for (const execution of day.executions) {
-          if (execution.action !== 'post') continue;
-          const opportunity = opportunities.get(execution.opportunityKey ?? '');
+          if (execution.action !== "post") continue;
+          const opportunity = opportunities.get(execution.opportunityKey ?? "");
           if (!opportunity?.topicClusterKey) continue;
           counts.set(
             opportunity.topicClusterKey,
@@ -6059,7 +6088,7 @@ export class MediaPlanningService {
             clusterCounts.get(item.topicClusterKey) ?? 0;
           return (
             item.usable &&
-            item.privacy === 'public_safe' &&
+            item.privacy === "public_safe" &&
             !(item.evidenceIds ?? []).some((id) => hobbyEvidenceIds.has(id)) &&
             !(item.evidenceIds ?? []).includes(blockedEvidenceId) &&
             !(
@@ -6090,9 +6119,9 @@ export class MediaPlanningService {
       const day = repaired.days[use.dayIndex];
       if (!day) return false;
 
-      if (use.kind === 'feed' && use.executionIndex !== undefined) {
+      if (use.kind === "feed" && use.executionIndex !== undefined) {
         const execution = day.executions[use.executionIndex];
-        if (!execution || execution.action !== 'post') return false;
+        if (!execution || execution.action !== "post") return false;
         const replacement = chooseAlternativeOpportunity(
           execution.platform,
           execution.format,
@@ -6100,13 +6129,13 @@ export class MediaPlanningService {
         );
         if (!replacement) return false;
         execution.opportunityKey = replacement.key;
-        execution.storyArcKey = '';
+        execution.storyArcKey = "";
         execution.reason =
-          'Rebalanced automatically to keep one hobby signal from saturating the weekly plan.';
+          "Rebalanced automatically to keep one hobby signal from saturating the weekly plan.";
         return true;
       }
 
-      if (use.kind === 'story') {
+      if (use.kind === "story") {
         const remaining = day.instagramStory.sourceEvidenceIds.filter(
           (id) => id !== use.evidenceId,
         );
@@ -6128,13 +6157,13 @@ export class MediaPlanningService {
           replacement.identityPillar,
         );
         day.instagramStory.reason =
-          'Use a different real context signal so one hobby does not dominate the week.';
+          "Use a different real context signal so one hobby does not dominate the week.";
         day.instagramStory.captureBrief =
-          'Capture one small private-safe moment from this context only if it actually happens today; do not stage or invent the moment.';
+          "Capture one small private-safe moment from this context only if it actually happens today; do not stage or invent the moment.";
         return true;
       }
 
-      if (use.kind === 'community') {
+      if (use.kind === "community") {
         const remaining = day.youtubeCommunity.sourceEvidenceIds.filter(
           (id) => id !== use.evidenceId,
         );
@@ -6156,7 +6185,7 @@ export class MediaPlanningService {
           replacement.identityPillar,
         );
         day.youtubeCommunity.reason =
-          'Use a different real context signal so one hobby does not dominate the week.';
+          "Use a different real context signal so one hobby does not dominate the week.";
         return true;
       }
       return false;
@@ -6195,7 +6224,7 @@ export class MediaPlanningService {
     if (!repairedDay) return fresh;
     const referencedOpportunityKeys = new Set(
       repairedDay.executions
-        .filter((item) => item.action === 'post')
+        .filter((item) => item.action === "post")
         .map((item) => item.opportunityKey)
         .filter((value): value is string => Boolean(value)),
     );
@@ -6237,7 +6266,7 @@ export class MediaPlanningService {
       blueprint.days[6]?.date !== endDate
     ) {
       throw new Error(
-        'Planner blueprint returned dates outside the requested seven-day window.',
+        "Planner blueprint returned dates outside the requested seven-day window.",
       );
     }
 
@@ -6254,7 +6283,7 @@ export class MediaPlanningService {
     );
     const hobbyEvidenceIds = new Set(
       (wholeLifeSignals ?? [])
-        .filter((item) => item.category === 'hobby')
+        .filter((item) => item.category === "hobby")
         .map((item) => item.id),
     );
     const opportunities = new Map(
@@ -6262,7 +6291,7 @@ export class MediaPlanningService {
     );
 
     for (const opportunity of blueprint.opportunities) {
-      if (opportunity.privacy === 'needs_review' && opportunity.usable) {
+      if (opportunity.privacy === "needs_review" && opportunity.usable) {
         throw new Error(
           `Opportunity ${opportunity.key} is needs_review and cannot be automatically usable.`,
         );
@@ -6282,18 +6311,18 @@ export class MediaPlanningService {
       }
       if (
         ![
-          'authority',
-          'discovery',
-          'conversion',
-          'affinity',
-          'conversation',
+          "authority",
+          "discovery",
+          "conversion",
+          "affinity",
+          "conversation",
         ].includes(opportunity.growthIntent)
       ) {
         throw new Error(
           `Opportunity ${opportunity.key} must declare a valid growthIntent.`,
         );
       }
-      if (opportunity.privacy === 'public_safe') {
+      if (opportunity.privacy === "public_safe") {
         if (!opportunity.evidenceIds.length) {
           throw new Error(
             `Public-safe opportunity ${opportunity.key} must reference real HSAKAA evidence IDs.`,
@@ -6304,7 +6333,7 @@ export class MediaPlanningService {
         );
         if (fabricated.length) {
           throw new Error(
-            `Opportunity ${opportunity.key} references fabricated or unavailable HSAKAA evidence IDs: ${fabricated.join(', ')}.`,
+            `Opportunity ${opportunity.key} references fabricated or unavailable HSAKAA evidence IDs: ${fabricated.join(", ")}.`,
           );
         }
         const hasPublicEvidence = opportunity.evidenceIds.some((id) =>
@@ -6359,7 +6388,7 @@ export class MediaPlanningService {
           );
         }
         seen.add(item.platform);
-        if (item.action !== 'post') continue;
+        if (item.action !== "post") continue;
         if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)) {
           throw new Error(`Invalid posting time ${item.time} on ${day.date}.`);
         }
@@ -6379,7 +6408,7 @@ export class MediaPlanningService {
             `POST decision for ${item.platform} on ${day.date} references unknown opportunity ${item.opportunityKey}.`,
           );
         }
-        if (opportunity.privacy !== 'public_safe' || !opportunity.usable) {
+        if (opportunity.privacy !== "public_safe" || !opportunity.usable) {
           throw new Error(
             `POST decision for ${item.platform} on ${day.date} references evidence that is not approved public-safe planning material.`,
           );
@@ -6441,7 +6470,7 @@ export class MediaPlanningService {
         }
       }
 
-      if (day.instagramStory.action === 'post') {
+      if (day.instagramStory.action === "post") {
         instagramStoryDays += 1;
         if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(day.instagramStory.time)) {
           throw new Error(
@@ -6459,7 +6488,7 @@ export class MediaPlanningService {
           );
         if (fabricatedStoryEvidence.length) {
           throw new Error(
-            `Instagram Story on ${day.date} references unavailable evidence IDs: ${fabricatedStoryEvidence.join(', ')}.`,
+            `Instagram Story on ${day.date} references unavailable evidence IDs: ${fabricatedStoryEvidence.join(", ")}.`,
           );
         }
         for (const evidenceId of day.instagramStory.sourceEvidenceIds) {
@@ -6467,7 +6496,7 @@ export class MediaPlanningService {
         }
       }
 
-      if (day.youtubeCommunity?.action === 'post') {
+      if (day.youtubeCommunity?.action === "post") {
         youtubeCommunityDays += 1;
         if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(day.youtubeCommunity.time)) {
           throw new Error(
@@ -6485,7 +6514,7 @@ export class MediaPlanningService {
           );
         if (fabricatedCommunityEvidence.length) {
           throw new Error(
-            `YouTube Community post on ${day.date} references unavailable evidence IDs: ${fabricatedCommunityEvidence.join(', ')}.`,
+            `YouTube Community post on ${day.date} references unavailable evidence IDs: ${fabricatedCommunityEvidence.join(", ")}.`,
           );
         }
         for (const evidenceId of day.youtubeCommunity.sourceEvidenceIds) {
@@ -6557,10 +6586,10 @@ export class MediaPlanningService {
     }
 
     const hasConfiguredCompanyIdentity = identityEvidenceIds.some((id) =>
-      id.startsWith('identity:company:'),
+      id.startsWith("identity:company:"),
     );
     if (hasConfiguredCompanyIdentity && ownedCompanyClusters.size < 1) {
-      strategicIssues.push('owned company-builder journey missing');
+      strategicIssues.push("owned company-builder journey missing");
     }
 
     const clusterCount = clusterNarrative.size;
@@ -6597,29 +6626,29 @@ export class MediaPlanningService {
     for (const intent of clusterGrowthIntent.values()) {
       growthIntentCounts.set(intent, (growthIntentCounts.get(intent) ?? 0) + 1);
     }
-    if ((growthIntentCounts.get('discovery') ?? 0) < 2) {
-      strategicIssues.push('growth portfolio discovery<2');
+    if ((growthIntentCounts.get("discovery") ?? 0) < 2) {
+      strategicIssues.push("growth portfolio discovery<2");
     }
-    if ((growthIntentCounts.get('conversion') ?? 0) < 1) {
-      strategicIssues.push('growth portfolio conversion<1');
+    if ((growthIntentCounts.get("conversion") ?? 0) < 1) {
+      strategicIssues.push("growth portfolio conversion<1");
     }
-    if ((growthIntentCounts.get('authority') ?? 0) < 1) {
-      strategicIssues.push('growth portfolio authority<1');
+    if ((growthIntentCounts.get("authority") ?? 0) < 1) {
+      strategicIssues.push("growth portfolio authority<1");
     }
 
     const hasWholePersonEvidence = (wholeLifeSignals ?? []).some((item) =>
-      ['hobby', 'routine', 'learning', 'human'].includes(item.category),
+      ["hobby", "routine", "learning", "human"].includes(item.category),
     );
     if (
       cadence.longFormVideos >= 2 &&
       hasWholePersonEvidence &&
       wholePersonLongFormVideos < 1
     ) {
-      strategicIssues.push('whole-person long-form balance missing');
+      strategicIssues.push("whole-person long-form balance missing");
     }
 
     for (const [cluster, surfaces] of clusterFeedSurfaces) {
-      const narrative = clusterNarrative.get(cluster) ?? '';
+      const narrative = clusterNarrative.get(cluster) ?? "";
       if (PERSONAL_STRATEGY_NARRATIVES.has(narrative) && surfaces.size > 2) {
         strategicIssues.push(
           `personal cluster ${cluster} surfaces=${surfaces.size}`,
@@ -6663,21 +6692,21 @@ export class MediaPlanningService {
     }
 
     return skeletons.map((skeleton) => {
-      if (skeleton.action === 'skip') return this.skipExecution(skeleton);
+      if (skeleton.action === "skip") return this.skipExecution(skeleton);
       const generated = byPlatform.get(skeleton.platform);
-      if (!generated || generated.action !== 'post') {
+      if (!generated || generated.action !== "post") {
         return this.skipExecution({
           ...skeleton,
-          action: 'skip',
-          time: '',
+          action: "skip",
+          time: "",
           reason:
-            'HSAKAA isolated this one asset after deterministic validation/repair failed; the rest of the paid weekly plan was preserved.',
+            "HSAKAA isolated this one asset after deterministic validation/repair failed; the rest of the paid weekly plan was preserved.",
         });
       }
       return {
         ...generated,
         platform: skeleton.platform,
-        action: 'post' as const,
+        action: "post" as const,
         time: skeleton.time,
         format: skeleton.format,
         opportunityKey: skeleton.opportunityKey,
@@ -6692,62 +6721,62 @@ export class MediaPlanningService {
   ): MediaPlanningExecution {
     return {
       platform: skeleton.platform,
-      action: 'skip',
+      action: "skip",
       time: skeleton.time,
       format: skeleton.format,
-      formatIntent: 'Intentional skip',
-      opportunityKey: '',
-      storyArcKey: skeleton.storyArcKey ?? '',
+      formatIntent: "Intentional skip",
+      opportunityKey: "",
+      storyArcKey: skeleton.storyArcKey ?? "",
       reason: skeleton.reason,
-      whyThisFormat: 'No public asset is required for an intentional skip.',
-      whyThisTime: 'The time is reserved only as a planning checkpoint.',
-      title: '',
-      hook: '',
-      caption: '',
-      script: '',
-      description: '',
-      cta: '',
+      whyThisFormat: "No public asset is required for an intentional skip.",
+      whyThisTime: "The time is reserved only as a planning checkpoint.",
+      title: "",
+      hook: "",
+      caption: "",
+      script: "",
+      description: "",
+      cta: "",
       hashtags: [],
       slides: [],
-      coverText: '',
-      thumbnailText: '',
-      pinnedComment: '',
-      storyFollowUp: '',
-      productionNotes: '',
-      publishCopy: '',
-      copyPasteText: '',
-      copyPasteCaption: '',
+      coverText: "",
+      thumbnailText: "",
+      pinnedComment: "",
+      storyFollowUp: "",
+      productionNotes: "",
+      publishCopy: "",
+      copyPasteText: "",
+      copyPasteCaption: "",
       evidenceIds: [],
       imageBrief: {
-        mode: 'none',
-        aspectRatio: '',
-        overlayText: '',
-        prompt: '',
-        description: '',
-        sourceGuidance: '',
+        mode: "none",
+        aspectRatio: "",
+        overlayText: "",
+        prompt: "",
+        description: "",
+        sourceGuidance: "",
       },
       carouselSlides: [],
       videoPack: {
-        fullScript: '',
+        fullScript: "",
         targetDurationSeconds: 0,
-        deliveryInstructions: '',
-        shootStyle: '',
-        location: '',
-        movement: '',
-        openingFrame: '',
-        cameraPosition: '',
+        deliveryInstructions: "",
+        shootStyle: "",
+        location: "",
+        movement: "",
+        openingFrame: "",
+        cameraPosition: "",
         shotList: [],
-        cameraInstructions: '',
+        cameraInstructions: "",
         punchIns: [],
         broll: [],
         onScreenText: [],
-        audioDirection: '',
-        lightingDirection: '',
-        editingRhythm: '',
-        captionDirection: '',
-        musicDirection: '',
-        coverDirection: '',
-        coverFrame: '',
+        audioDirection: "",
+        lightingDirection: "",
+        editingRhythm: "",
+        captionDirection: "",
+        musicDirection: "",
+        coverDirection: "",
+        coverFrame: "",
       },
       xThread: [],
       whatsappSequence: [],
@@ -6759,15 +6788,15 @@ export class MediaPlanningService {
   }
 
   private skipDailyStory(
-    story: PlanningBlueprint['days'][number]['instagramStory'],
+    story: PlanningBlueprint["days"][number]["instagramStory"],
   ): MediaPlanningDailyStory {
     return {
-      action: 'skip',
-      time: '',
-      sourceType: story.sourceType ?? 'human_moment',
+      action: "skip",
+      time: "",
+      sourceType: story.sourceType ?? "human_moment",
       sourceEvidenceIds: [],
-      reason: story.reason || 'No lightweight Story moment planned.',
-      captureBrief: '',
+      reason: story.reason || "No lightweight Story moment planned.",
+      captureBrief: "",
       frames: [],
       executionReady: false,
       readinessIssues: [],
@@ -6781,7 +6810,7 @@ export class MediaPlanningService {
     const usableOpportunities = blueprint.opportunities.filter(
       (item) =>
         item.usable &&
-        item.privacy === 'public_safe' &&
+        item.privacy === "public_safe" &&
         this.validPlanningEvidenceIds(item.evidenceIds, validEvidence).length,
     );
     let days = blueprint.days.map((day, index) => {
@@ -6801,30 +6830,30 @@ export class MediaPlanningService {
         executions: day.executions.map((item) => ({
           ...item,
           time:
-            item.action === 'post'
+            item.action === "post"
               ? this.normalizeLocalTime(
                   item.time,
                   this.defaultPostingTime(item.platform),
                 )
-              : this.normalizeLocalTime(item.time, ''),
+              : this.normalizeLocalTime(item.time, ""),
         })),
         instagramStory: {
           ...instagramStory,
           time:
-            instagramStory.action === 'post'
-              ? this.normalizeLocalTime(instagramStory.time, '08:30')
-              : this.normalizeLocalTime(instagramStory.time, ''),
+            instagramStory.action === "post"
+              ? this.normalizeLocalTime(instagramStory.time, "08:30")
+              : this.normalizeLocalTime(instagramStory.time, ""),
         },
         youtubeCommunity: {
           ...youtubeCommunity,
           time:
-            youtubeCommunity.action === 'post'
-              ? this.normalizeLocalTime(youtubeCommunity.time, '16:30')
-              : this.normalizeLocalTime(youtubeCommunity.time, ''),
+            youtubeCommunity.action === "post"
+              ? this.normalizeLocalTime(youtubeCommunity.time, "16:30")
+              : this.normalizeLocalTime(youtubeCommunity.time, ""),
         },
         engagement: (day.engagement ?? []).map((task) => ({
           ...task,
-          time: this.normalizeLocalTime(task.time, '17:30'),
+          time: this.normalizeLocalTime(task.time, "17:30"),
         })),
       };
     });
@@ -6846,26 +6875,26 @@ export class MediaPlanningService {
 
   private fallbackOpportunityForDay(
     blueprint: PlanningBlueprint,
-    day: PlanningBlueprint['days'][number],
+    day: PlanningBlueprint["days"][number],
     index: number,
     validEvidence?: Set<string>,
   ) {
     const referencedKeys = day.executions
-      .filter((item) => item.action === 'post' && item.opportunityKey)
+      .filter((item) => item.action === "post" && item.opportunityKey)
       .map((item) => item.opportunityKey as string);
     const referenced = referencedKeys
       .map((key) => blueprint.opportunities.find((item) => item.key === key))
       .find(
         (item) =>
           item?.usable &&
-          item.privacy === 'public_safe' &&
+          item.privacy === "public_safe" &&
           this.validPlanningEvidenceIds(item.evidenceIds, validEvidence).length,
       );
     if (referenced) return referenced;
     const usable = blueprint.opportunities.filter(
       (item) =>
         item.usable &&
-        item.privacy === 'public_safe' &&
+        item.privacy === "public_safe" &&
         this.validPlanningEvidenceIds(item.evidenceIds, validEvidence).length,
     );
     return usable[index % Math.max(usable.length, 1)];
@@ -6894,60 +6923,60 @@ export class MediaPlanningService {
 
   private sourceTypeForPillar(
     pillar: MediaPublicIdentityPillar | undefined,
-  ): MediaPlanningDailyStory['sourceType'] {
-    if (pillar === 'learning_experiments') return 'learning';
-    if (pillar === 'building_aakash') return 'personal_growth';
-    if (pillar === 'human_unfiltered') return 'human_moment';
-    if (pillar === 'builder_operator') return 'current_work';
-    return 'professional';
+  ): MediaPlanningDailyStory["sourceType"] {
+    if (pillar === "learning_experiments") return "learning";
+    if (pillar === "building_aakash") return "personal_growth";
+    if (pillar === "human_unfiltered") return "human_moment";
+    if (pillar === "builder_operator") return "current_work";
+    return "professional";
   }
 
   private fallbackInstagramStorySkeleton(
-    opportunity: GeneratedPlan['opportunities'][number] | undefined,
+    opportunity: GeneratedPlan["opportunities"][number] | undefined,
     index: number,
     validEvidence?: Set<string>,
-  ): PlanningBlueprint['days'][number]['instagramStory'] {
+  ): PlanningBlueprint["days"][number]["instagramStory"] {
     if (!opportunity) {
       return {
-        action: 'skip',
-        time: '',
-        sourceType: 'human_moment',
+        action: "skip",
+        time: "",
+        sourceType: "human_moment",
         sourceEvidenceIds: [],
-        reason: 'No usable context exists for a truthful Instagram Story.',
-        captureBrief: '',
+        reason: "No usable context exists for a truthful Instagram Story.",
+        captureBrief: "",
       };
     }
     return {
-      action: 'post',
-      time: index % 2 === 0 ? '09:15' : '18:15',
+      action: "post",
+      time: index % 2 === 0 ? "09:15" : "18:15",
       sourceType: this.sourceTypeForPillar(opportunity.identityPillar),
       sourceEvidenceIds: this.validPlanningEvidenceIds(
         opportunity.evidenceIds,
         validEvidence,
       ),
       reason:
-        'Maintain lightweight human familiarity from a real Aakash context signal.',
+        "Maintain lightweight human familiarity from a real Aakash context signal.",
       captureBrief:
-        'Capture one small private-safe moment related to this context only if it is actually happening today; do not manufacture an activity or convert it into a polished feed post.',
+        "Capture one small private-safe moment related to this context only if it is actually happening today; do not manufacture an activity or convert it into a polished feed post.",
     };
   }
 
   private skipYoutubeCommunitySkeleton(
-    opportunity: GeneratedPlan['opportunities'][number] | undefined,
-  ): NonNullable<PlanningBlueprint['days'][number]['youtubeCommunity']> {
+    opportunity: GeneratedPlan["opportunities"][number] | undefined,
+  ): NonNullable<PlanningBlueprint["days"][number]["youtubeCommunity"]> {
     return {
-      action: 'skip',
-      time: '',
-      format: 'text',
+      action: "skip",
+      time: "",
+      format: "text",
       sourceType: this.sourceTypeForPillar(opportunity?.identityPillar),
       sourceEvidenceIds: opportunity?.evidenceIds.slice(0, 3) ?? [],
-      reason: 'No YouTube Community moment selected for this day.',
+      reason: "No YouTube Community moment selected for this day.",
     };
   }
 
   private ensureInstagramStoryCadence(
-    days: PlanningBlueprint['days'],
-    opportunities: GeneratedPlan['opportunities'],
+    days: PlanningBlueprint["days"],
+    opportunities: GeneratedPlan["opportunities"],
     validEvidence?: Set<string>,
   ) {
     return days.map((day, index) => {
@@ -6956,7 +6985,7 @@ export class MediaPlanningService {
         current?.sourceEvidenceIds,
         validEvidence,
       );
-      if (current?.action === 'post' && currentEvidence.length) {
+      if (current?.action === "post" && currentEvidence.length) {
         if (
           currentEvidence.length === (current.sourceEvidenceIds ?? []).length
         ) {
@@ -6969,18 +6998,18 @@ export class MediaPlanningService {
             sourceEvidenceIds: currentEvidence,
             reason:
               current.reason ||
-              'Story evidence references were normalized to available HSAKAA context.',
+              "Story evidence references were normalized to available HSAKAA context.",
           },
         };
       }
 
       const opportunity = this.fallbackOpportunityForDay(
         {
-          startDate: '',
-          endDate: '',
+          startDate: "",
+          endDate: "",
           timezone: TZ,
-          learningStage: '',
-          summary: '',
+          learningStage: "",
+          summary: "",
           opportunities,
           storyArcs: [],
           days,
@@ -7002,8 +7031,8 @@ export class MediaPlanningService {
               ...fallback,
               time: this.normalizeLocalTime(current?.time, fallback.time),
               reason:
-                current?.action === 'post'
-                  ? 'Story grounding repaired automatically from a real HSAKAA context signal.'
+                current?.action === "post"
+                  ? "Story grounding repaired automatically from a real HSAKAA context signal."
                   : fallback.reason,
             },
           };
@@ -7018,30 +7047,30 @@ export class MediaPlanningService {
       return {
         ...day,
         instagramStory: {
-          action: 'post' as const,
+          action: "post" as const,
           time: this.normalizeLocalTime(
             current?.time,
-            index % 2 === 0 ? '09:15' : '18:15',
+            index % 2 === 0 ? "09:15" : "18:15",
           ),
-          sourceType: current?.sourceType ?? 'human_moment',
+          sourceType: current?.sourceType ?? "human_moment",
           sourceEvidenceIds: contextEvidence,
           reason:
-            'Story grounding repaired automatically from available HSAKAA context evidence.',
+            "Story grounding repaired automatically from available HSAKAA context evidence.",
           captureBrief:
             current?.captureBrief?.trim() ||
-            'Capture one small private-safe moment related to this context only if it actually happens today; do not stage or invent it.',
+            "Capture one small private-safe moment related to this context only if it actually happens today; do not stage or invent it.",
         },
       };
     });
   }
 
   private ensureYoutubeCommunityCadence(
-    days: PlanningBlueprint['days'],
-    opportunities: GeneratedPlan['opportunities'],
+    days: PlanningBlueprint["days"],
+    opportunities: GeneratedPlan["opportunities"],
     validEvidence?: Set<string>,
   ) {
     days = days.map((day, index) => {
-      if (day.youtubeCommunity?.action !== 'post') return day;
+      if (day.youtubeCommunity?.action !== "post") return day;
       const currentEvidence = this.validPlanningEvidenceIds(
         day.youtubeCommunity.sourceEvidenceIds,
         validEvidence,
@@ -7060,11 +7089,11 @@ export class MediaPlanningService {
       }
       const opportunity = this.fallbackOpportunityForDay(
         {
-          startDate: '',
-          endDate: '',
+          startDate: "",
+          endDate: "",
           timezone: TZ,
-          learningStage: '',
-          summary: '',
+          learningStage: "",
+          summary: "",
           opportunities,
           storyArcs: [],
           days,
@@ -7086,27 +7115,27 @@ export class MediaPlanningService {
             : day.youtubeCommunity.sourceType,
           sourceEvidenceIds: replacementEvidence,
           reason:
-            'YouTube Community grounding repaired automatically from available HSAKAA context evidence.',
+            "YouTube Community grounding repaired automatically from available HSAKAA context evidence.",
         },
       };
     });
     const postIndexes = days
       .map((day, index) =>
-        day.youtubeCommunity?.action === 'post' ? index : -1,
+        day.youtubeCommunity?.action === "post" ? index : -1,
       )
       .filter((index) => index >= 0);
     if (postIndexes.length > 5) {
       const allowed = new Set(postIndexes.slice(0, 5));
       days = days.map((day, index) =>
-        day.youtubeCommunity?.action === 'post' && !allowed.has(index)
+        day.youtubeCommunity?.action === "post" && !allowed.has(index)
           ? {
               ...day,
               youtubeCommunity: {
                 ...day.youtubeCommunity,
-                action: 'skip' as const,
-                time: '',
+                action: "skip" as const,
+                time: "",
                 reason:
-                  'YouTube Community cadence capped to keep lightweight presence sustainable.',
+                  "YouTube Community cadence capped to keep lightweight presence sustainable.",
               },
             }
           : day,
@@ -7114,7 +7143,7 @@ export class MediaPlanningService {
     }
 
     let count = days.filter(
-      (day) => day.youtubeCommunity?.action === 'post',
+      (day) => day.youtubeCommunity?.action === "post",
     ).length;
     const target = Math.min(4, days.length);
     if (count >= 3) return days;
@@ -7125,14 +7154,14 @@ export class MediaPlanningService {
     for (const index of preferredIndexes) {
       if (count >= target) break;
       const day = days[index];
-      if (day.youtubeCommunity?.action === 'post') continue;
+      if (day.youtubeCommunity?.action === "post") continue;
       const opportunity = this.fallbackOpportunityForDay(
         {
-          startDate: '',
-          endDate: '',
+          startDate: "",
+          endDate: "",
           timezone: TZ,
-          learningStage: '',
-          summary: '',
+          learningStage: "",
+          summary: "",
           opportunities,
           storyArcs: [],
           days,
@@ -7142,12 +7171,12 @@ export class MediaPlanningService {
         validEvidence,
       );
       if (!opportunity) continue;
-      const formats = ['text', 'poll', 'image', 'text'] as const;
+      const formats = ["text", "poll", "image", "text"] as const;
       days[index] = {
         ...day,
         youtubeCommunity: {
-          action: 'post',
-          time: this.normalizeLocalTime(day.youtubeCommunity?.time, '16:30'),
+          action: "post",
+          time: this.normalizeLocalTime(day.youtubeCommunity?.time, "16:30"),
           format: formats[count % formats.length],
           sourceType: this.sourceTypeForPillar(opportunity.identityPillar),
           sourceEvidenceIds: this.validPlanningEvidenceIds(
@@ -7155,7 +7184,7 @@ export class MediaPlanningService {
             validEvidence,
           ),
           reason:
-            'Use YouTube Community as the lightweight conversation layer between Shorts and long-form uploads.',
+            "Use YouTube Community as the lightweight conversation layer between Shorts and long-form uploads.",
         },
       };
       count += 1;
@@ -7167,13 +7196,13 @@ export class MediaPlanningService {
     value: string | null | undefined,
     fallback: string,
   ) {
-    const raw = (value ?? '').trim();
+    const raw = (value ?? "").trim();
     if (!raw) return fallback;
 
     const cleaned = raw
       .toUpperCase()
-      .replace(/\b(?:IST|ASIA\/KOLKATA|HRS?|HOURS?)\b/g, '')
-      .replace(/\s+/g, ' ')
+      .replace(/\b(?:IST|ASIA\/KOLKATA|HRS?|HOURS?)\b/g, "")
+      .replace(/\s+/g, " ")
       .trim();
 
     const isoTime = cleaned.match(/T(\d{1,2}):(\d{2})/);
@@ -7189,8 +7218,8 @@ export class MediaPlanningService {
       let hour = Number(ampm[1]);
       const minute = Number(ampm[2]);
       if (hour >= 1 && hour <= 12 && minute >= 0 && minute <= 59) {
-        if (ampm[3] === 'AM' && hour === 12) hour = 0;
-        if (ampm[3] === 'PM' && hour !== 12) hour += 12;
+        if (ampm[3] === "AM" && hour === 12) hour = 0;
+        if (ampm[3] === "PM" && hour !== 12) hour += 12;
         return this.formatHourMinute(hour, minute, fallback);
       }
     }
@@ -7199,8 +7228,8 @@ export class MediaPlanningService {
     if (hourOnlyAmPm) {
       let hour = Number(hourOnlyAmPm[1]);
       if (hour >= 1 && hour <= 12) {
-        if (hourOnlyAmPm[2] === 'AM' && hour === 12) hour = 0;
-        if (hourOnlyAmPm[2] === 'PM' && hour !== 12) hour += 12;
+        if (hourOnlyAmPm[2] === "AM" && hour === 12) hour = 0;
+        if (hourOnlyAmPm[2] === "PM" && hour !== 12) hour += 12;
         return this.formatHourMinute(hour, 0, fallback);
       }
     }
@@ -7216,7 +7245,7 @@ export class MediaPlanningService {
 
     const compact = cleaned.match(/^(\d{3,4})$/);
     if (compact) {
-      const digits = compact[1].padStart(4, '0');
+      const digits = compact[1].padStart(4, "0");
       return this.formatHourMinute(
         Number(digits.slice(0, 2)),
         Number(digits.slice(2)),
@@ -7229,33 +7258,33 @@ export class MediaPlanningService {
 
   private formatHourMinute(hour: number, minute: number, fallback: string) {
     if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return fallback;
-    return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
   }
 
   private defaultPostingTime(platform: MediaPlatform) {
     switch (platform) {
       case MediaPlatform.LINKEDIN:
-        return '09:30';
+        return "09:30";
       case MediaPlatform.INSTAGRAM:
-        return '18:30';
+        return "18:30";
       case MediaPlatform.YOUTUBE:
-        return '19:00';
+        return "19:00";
       case MediaPlatform.X:
-        return '12:30';
+        return "12:30";
       case MediaPlatform.WHATSAPP:
-        return '18:45';
+        return "18:45";
       default:
-        return '18:00';
+        return "18:00";
     }
   }
 
   private resolveStartDate(value?: string) {
     if (value) return value.slice(0, 10);
-    return new Intl.DateTimeFormat('en-CA', {
+    return new Intl.DateTimeFormat("en-CA", {
       timeZone: TZ,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     }).format(new Date());
   }
 
@@ -7285,40 +7314,40 @@ export class MediaPlanningService {
   private resolveWeekContext(
     dto: GenerateMediaPlanningCycleDto,
     startDate: string,
-    prior?: MediaPlanningCycle['weekContext'] | null,
-  ): MediaPlanningCycle['weekContext'] {
+    prior?: MediaPlanningCycle["weekContext"] | null,
+  ): MediaPlanningCycle["weekContext"] {
     const weekKey = this.weekKey(startDate);
     const supplied = dto.outingStatus;
     if (supplied) {
       return {
         outingStatus: supplied,
-        outingDetails: dto.outingDetails?.trim() ?? '',
+        outingDetails: dto.outingDetails?.trim() ?? "",
         weekKey,
         capturedAt: new Date(),
       };
     }
     if (prior && prior.weekKey === weekKey) {
       return {
-        outingStatus: prior.outingStatus ?? 'unknown',
-        outingDetails: prior.outingDetails ?? '',
+        outingStatus: prior.outingStatus ?? "unknown",
+        outingDetails: prior.outingDetails ?? "",
         weekKey,
         capturedAt: prior.capturedAt ? new Date(prior.capturedAt) : new Date(),
       };
     }
     return {
-      outingStatus: 'unknown',
-      outingDetails: '',
+      outingStatus: "unknown",
+      outingDetails: "",
       weekKey,
       capturedAt: new Date(),
     };
   }
 
   private localDate(value: Date) {
-    return new Intl.DateTimeFormat('en-CA', {
+    return new Intl.DateTimeFormat("en-CA", {
       timeZone: TZ,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     }).format(value);
   }
 
@@ -7328,7 +7357,7 @@ export class MediaPlanningService {
   ) {
     const escapedVersion = String(strategyVersion).replace(
       /[.*+?^${}()|[\]\\]/g,
-      '\\$&',
+      "\\$&",
     );
     return this.planModel
       .findOne({
@@ -7357,65 +7386,65 @@ export class MediaPlanningService {
       );
       for (const day of plan.days ?? []) {
         for (const item of day.executions ?? []) {
-          if (item.action !== 'post') continue;
-          const opportunity = opportunities.get(item.opportunityKey ?? '');
+          if (item.action !== "post") continue;
+          const opportunity = opportunities.get(item.opportunityKey ?? "");
           const text = this.executionPublicText(item);
           fingerprints.push({
             _id: `planned:${String(plan._id ?? plan.key)}:${day.date}:${item.platform}`,
-            scope: 'planning_archive',
+            scope: "planning_archive",
             platform: item.platform,
             format: item.format,
-            title: item.title || opportunity?.title || '',
-            topic: opportunity?.topicClusterKey || opportunity?.title || '',
-            thesis: opportunity?.thesis || '',
-            angle: opportunity?.whyNow || item.reason || '',
-            hookArchetype: item.hook || '',
-            openingPattern: text.split(/\n|[.!?]\s/)[0] ?? '',
+            title: item.title || opportunity?.title || "",
+            topic: opportunity?.topicClusterKey || opportunity?.title || "",
+            thesis: opportunity?.thesis || "",
+            angle: opportunity?.whyNow || item.reason || "",
+            hookArchetype: item.hook || "",
+            openingPattern: text.split(/\n|[.!?]\s/)[0] ?? "",
             storyKeys: opportunity?.strategyNarrativeKey
               ? [opportunity.strategyNarrativeKey]
               : [],
             exampleKeys: opportunity?.evidenceIds ?? [],
             structure: item.format,
-            ctaArchetype: item.cta || '',
+            ctaArchetype: item.cta || "",
             visualConcept:
               item.imageBrief?.description ||
               item.imageBrief?.overlayText ||
-              '',
+              "",
             keyPhrases: this.tokens(text).slice(0, 20),
             lexicalSignature: this.tokens(text),
             normalizedText: text,
             createdAt: plan.generatedAt,
           });
         }
-        if (day.instagramStory?.action === 'post') {
+        if (day.instagramStory?.action === "post") {
           const text = this.storyCopy(day.instagramStory);
           fingerprints.push({
             _id: `planned:${String(plan._id ?? plan.key)}:${day.date}:instagram_story`,
-            scope: 'planning_archive',
+            scope: "planning_archive",
             platform: MediaPlatform.INSTAGRAM,
-            format: 'story',
+            format: "story",
             title: day.theme,
             topic: day.instagramStory.sourceType,
             thesis: day.instagramStory.reason,
             angle: day.instagramStory.captureBrief,
-            hookArchetype: text.split(/\n|[.!?]\s/)[0] ?? '',
+            hookArchetype: text.split(/\n|[.!?]\s/)[0] ?? "",
             lexicalSignature: this.tokens(text),
             normalizedText: text,
             createdAt: plan.generatedAt,
           });
         }
-        if (day.youtubeCommunity?.action === 'post') {
-          const text = day.youtubeCommunity.publishCopy ?? '';
+        if (day.youtubeCommunity?.action === "post") {
+          const text = day.youtubeCommunity.publishCopy ?? "";
           fingerprints.push({
             _id: `planned:${String(plan._id ?? plan.key)}:${day.date}:youtube_community`,
-            scope: 'planning_archive',
+            scope: "planning_archive",
             platform: MediaPlatform.YOUTUBE,
-            format: 'community',
+            format: "community",
             title: day.theme,
             topic: day.youtubeCommunity.sourceType,
             thesis: day.youtubeCommunity.reason,
             angle: day.youtubeCommunity.format,
-            hookArchetype: text.split(/\n|[.!?]\s/)[0] ?? '',
+            hookArchetype: text.split(/\n|[.!?]\s/)[0] ?? "",
             lexicalSignature: this.tokens(text),
             normalizedText: text,
             createdAt: plan.generatedAt,
@@ -7433,7 +7462,7 @@ export class MediaPlanningService {
         .filter((day) => day.date !== excludeDate)
         .flatMap((day) =>
           (day.executions ?? [])
-            .filter((item) => item.action === 'post')
+            .filter((item) => item.action === "post")
             .map((item) => item.opportunityKey)
             .filter((value): value is string => Boolean(value)),
         ),
@@ -7459,7 +7488,7 @@ export class MediaPlanningService {
           date: day.date,
           theme: day.theme,
           posts: (day.executions ?? [])
-            .filter((item) => item.action === 'post')
+            .filter((item) => item.action === "post")
             .map((item) => ({
               platform: item.platform,
               format: item.format,
@@ -7469,13 +7498,13 @@ export class MediaPlanningService {
               publishCopy: this.executionPublicText(item),
             })),
           instagramStory:
-            day.instagramStory?.action === 'post'
+            day.instagramStory?.action === "post"
               ? this.storyCopy(day.instagramStory)
-              : '',
+              : "",
           youtubeCommunity:
-            day.youtubeCommunity?.action === 'post'
+            day.youtubeCommunity?.action === "post"
               ? day.youtubeCommunity.publishCopy
-              : '',
+              : "",
         })),
     };
   }
@@ -7484,7 +7513,7 @@ export class MediaPlanningService {
     blueprint: PlanningBlueprint,
     targetDate: string,
   ): PlanningBlueprint {
-    const prefix = `d${targetDate.replaceAll('-', '')}_${Date.now().toString(36)}`;
+    const prefix = `d${targetDate.replaceAll("-", "")}_${Date.now().toString(36)}`;
     const opportunityMap = new Map<string, string>();
     for (const [index, item] of blueprint.opportunities.entries()) {
       opportunityMap.set(item.key, `${prefix}_opp_${index + 1}`);
@@ -7506,8 +7535,8 @@ export class MediaPlanningService {
         beats: (arc.beats ?? []).map((beat) => ({
           ...beat,
           opportunityKey: beat.opportunityKey
-            ? (opportunityMap.get(beat.opportunityKey) ?? '')
-            : '',
+            ? (opportunityMap.get(beat.opportunityKey) ?? "")
+            : "",
         })),
       })),
       days: blueprint.days.map((day) => ({
@@ -7515,11 +7544,11 @@ export class MediaPlanningService {
         executions: day.executions.map((item) => ({
           ...item,
           opportunityKey: item.opportunityKey
-            ? (opportunityMap.get(item.opportunityKey) ?? '')
-            : '',
+            ? (opportunityMap.get(item.opportunityKey) ?? "")
+            : "",
           storyArcKey: item.storyArcKey
-            ? (arcMap.get(item.storyArcKey) ?? '')
-            : '',
+            ? (arcMap.get(item.storyArcKey) ?? "")
+            : "",
         })),
       })),
     };
@@ -7538,7 +7567,7 @@ export class MediaPlanningService {
       blueprint.days[0]?.date !== targetDate
     ) {
       throw new Error(
-        'Single-day planner must return exactly the requested date.',
+        "Single-day planner must return exactly the requested date.",
       );
     }
     const narrativeKeys = new Set(
@@ -7556,7 +7585,7 @@ export class MediaPlanningService {
           `Single-day opportunity ${opportunity.key} uses unknown Presence narrative ${opportunity.strategyNarrativeKey}.`,
         );
       }
-      if (opportunity.privacy === 'public_safe') {
+      if (opportunity.privacy === "public_safe") {
         if (!opportunity.evidenceIds.length) {
           throw new Error(
             `Single-day opportunity ${opportunity.key} needs real evidence.`,
@@ -7567,7 +7596,7 @@ export class MediaPlanningService {
         );
         if (invalid.length) {
           throw new Error(
-            `Single-day opportunity ${opportunity.key} references unavailable evidence: ${invalid.join(', ')}.`,
+            `Single-day opportunity ${opportunity.key} references unavailable evidence: ${invalid.join(", ")}.`,
           );
         }
       }
@@ -7575,7 +7604,7 @@ export class MediaPlanningService {
     const day = blueprint.days[0];
     if (day.executions.length !== GROWTH_PLATFORMS.length) {
       throw new Error(
-        'Single-day planner must return one decision per primary platform.',
+        "Single-day planner must return one decision per primary platform.",
       );
     }
     const seen = new Set<MediaPlatform>();
@@ -7584,12 +7613,12 @@ export class MediaPlanningService {
         throw new Error(`Single-day planner duplicated ${item.platform}.`);
       }
       seen.add(item.platform);
-      if (item.action === 'post') {
-        const opportunity = opportunities.get(item.opportunityKey ?? '');
+      if (item.action === "post") {
+        const opportunity = opportunities.get(item.opportunityKey ?? "");
         if (
           !opportunity ||
           !opportunity.usable ||
-          opportunity.privacy !== 'public_safe'
+          opportunity.privacy !== "public_safe"
         ) {
           throw new Error(
             `Single-day ${item.platform} post does not reference a usable public-safe opportunity.`,
@@ -7611,7 +7640,7 @@ export class MediaPlanningService {
 
   private planningStorySkeleton(
     story: MediaPlanningDailyStory | undefined,
-  ): PlanningBlueprint['days'][number]['instagramStory'] {
+  ): PlanningBlueprint["days"][number]["instagramStory"] {
     return story
       ? {
           action: story.action,
@@ -7622,18 +7651,18 @@ export class MediaPlanningService {
           captureBrief: story.captureBrief,
         }
       : {
-          action: 'skip',
-          time: '',
-          sourceType: 'human_moment',
+          action: "skip",
+          time: "",
+          sourceType: "human_moment",
           sourceEvidenceIds: [],
-          reason: 'No Story planned.',
-          captureBrief: '',
+          reason: "No Story planned.",
+          captureBrief: "",
         };
   }
 
   private planningCommunitySkeleton(
     post: MediaPlanningYoutubeCommunityPost | undefined,
-  ): PlanningBlueprint['days'][number]['youtubeCommunity'] {
+  ): PlanningBlueprint["days"][number]["youtubeCommunity"] {
     return post
       ? {
           action: post.action,
@@ -7644,12 +7673,12 @@ export class MediaPlanningService {
           reason: post.reason,
         }
       : {
-          action: 'skip',
-          time: '',
-          format: 'text',
-          sourceType: 'human_moment',
+          action: "skip",
+          time: "",
+          format: "text",
+          sourceType: "human_moment",
           sourceEvidenceIds: [],
-          reason: 'No Community post planned.',
+          reason: "No Community post planned.",
         };
   }
 
@@ -7666,7 +7695,7 @@ export class MediaPlanningService {
       (_, index) => this.addDays(startDate, index),
     );
     const baseByDate = new Map((base.days ?? []).map((day) => [day.date, day]));
-    const days: PlanningBlueprint['days'] = expectedDates.map((date) => {
+    const days: PlanningBlueprint["days"] = expectedDates.map((date) => {
       if (date === targetDate) return freshDay;
       const day = baseByDate.get(date);
       if (!day) {
@@ -7815,7 +7844,7 @@ export class MediaPlanningService {
   private mergeRollingGeneratedPlan(
     base: MediaPlanningCycle,
     repairedSkeleton: PlanningBlueprint,
-    generatedDay: GeneratedPlan['days'][number],
+    generatedDay: GeneratedPlan["days"][number],
     startDate: string,
     endDate: string,
     targetDate: string,
@@ -7848,7 +7877,7 @@ export class MediaPlanningService {
         (existing.executions ?? []).map((item) => [item.platform, item]),
       );
       const executions = skeletonDay.executions.map((skeletonExecution) => {
-        if (skeletonExecution.action === 'skip') {
+        if (skeletonExecution.action === "skip") {
           return this.skipExecution(skeletonExecution);
         }
 
@@ -7856,13 +7885,13 @@ export class MediaPlanningService {
           skeletonExecution.platform,
         );
         const opportunity = opportunityByKey.get(
-          skeletonExecution.opportunityKey ?? '',
+          skeletonExecution.opportunityKey ?? "",
         );
         const canPreserveExistingPost = Boolean(
-          existingExecution?.action === 'post' &&
+          existingExecution?.action === "post" &&
           existingExecution.opportunityKey ===
             skeletonExecution.opportunityKey &&
-          opportunity?.privacy === 'public_safe' &&
+          opportunity?.privacy === "public_safe" &&
           opportunity.usable &&
           existingExecution.evidenceIds.every((id) =>
             opportunity.evidenceIds.includes(id),
@@ -7872,12 +7901,12 @@ export class MediaPlanningService {
         if (!canPreserveExistingPost || !existingExecution) {
           return this.skipExecution({
             ...skeletonExecution,
-            action: 'skip',
-            time: '',
-            opportunityKey: '',
-            storyArcKey: '',
+            action: "skip",
+            time: "",
+            opportunityKey: "",
+            storyArcKey: "",
             reason:
-              'Preserved rolling post was isolated because its previous HSAKAA evidence is no longer available in the repaired planning context.',
+              "Preserved rolling post was isolated because its previous HSAKAA evidence is no longer available in the repaired planning context.",
           });
         }
 
@@ -7901,8 +7930,8 @@ export class MediaPlanningService {
       };
 
       const instagramStory =
-        skeletonDay.instagramStory.action === 'post' &&
-        existing.instagramStory?.action === 'post' &&
+        skeletonDay.instagramStory.action === "post" &&
+        existing.instagramStory?.action === "post" &&
         sameEvidence(
           existing.instagramStory.sourceEvidenceIds,
           skeletonDay.instagramStory.sourceEvidenceIds,
@@ -7911,8 +7940,8 @@ export class MediaPlanningService {
           : this.skipDailyStory(skeletonDay.instagramStory);
 
       const youtubeCommunity =
-        skeletonDay.youtubeCommunity?.action === 'post' &&
-        existing.youtubeCommunity?.action === 'post' &&
+        skeletonDay.youtubeCommunity?.action === "post" &&
+        existing.youtubeCommunity?.action === "post" &&
         sameEvidence(
           existing.youtubeCommunity.sourceEvidenceIds,
           skeletonDay.youtubeCommunity.sourceEvidenceIds,
@@ -7950,7 +7979,7 @@ export class MediaPlanningService {
       .filter((day) => day.date !== excludeDate)
       .flatMap((day) =>
         (day.executions ?? [])
-          .filter((item) => item.action === 'post')
+          .filter((item) => item.action === "post")
           .map((item) => ({
             platform: item.platform,
             text: this.executionPublicText(item),
@@ -7965,7 +7994,7 @@ export class MediaPlanningService {
     return (base.days ?? [])
       .filter(
         (day) =>
-          day.date !== excludeDate && day.instagramStory?.action === 'post',
+          day.date !== excludeDate && day.instagramStory?.action === "post",
       )
       .map((day) => this.storyCopy(day.instagramStory));
   }
@@ -7977,9 +8006,9 @@ export class MediaPlanningService {
     return (base.days ?? [])
       .filter(
         (day) =>
-          day.date !== excludeDate && day.youtubeCommunity?.action === 'post',
+          day.date !== excludeDate && day.youtubeCommunity?.action === "post",
       )
-      .map((day) => day.youtubeCommunity?.publishCopy ?? '')
+      .map((day) => day.youtubeCommunity?.publishCopy ?? "")
       .filter(Boolean);
   }
 
@@ -8000,7 +8029,7 @@ export class MediaPlanningService {
     }
     if (plan.days[0]?.date !== startDate || plan.days[6]?.date !== endDate) {
       throw new Error(
-        'Planner returned dates outside the requested seven-day window.',
+        "Planner returned dates outside the requested seven-day window.",
       );
     }
 
@@ -8016,12 +8045,12 @@ export class MediaPlanningService {
       plan.opportunities.map((item) => [item.key, item]),
     );
     for (const opportunity of plan.opportunities) {
-      if (opportunity.privacy === 'needs_review' && opportunity.usable) {
+      if (opportunity.privacy === "needs_review" && opportunity.usable) {
         throw new Error(
           `Opportunity ${opportunity.key} is needs_review and cannot be automatically usable.`,
         );
       }
-      if (opportunity.privacy === 'public_safe') {
+      if (opportunity.privacy === "public_safe") {
         if (!opportunity.evidenceIds.length) {
           throw new Error(
             `Public-safe opportunity ${opportunity.key} must reference real HSAKAA evidence IDs.`,
@@ -8032,7 +8061,7 @@ export class MediaPlanningService {
         );
         if (fabricated.length) {
           throw new Error(
-            `Opportunity ${opportunity.key} references fabricated or unavailable HSAKAA evidence IDs: ${fabricated.join(', ')}.`,
+            `Opportunity ${opportunity.key} references fabricated or unavailable HSAKAA evidence IDs: ${fabricated.join(", ")}.`,
           );
         }
         const hasPublicEvidence = opportunity.evidenceIds.some((id) =>
@@ -8070,7 +8099,7 @@ export class MediaPlanningService {
           );
         }
         duplicate.add(item.platform);
-        if (item.action === 'post') {
+        if (item.action === "post") {
           if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)) {
             throw new Error(
               `Invalid posting time ${item.time} on ${day.date}.`,
@@ -8078,7 +8107,7 @@ export class MediaPlanningService {
           }
           this.assertExecutionReady(item, day.date, opportunities);
           const combined = this.executionPublicText(item);
-          const opportunity = opportunities.get(item.opportunityKey ?? '');
+          const opportunity = opportunities.get(item.opportunityKey ?? "");
           this.assertReflectionSafeCopy(
             combined,
             item,
@@ -8110,11 +8139,11 @@ export class MediaPlanningService {
           weekCopies.push({ platform: item.platform, text: combined });
         }
       }
-      if (day.instagramStory?.action === 'post') {
+      if (day.instagramStory?.action === "post") {
         this.assertDailyStoryReady(day.instagramStory, day.date, validEvidence);
         const storyCopy = day.instagramStory.frames
           .map((frame) => `${frame.overlayText} ${frame.spokenText}`.trim())
-          .join('\n')
+          .join("\n")
           .trim();
         this.assertNoInternalStrategyLeak(
           storyCopy,
@@ -8136,7 +8165,7 @@ export class MediaPlanningService {
         weekStoryCopies.push(storyCopy);
       }
 
-      if (day.youtubeCommunity?.action === 'post') {
+      if (day.youtubeCommunity?.action === "post") {
         const communityError = this.youtubeCommunityPreflightError(
           day.youtubeCommunity,
           day.date,
@@ -8206,7 +8235,7 @@ export class MediaPlanningService {
   private assertExecutionReady(
     item: MediaPlanningExecution,
     date: string,
-    opportunities: Map<string, GeneratedPlan['opportunities'][number]>,
+    opportunities: Map<string, GeneratedPlan["opportunities"][number]>,
   ) {
     if (!item.executionReady || item.readinessIssues.length) {
       throw new Error(
@@ -8234,7 +8263,7 @@ export class MediaPlanningService {
         `Post execution for ${item.platform} on ${date} references unknown opportunity ${item.opportunityKey}.`,
       );
     }
-    if (opportunity.privacy !== 'public_safe' || !opportunity.usable) {
+    if (opportunity.privacy !== "public_safe" || !opportunity.usable) {
       throw new Error(
         `Post execution for ${item.platform} on ${date} references evidence that is not approved public-safe planning material.`,
       );
@@ -8252,7 +8281,7 @@ export class MediaPlanningService {
     }
 
     if (item.format === MediaPostType.IMAGE) {
-      if (item.imageBrief.mode === 'none') {
+      if (item.imageBrief.mode === "none") {
         throw new Error(
           `Image execution for ${item.platform} on ${date} is missing an image brief.`,
         );
@@ -8263,7 +8292,7 @@ export class MediaPlanningService {
         );
       }
       if (
-        item.imageBrief.mode === 'ai_generation' &&
+        item.imageBrief.mode === "ai_generation" &&
         item.imageBrief.prompt.trim().length < 60
       ) {
         throw new Error(
@@ -8271,7 +8300,7 @@ export class MediaPlanningService {
         );
       }
       if (
-        item.imageBrief.mode !== 'ai_generation' &&
+        item.imageBrief.mode !== "ai_generation" &&
         item.imageBrief.description.trim().length < 40
       ) {
         throw new Error(
@@ -8293,7 +8322,7 @@ export class MediaPlanningService {
           );
         }
         if (
-          slide.visualType === 'ai_image' &&
+          slide.visualType === "ai_image" &&
           slide.imagePrompt.trim().length < 50
         ) {
           throw new Error(
@@ -8301,7 +8330,7 @@ export class MediaPlanningService {
           );
         }
         if (
-          slide.visualType !== 'ai_image' &&
+          slide.visualType !== "ai_image" &&
           slide.visualDescription.trim().length < 25
         ) {
           throw new Error(
@@ -8376,20 +8405,20 @@ export class MediaPlanningService {
       item.copyPasteText?.trim() ||
       item.caption?.trim() ||
       item.description?.trim() ||
-      ''
+      ""
     );
   }
 
   private repairReflectionOnlyExecutions(
     posts: MediaPlanningExecution[],
-    opportunities: GeneratedPlan['opportunities'],
+    opportunities: GeneratedPlan["opportunities"],
     publicEvidence: Set<string>,
     reflectionEvidence: Set<string>,
     identityEvidence: Set<string>,
   ) {
     void opportunities;
     return posts.map((post) => {
-      if (post.action !== 'post') return post;
+      if (post.action !== "post") return post;
       const usesReflectionEvidence = post.evidenceIds.some((id) =>
         reflectionEvidence.has(id),
       );
@@ -8420,7 +8449,7 @@ export class MediaPlanningService {
         ...post,
         hook: this.isFirstPersonReflectionText(post.hook)
           ? post.hook
-          : lead.replace(/:$/, ''),
+          : lead.replace(/:$/, ""),
         publishCopy: frame(post.publishCopy),
         copyPasteText: frame(post.publishCopy),
         copyPasteCaption: frame(post.publishCopy),
@@ -8469,7 +8498,7 @@ export class MediaPlanningService {
       case MediaPlatform.WHATSAPP:
         return "One thing I've been learning in my own work:";
       default:
-        return 'From my own experience, this is how I currently think about it:';
+        return "From my own experience, this is how I currently think about it:";
     }
   }
 
@@ -8482,7 +8511,7 @@ export class MediaPlanningService {
   private assertReflectionSafeCopy(
     text: string,
     item: MediaPlanningExecution,
-    opportunity: GeneratedPlan['opportunities'][number] | undefined,
+    opportunity: GeneratedPlan["opportunities"][number] | undefined,
     publicEvidence: Set<string>,
     reflectionEvidence: Set<string>,
     identityEvidence: Set<string>,
@@ -8541,7 +8570,7 @@ export class MediaPlanningService {
       const lexicalScore = this.jaccard(currentTokens, lexical);
       const normalizedScore = this.textSimilarity(
         text,
-        typeof memory.normalizedText === 'string' ? memory.normalizedText : '',
+        typeof memory.normalizedText === "string" ? memory.normalizedText : "",
       );
       if (Math.max(lexicalScore, normalizedScore) >= 0.86) {
         throw new Error(
@@ -8573,7 +8602,7 @@ export class MediaPlanningService {
   }
 
   private errorMessage(error: unknown) {
-    return error instanceof Error ? error.message : 'Unknown blueprint error.';
+    return error instanceof Error ? error.message : "Unknown blueprint error.";
   }
 
   private blueprintStrategySchema(
@@ -8591,7 +8620,7 @@ export class MediaPlanningService {
       ...(dayCount === 1 ? { maxItems: 1 } : {}),
     };
     return {
-      type: 'object',
+      type: "object",
       properties: {
         startDate: schema.properties.startDate,
         endDate: schema.properties.endDate,
@@ -8602,13 +8631,13 @@ export class MediaPlanningService {
         storyArcs,
       },
       required: [
-        'startDate',
-        'endDate',
-        'timezone',
-        'learningStage',
-        'summary',
-        'opportunities',
-        'storyArcs',
+        "startDate",
+        "endDate",
+        "timezone",
+        "learningStage",
+        "summary",
+        "opportunities",
+        "storyArcs",
       ],
       additionalProperties: false,
     };
@@ -8626,255 +8655,255 @@ export class MediaPlanningService {
       maxItems: dayCount,
     };
     return {
-      type: 'object',
+      type: "object",
       properties: { days },
-      required: ['days'],
+      required: ["days"],
       additionalProperties: false,
     };
   }
 
   private blueprintSchema(): Record<string, unknown> {
-    const strings = { type: 'array', items: { type: 'string' } };
+    const strings = { type: "array", items: { type: "string" } };
     const opportunity = {
-      type: 'object',
+      type: "object",
       properties: {
-        key: { type: 'string' },
-        title: { type: 'string' },
-        thesis: { type: 'string' },
-        whyNow: { type: 'string' },
-        sourceSummary: { type: 'string' },
+        key: { type: "string" },
+        title: { type: "string" },
+        thesis: { type: "string" },
+        whyNow: { type: "string" },
+        sourceSummary: { type: "string" },
         evidenceIds: strings,
-        companyName: { type: 'string' },
-        narrative: { type: 'string' },
-        strategyNarrativeKey: { type: 'string' },
-        topicClusterKey: { type: 'string' },
+        companyName: { type: "string" },
+        narrative: { type: "string" },
+        strategyNarrativeKey: { type: "string" },
+        topicClusterKey: { type: "string" },
         growthIntent: {
-          type: 'string',
+          type: "string",
           enum: [
-            'authority',
-            'discovery',
-            'conversion',
-            'affinity',
-            'conversation',
+            "authority",
+            "discovery",
+            "conversion",
+            "affinity",
+            "conversation",
           ],
         },
         identityPillar: {
-          type: 'string',
+          type: "string",
           enum: MEDIA_PUBLIC_IDENTITY_PILLARS,
         },
         platforms: {
-          type: 'array',
-          items: { type: 'string', enum: GROWTH_PLATFORMS },
+          type: "array",
+          items: { type: "string", enum: GROWTH_PLATFORMS },
         },
         formats: {
-          type: 'array',
-          items: { type: 'string', enum: Object.values(MediaPostType) },
+          type: "array",
+          items: { type: "string", enum: Object.values(MediaPostType) },
         },
-        strategicFit: { type: 'integer', minimum: 0, maximum: 100 },
-        novelty: { type: 'integer', minimum: 0, maximum: 100 },
-        evidenceStrength: { type: 'integer', minimum: 0, maximum: 100 },
+        strategicFit: { type: "integer", minimum: 0, maximum: 100 },
+        novelty: { type: "integer", minimum: 0, maximum: 100 },
+        evidenceStrength: { type: "integer", minimum: 0, maximum: 100 },
         privacy: {
-          type: 'string',
-          enum: ['public_safe', 'needs_review'],
+          type: "string",
+          enum: ["public_safe", "needs_review"],
         },
-        usable: { type: 'boolean' },
+        usable: { type: "boolean" },
       },
       required: [
-        'key',
-        'title',
-        'thesis',
-        'whyNow',
-        'sourceSummary',
-        'evidenceIds',
-        'companyName',
-        'narrative',
-        'strategyNarrativeKey',
-        'topicClusterKey',
-        'growthIntent',
-        'identityPillar',
-        'platforms',
-        'formats',
-        'strategicFit',
-        'novelty',
-        'evidenceStrength',
-        'privacy',
-        'usable',
+        "key",
+        "title",
+        "thesis",
+        "whyNow",
+        "sourceSummary",
+        "evidenceIds",
+        "companyName",
+        "narrative",
+        "strategyNarrativeKey",
+        "topicClusterKey",
+        "growthIntent",
+        "identityPillar",
+        "platforms",
+        "formats",
+        "strategicFit",
+        "novelty",
+        "evidenceStrength",
+        "privacy",
+        "usable",
       ],
       additionalProperties: false,
     };
     const storyArc = {
-      type: 'object',
+      type: "object",
       properties: {
-        key: { type: 'string' },
-        title: { type: 'string' },
-        purpose: { type: 'string' },
-        narrative: { type: 'string' },
-        companyName: { type: 'string' },
-        durationDays: { type: 'integer', minimum: 1, maximum: 30 },
+        key: { type: "string" },
+        title: { type: "string" },
+        purpose: { type: "string" },
+        narrative: { type: "string" },
+        companyName: { type: "string" },
+        durationDays: { type: "integer", minimum: 1, maximum: 30 },
         beats: {
-          type: 'array',
+          type: "array",
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              order: { type: 'integer', minimum: 1 },
-              title: { type: 'string' },
-              purpose: { type: 'string' },
-              opportunityKey: { type: 'string' },
+              order: { type: "integer", minimum: 1 },
+              title: { type: "string" },
+              purpose: { type: "string" },
+              opportunityKey: { type: "string" },
               platforms: {
-                type: 'array',
-                items: { type: 'string', enum: GROWTH_PLATFORMS },
+                type: "array",
+                items: { type: "string", enum: GROWTH_PLATFORMS },
               },
             },
             required: [
-              'order',
-              'title',
-              'purpose',
-              'opportunityKey',
-              'platforms',
+              "order",
+              "title",
+              "purpose",
+              "opportunityKey",
+              "platforms",
             ],
             additionalProperties: false,
           },
         },
       },
       required: [
-        'key',
-        'title',
-        'purpose',
-        'narrative',
-        'companyName',
-        'durationDays',
-        'beats',
+        "key",
+        "title",
+        "purpose",
+        "narrative",
+        "companyName",
+        "durationDays",
+        "beats",
       ],
       additionalProperties: false,
     };
     const executionSkeleton = {
-      type: 'object',
+      type: "object",
       properties: {
-        platform: { type: 'string', enum: GROWTH_PLATFORMS },
-        action: { type: 'string', enum: ['post', 'skip'] },
-        time: { type: 'string' },
-        format: { type: 'string', enum: Object.values(MediaPostType) },
-        opportunityKey: { type: 'string' },
-        storyArcKey: { type: 'string' },
-        reason: { type: 'string' },
+        platform: { type: "string", enum: GROWTH_PLATFORMS },
+        action: { type: "string", enum: ["post", "skip"] },
+        time: { type: "string" },
+        format: { type: "string", enum: Object.values(MediaPostType) },
+        opportunityKey: { type: "string" },
+        storyArcKey: { type: "string" },
+        reason: { type: "string" },
       },
       required: [
-        'platform',
-        'action',
-        'time',
-        'format',
-        'opportunityKey',
-        'storyArcKey',
-        'reason',
+        "platform",
+        "action",
+        "time",
+        "format",
+        "opportunityKey",
+        "storyArcKey",
+        "reason",
       ],
       additionalProperties: false,
     };
     const instagramStory = {
-      type: 'object',
+      type: "object",
       properties: {
-        action: { type: 'string', enum: ['post', 'skip'] },
-        time: { type: 'string' },
+        action: { type: "string", enum: ["post", "skip"] },
+        time: { type: "string" },
         sourceType: {
-          type: 'string',
+          type: "string",
           enum: [
-            'routine',
-            'current_work',
-            'learning',
-            'hobby',
-            'personal_growth',
-            'professional',
-            'human_moment',
+            "routine",
+            "current_work",
+            "learning",
+            "hobby",
+            "personal_growth",
+            "professional",
+            "human_moment",
           ],
         },
         sourceEvidenceIds: strings,
-        reason: { type: 'string' },
-        captureBrief: { type: 'string' },
+        reason: { type: "string" },
+        captureBrief: { type: "string" },
       },
       required: [
-        'action',
-        'time',
-        'sourceType',
-        'sourceEvidenceIds',
-        'reason',
-        'captureBrief',
+        "action",
+        "time",
+        "sourceType",
+        "sourceEvidenceIds",
+        "reason",
+        "captureBrief",
       ],
       additionalProperties: false,
     };
     const youtubeCommunity = {
-      type: 'object',
+      type: "object",
       properties: {
-        action: { type: 'string', enum: ['post', 'skip'] },
-        time: { type: 'string' },
-        format: { type: 'string', enum: ['text', 'image', 'poll'] },
+        action: { type: "string", enum: ["post", "skip"] },
+        time: { type: "string" },
+        format: { type: "string", enum: ["text", "image", "poll"] },
         sourceType: {
-          type: 'string',
+          type: "string",
           enum: [
-            'routine',
-            'current_work',
-            'learning',
-            'hobby',
-            'personal_growth',
-            'professional',
-            'human_moment',
+            "routine",
+            "current_work",
+            "learning",
+            "hobby",
+            "personal_growth",
+            "professional",
+            "human_moment",
           ],
         },
         sourceEvidenceIds: strings,
-        reason: { type: 'string' },
+        reason: { type: "string" },
       },
       required: [
-        'action',
-        'time',
-        'format',
-        'sourceType',
-        'sourceEvidenceIds',
-        'reason',
+        "action",
+        "time",
+        "format",
+        "sourceType",
+        "sourceEvidenceIds",
+        "reason",
       ],
       additionalProperties: false,
     };
     const engagement = {
-      type: 'object',
+      type: "object",
       properties: {
-        platform: { type: 'string', enum: GROWTH_PLATFORMS },
-        time: { type: 'string' },
-        count: { type: 'integer', minimum: 0, maximum: 30 },
-        purpose: { type: 'string' },
-        guidance: { type: 'string' },
+        platform: { type: "string", enum: GROWTH_PLATFORMS },
+        time: { type: "string" },
+        count: { type: "integer", minimum: 0, maximum: 30 },
+        purpose: { type: "string" },
+        guidance: { type: "string" },
       },
-      required: ['platform', 'time', 'count', 'purpose', 'guidance'],
+      required: ["platform", "time", "count", "purpose", "guidance"],
       additionalProperties: false,
     };
 
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        startDate: { type: 'string' },
-        endDate: { type: 'string' },
-        timezone: { type: 'string' },
-        learningStage: { type: 'string' },
-        summary: { type: 'string' },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        timezone: { type: "string" },
+        learningStage: { type: "string" },
+        summary: { type: "string" },
         opportunities: {
-          type: 'array',
+          type: "array",
           minItems: 6,
           maxItems: 14,
           items: opportunity,
         },
         storyArcs: {
-          type: 'array',
+          type: "array",
           maxItems: 3,
           items: storyArc,
         },
         days: {
-          type: 'array',
+          type: "array",
           minItems: 7,
           maxItems: 7,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              date: { type: 'string' },
-              theme: { type: 'string' },
-              workload: { type: 'string' },
+              date: { type: "string" },
+              theme: { type: "string" },
+              workload: { type: "string" },
               executions: {
-                type: 'array',
+                type: "array",
                 minItems: 5,
                 maxItems: 5,
                 items: executionSkeleton,
@@ -8882,33 +8911,33 @@ export class MediaPlanningService {
               instagramStory,
               youtubeCommunity,
               engagement: {
-                type: 'array',
+                type: "array",
                 maxItems: 5,
                 items: engagement,
               },
             },
             required: [
-              'date',
-              'theme',
-              'workload',
-              'executions',
-              'instagramStory',
-              'youtubeCommunity',
-              'engagement',
+              "date",
+              "theme",
+              "workload",
+              "executions",
+              "instagramStory",
+              "youtubeCommunity",
+              "engagement",
             ],
             additionalProperties: false,
           },
         },
       },
       required: [
-        'startDate',
-        'endDate',
-        'timezone',
-        'learningStage',
-        'summary',
-        'opportunities',
-        'storyArcs',
-        'days',
+        "startDate",
+        "endDate",
+        "timezone",
+        "learningStage",
+        "summary",
+        "opportunities",
+        "storyArcs",
+        "days",
       ],
       additionalProperties: false,
     };
@@ -8916,702 +8945,702 @@ export class MediaPlanningService {
 
   private weeklyStoriesSchema(): Record<string, unknown> {
     return {
-      type: 'object',
+      type: "object",
       properties: {
         stories: {
-          type: 'array',
+          type: "array",
           minItems: 1,
           maxItems: 7,
           items: this.dailyStorySchema(),
         },
       },
-      required: ['stories'],
+      required: ["stories"],
       additionalProperties: false,
     };
   }
 
   private dailyStorySchema(): Record<string, unknown> {
     const frame = {
-      type: 'object',
+      type: "object",
       properties: {
-        order: { type: 'integer', minimum: 1, maximum: 3 },
-        overlayText: { type: 'string' },
-        spokenText: { type: 'string' },
-        visualDescription: { type: 'string' },
-        captureInstruction: { type: 'string' },
-        interactiveElement: { type: 'string' },
+        order: { type: "integer", minimum: 1, maximum: 3 },
+        overlayText: { type: "string" },
+        spokenText: { type: "string" },
+        visualDescription: { type: "string" },
+        captureInstruction: { type: "string" },
+        interactiveElement: { type: "string" },
       },
       required: [
-        'order',
-        'overlayText',
-        'spokenText',
-        'visualDescription',
-        'captureInstruction',
-        'interactiveElement',
+        "order",
+        "overlayText",
+        "spokenText",
+        "visualDescription",
+        "captureInstruction",
+        "interactiveElement",
       ],
       additionalProperties: false,
     };
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        date: { type: 'string' },
+        date: { type: "string" },
         instagramStory: {
-          type: 'object',
+          type: "object",
           properties: {
-            action: { type: 'string', enum: ['post'] },
-            time: { type: 'string' },
+            action: { type: "string", enum: ["post"] },
+            time: { type: "string" },
             sourceType: {
-              type: 'string',
+              type: "string",
               enum: [
-                'routine',
-                'current_work',
-                'learning',
-                'hobby',
-                'personal_growth',
-                'professional',
-                'human_moment',
+                "routine",
+                "current_work",
+                "learning",
+                "hobby",
+                "personal_growth",
+                "professional",
+                "human_moment",
               ],
             },
-            sourceEvidenceIds: { type: 'array', items: { type: 'string' } },
-            reason: { type: 'string' },
-            captureBrief: { type: 'string' },
-            frames: { type: 'array', minItems: 1, maxItems: 3, items: frame },
-            executionReady: { type: 'boolean' },
-            readinessIssues: { type: 'array', items: { type: 'string' } },
+            sourceEvidenceIds: { type: "array", items: { type: "string" } },
+            reason: { type: "string" },
+            captureBrief: { type: "string" },
+            frames: { type: "array", minItems: 1, maxItems: 3, items: frame },
+            executionReady: { type: "boolean" },
+            readinessIssues: { type: "array", items: { type: "string" } },
           },
           required: [
-            'action',
-            'time',
-            'sourceType',
-            'sourceEvidenceIds',
-            'reason',
-            'captureBrief',
-            'frames',
-            'executionReady',
-            'readinessIssues',
+            "action",
+            "time",
+            "sourceType",
+            "sourceEvidenceIds",
+            "reason",
+            "captureBrief",
+            "frames",
+            "executionReady",
+            "readinessIssues",
           ],
           additionalProperties: false,
         },
       },
-      required: ['date', 'instagramStory'],
+      required: ["date", "instagramStory"],
       additionalProperties: false,
     };
   }
 
   private weeklyYoutubeCommunitySchema(): Record<string, unknown> {
     return {
-      type: 'object',
+      type: "object",
       properties: {
         posts: {
-          type: 'array',
+          type: "array",
           minItems: 1,
           maxItems: 5,
           items: this.youtubeCommunitySchema(),
         },
       },
-      required: ['posts'],
+      required: ["posts"],
       additionalProperties: false,
     };
   }
 
   private youtubeCommunitySchema(): Record<string, unknown> {
     const imageBrief = {
-      type: 'object',
+      type: "object",
       properties: {
         mode: {
-          type: 'string',
-          enum: ['none', 'ai_generation', 'real_photo', 'designed_graphic'],
+          type: "string",
+          enum: ["none", "ai_generation", "real_photo", "designed_graphic"],
         },
-        aspectRatio: { type: 'string' },
-        overlayText: { type: 'string' },
-        prompt: { type: 'string' },
-        description: { type: 'string' },
-        sourceGuidance: { type: 'string' },
+        aspectRatio: { type: "string" },
+        overlayText: { type: "string" },
+        prompt: { type: "string" },
+        description: { type: "string" },
+        sourceGuidance: { type: "string" },
       },
       required: [
-        'mode',
-        'aspectRatio',
-        'overlayText',
-        'prompt',
-        'description',
-        'sourceGuidance',
+        "mode",
+        "aspectRatio",
+        "overlayText",
+        "prompt",
+        "description",
+        "sourceGuidance",
       ],
       additionalProperties: false,
     };
     const community = {
-      type: 'object',
+      type: "object",
       properties: {
-        action: { type: 'string', enum: ['post'] },
-        time: { type: 'string' },
-        format: { type: 'string', enum: ['text', 'image', 'poll'] },
+        action: { type: "string", enum: ["post"] },
+        time: { type: "string" },
+        format: { type: "string", enum: ["text", "image", "poll"] },
         sourceType: {
-          type: 'string',
+          type: "string",
           enum: [
-            'routine',
-            'current_work',
-            'learning',
-            'hobby',
-            'personal_growth',
-            'professional',
-            'human_moment',
+            "routine",
+            "current_work",
+            "learning",
+            "hobby",
+            "personal_growth",
+            "professional",
+            "human_moment",
           ],
         },
-        sourceEvidenceIds: { type: 'array', items: { type: 'string' } },
-        reason: { type: 'string' },
-        publishCopy: { type: 'string' },
+        sourceEvidenceIds: { type: "array", items: { type: "string" } },
+        reason: { type: "string" },
+        publishCopy: { type: "string" },
         imageBrief,
-        pollQuestion: { type: 'string' },
-        pollOptions: { type: 'array', items: { type: 'string' }, maxItems: 4 },
-        executionReady: { type: 'boolean' },
-        readinessIssues: { type: 'array', items: { type: 'string' } },
+        pollQuestion: { type: "string" },
+        pollOptions: { type: "array", items: { type: "string" }, maxItems: 4 },
+        executionReady: { type: "boolean" },
+        readinessIssues: { type: "array", items: { type: "string" } },
       },
       required: [
-        'action',
-        'time',
-        'format',
-        'sourceType',
-        'sourceEvidenceIds',
-        'reason',
-        'publishCopy',
-        'imageBrief',
-        'pollQuestion',
-        'pollOptions',
-        'executionReady',
-        'readinessIssues',
+        "action",
+        "time",
+        "format",
+        "sourceType",
+        "sourceEvidenceIds",
+        "reason",
+        "publishCopy",
+        "imageBrief",
+        "pollQuestion",
+        "pollOptions",
+        "executionReady",
+        "readinessIssues",
       ],
       additionalProperties: false,
     };
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        date: { type: 'string' },
+        date: { type: "string" },
         youtubeCommunity: community,
       },
-      required: ['date', 'youtubeCommunity'],
+      required: ["date", "youtubeCommunity"],
       additionalProperties: false,
     };
   }
 
   private dayPostsSchema(): Record<string, unknown> {
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        date: { type: 'string' },
+        date: { type: "string" },
         posts: {
-          type: 'array',
+          type: "array",
           maxItems: 5,
           items: this.executionPackSchema(),
         },
       },
-      required: ['date', 'posts'],
+      required: ["date", "posts"],
       additionalProperties: false,
     };
   }
 
   private executionPackSchema(): Record<string, unknown> {
-    const strings = { type: 'array', items: { type: 'string' } };
+    const strings = { type: "array", items: { type: "string" } };
     const timedDirections = {
-      type: 'array',
+      type: "array",
       items: {
-        type: 'object',
+        type: "object",
         properties: {
-          at: { type: 'string' },
-          instruction: { type: 'string' },
+          at: { type: "string" },
+          instruction: { type: "string" },
         },
-        required: ['at', 'instruction'],
+        required: ["at", "instruction"],
         additionalProperties: false,
       },
     };
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        platform: { type: 'string', enum: GROWTH_PLATFORMS },
-        action: { type: 'string', enum: ['post'] },
-        time: { type: 'string' },
-        format: { type: 'string', enum: Object.values(MediaPostType) },
-        formatIntent: { type: 'string' },
-        opportunityKey: { type: 'string' },
-        storyArcKey: { type: 'string' },
-        reason: { type: 'string' },
-        whyThisFormat: { type: 'string' },
-        whyThisTime: { type: 'string' },
-        title: { type: 'string' },
-        hook: { type: 'string' },
-        caption: { type: 'string' },
-        script: { type: 'string' },
-        description: { type: 'string' },
-        cta: { type: 'string' },
+        platform: { type: "string", enum: GROWTH_PLATFORMS },
+        action: { type: "string", enum: ["post"] },
+        time: { type: "string" },
+        format: { type: "string", enum: Object.values(MediaPostType) },
+        formatIntent: { type: "string" },
+        opportunityKey: { type: "string" },
+        storyArcKey: { type: "string" },
+        reason: { type: "string" },
+        whyThisFormat: { type: "string" },
+        whyThisTime: { type: "string" },
+        title: { type: "string" },
+        hook: { type: "string" },
+        caption: { type: "string" },
+        script: { type: "string" },
+        description: { type: "string" },
+        cta: { type: "string" },
         hashtags: strings,
         slides: strings,
-        coverText: { type: 'string' },
-        thumbnailText: { type: 'string' },
-        pinnedComment: { type: 'string' },
-        storyFollowUp: { type: 'string' },
-        productionNotes: { type: 'string' },
-        publishCopy: { type: 'string' },
+        coverText: { type: "string" },
+        thumbnailText: { type: "string" },
+        pinnedComment: { type: "string" },
+        storyFollowUp: { type: "string" },
+        productionNotes: { type: "string" },
+        publishCopy: { type: "string" },
         evidenceIds: strings,
         imageBrief: {
-          type: 'object',
+          type: "object",
           properties: {
             mode: {
-              type: 'string',
-              enum: ['none', 'ai_generation', 'real_photo', 'designed_graphic'],
+              type: "string",
+              enum: ["none", "ai_generation", "real_photo", "designed_graphic"],
             },
-            aspectRatio: { type: 'string' },
-            overlayText: { type: 'string' },
-            prompt: { type: 'string' },
-            description: { type: 'string' },
-            sourceGuidance: { type: 'string' },
+            aspectRatio: { type: "string" },
+            overlayText: { type: "string" },
+            prompt: { type: "string" },
+            description: { type: "string" },
+            sourceGuidance: { type: "string" },
           },
           required: [
-            'mode',
-            'aspectRatio',
-            'overlayText',
-            'prompt',
-            'description',
-            'sourceGuidance',
+            "mode",
+            "aspectRatio",
+            "overlayText",
+            "prompt",
+            "description",
+            "sourceGuidance",
           ],
           additionalProperties: false,
         },
         carouselSlides: {
-          type: 'array',
+          type: "array",
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              slideNumber: { type: 'integer', minimum: 1 },
-              headline: { type: 'string' },
-              bodyCopy: { type: 'string' },
+              slideNumber: { type: "integer", minimum: 1 },
+              headline: { type: "string" },
+              bodyCopy: { type: "string" },
               visualType: {
-                type: 'string',
+                type: "string",
                 enum: [
-                  'ai_image',
-                  'real_photo',
-                  'designed_graphic',
-                  'text_only',
+                  "ai_image",
+                  "real_photo",
+                  "designed_graphic",
+                  "text_only",
                 ],
               },
-              imagePrompt: { type: 'string' },
-              visualDescription: { type: 'string' },
-              overlayText: { type: 'string' },
+              imagePrompt: { type: "string" },
+              visualDescription: { type: "string" },
+              overlayText: { type: "string" },
             },
             required: [
-              'slideNumber',
-              'headline',
-              'bodyCopy',
-              'visualType',
-              'imagePrompt',
-              'visualDescription',
-              'overlayText',
+              "slideNumber",
+              "headline",
+              "bodyCopy",
+              "visualType",
+              "imagePrompt",
+              "visualDescription",
+              "overlayText",
             ],
             additionalProperties: false,
           },
         },
         videoPack: {
-          type: 'object',
+          type: "object",
           properties: {
-            fullScript: { type: 'string' },
+            fullScript: { type: "string" },
             targetDurationSeconds: {
-              type: 'integer',
+              type: "integer",
               minimum: 0,
               maximum: 7200,
             },
-            deliveryInstructions: { type: 'string' },
-            cameraInstructions: { type: 'string' },
+            deliveryInstructions: { type: "string" },
+            cameraInstructions: { type: "string" },
             punchIns: timedDirections,
             broll: timedDirections,
             onScreenText: timedDirections,
-            musicDirection: { type: 'string' },
-            coverDirection: { type: 'string' },
+            musicDirection: { type: "string" },
+            coverDirection: { type: "string" },
           },
           required: [
-            'fullScript',
-            'targetDurationSeconds',
-            'deliveryInstructions',
-            'cameraInstructions',
-            'punchIns',
-            'broll',
-            'onScreenText',
-            'musicDirection',
-            'coverDirection',
+            "fullScript",
+            "targetDurationSeconds",
+            "deliveryInstructions",
+            "cameraInstructions",
+            "punchIns",
+            "broll",
+            "onScreenText",
+            "musicDirection",
+            "coverDirection",
           ],
           additionalProperties: false,
         },
         xThread: strings,
         whatsappSequence: strings,
-        executionReady: { type: 'boolean' },
+        executionReady: { type: "boolean" },
         readinessIssues: strings,
-        estimatedMinutes: { type: 'integer', minimum: 0, maximum: 240 },
-        requiresApproval: { type: 'boolean' },
+        estimatedMinutes: { type: "integer", minimum: 0, maximum: 240 },
+        requiresApproval: { type: "boolean" },
       },
       required: [
-        'platform',
-        'action',
-        'time',
-        'format',
-        'formatIntent',
-        'opportunityKey',
-        'storyArcKey',
-        'reason',
-        'whyThisFormat',
-        'whyThisTime',
-        'title',
-        'hook',
-        'caption',
-        'script',
-        'description',
-        'cta',
-        'hashtags',
-        'slides',
-        'coverText',
-        'thumbnailText',
-        'pinnedComment',
-        'storyFollowUp',
-        'productionNotes',
-        'publishCopy',
-        'evidenceIds',
-        'imageBrief',
-        'carouselSlides',
-        'videoPack',
-        'xThread',
-        'whatsappSequence',
-        'executionReady',
-        'readinessIssues',
-        'estimatedMinutes',
-        'requiresApproval',
+        "platform",
+        "action",
+        "time",
+        "format",
+        "formatIntent",
+        "opportunityKey",
+        "storyArcKey",
+        "reason",
+        "whyThisFormat",
+        "whyThisTime",
+        "title",
+        "hook",
+        "caption",
+        "script",
+        "description",
+        "cta",
+        "hashtags",
+        "slides",
+        "coverText",
+        "thumbnailText",
+        "pinnedComment",
+        "storyFollowUp",
+        "productionNotes",
+        "publishCopy",
+        "evidenceIds",
+        "imageBrief",
+        "carouselSlides",
+        "videoPack",
+        "xThread",
+        "whatsappSequence",
+        "executionReady",
+        "readinessIssues",
+        "estimatedMinutes",
+        "requiresApproval",
       ],
       additionalProperties: false,
     };
   }
 
   private planSchema(): Record<string, unknown> {
-    const strings = { type: 'array', items: { type: 'string' } };
+    const strings = { type: "array", items: { type: "string" } };
     const timedDirections = {
-      type: 'array',
+      type: "array",
       items: {
-        type: 'object',
+        type: "object",
         properties: {
-          at: { type: 'string' },
-          instruction: { type: 'string' },
+          at: { type: "string" },
+          instruction: { type: "string" },
         },
-        required: ['at', 'instruction'],
+        required: ["at", "instruction"],
         additionalProperties: false,
       },
     };
     const imageBrief = {
-      type: 'object',
+      type: "object",
       properties: {
         mode: {
-          type: 'string',
-          enum: ['none', 'ai_generation', 'real_photo', 'designed_graphic'],
+          type: "string",
+          enum: ["none", "ai_generation", "real_photo", "designed_graphic"],
         },
-        aspectRatio: { type: 'string' },
-        overlayText: { type: 'string' },
-        prompt: { type: 'string' },
-        description: { type: 'string' },
-        sourceGuidance: { type: 'string' },
+        aspectRatio: { type: "string" },
+        overlayText: { type: "string" },
+        prompt: { type: "string" },
+        description: { type: "string" },
+        sourceGuidance: { type: "string" },
       },
       required: [
-        'mode',
-        'aspectRatio',
-        'overlayText',
-        'prompt',
-        'description',
-        'sourceGuidance',
+        "mode",
+        "aspectRatio",
+        "overlayText",
+        "prompt",
+        "description",
+        "sourceGuidance",
       ],
       additionalProperties: false,
     };
     const carouselSlides = {
-      type: 'array',
+      type: "array",
       items: {
-        type: 'object',
+        type: "object",
         properties: {
-          slideNumber: { type: 'integer', minimum: 1 },
-          headline: { type: 'string' },
-          bodyCopy: { type: 'string' },
+          slideNumber: { type: "integer", minimum: 1 },
+          headline: { type: "string" },
+          bodyCopy: { type: "string" },
           visualType: {
-            type: 'string',
-            enum: ['ai_image', 'real_photo', 'designed_graphic', 'text_only'],
+            type: "string",
+            enum: ["ai_image", "real_photo", "designed_graphic", "text_only"],
           },
-          imagePrompt: { type: 'string' },
-          visualDescription: { type: 'string' },
-          overlayText: { type: 'string' },
+          imagePrompt: { type: "string" },
+          visualDescription: { type: "string" },
+          overlayText: { type: "string" },
         },
         required: [
-          'slideNumber',
-          'headline',
-          'bodyCopy',
-          'visualType',
-          'imagePrompt',
-          'visualDescription',
-          'overlayText',
+          "slideNumber",
+          "headline",
+          "bodyCopy",
+          "visualType",
+          "imagePrompt",
+          "visualDescription",
+          "overlayText",
         ],
         additionalProperties: false,
       },
     };
     const videoPack = {
-      type: 'object',
+      type: "object",
       properties: {
-        fullScript: { type: 'string' },
-        targetDurationSeconds: { type: 'integer', minimum: 0, maximum: 7200 },
-        deliveryInstructions: { type: 'string' },
-        cameraInstructions: { type: 'string' },
+        fullScript: { type: "string" },
+        targetDurationSeconds: { type: "integer", minimum: 0, maximum: 7200 },
+        deliveryInstructions: { type: "string" },
+        cameraInstructions: { type: "string" },
         punchIns: timedDirections,
         broll: timedDirections,
         onScreenText: timedDirections,
-        musicDirection: { type: 'string' },
-        coverDirection: { type: 'string' },
+        musicDirection: { type: "string" },
+        coverDirection: { type: "string" },
       },
       required: [
-        'fullScript',
-        'targetDurationSeconds',
-        'deliveryInstructions',
-        'cameraInstructions',
-        'punchIns',
-        'broll',
-        'onScreenText',
-        'musicDirection',
-        'coverDirection',
+        "fullScript",
+        "targetDurationSeconds",
+        "deliveryInstructions",
+        "cameraInstructions",
+        "punchIns",
+        "broll",
+        "onScreenText",
+        "musicDirection",
+        "coverDirection",
       ],
       additionalProperties: false,
     };
     const execution = {
-      type: 'object',
+      type: "object",
       properties: {
-        platform: { type: 'string', enum: GROWTH_PLATFORMS },
-        action: { type: 'string', enum: ['post', 'skip'] },
-        time: { type: 'string' },
-        format: { type: 'string', enum: Object.values(MediaPostType) },
-        formatIntent: { type: 'string' },
-        opportunityKey: { type: 'string' },
-        storyArcKey: { type: 'string' },
-        reason: { type: 'string' },
-        whyThisFormat: { type: 'string' },
-        whyThisTime: { type: 'string' },
-        title: { type: 'string' },
-        hook: { type: 'string' },
-        caption: { type: 'string' },
-        script: { type: 'string' },
-        description: { type: 'string' },
-        cta: { type: 'string' },
+        platform: { type: "string", enum: GROWTH_PLATFORMS },
+        action: { type: "string", enum: ["post", "skip"] },
+        time: { type: "string" },
+        format: { type: "string", enum: Object.values(MediaPostType) },
+        formatIntent: { type: "string" },
+        opportunityKey: { type: "string" },
+        storyArcKey: { type: "string" },
+        reason: { type: "string" },
+        whyThisFormat: { type: "string" },
+        whyThisTime: { type: "string" },
+        title: { type: "string" },
+        hook: { type: "string" },
+        caption: { type: "string" },
+        script: { type: "string" },
+        description: { type: "string" },
+        cta: { type: "string" },
         hashtags: strings,
         slides: strings,
-        coverText: { type: 'string' },
-        thumbnailText: { type: 'string' },
-        pinnedComment: { type: 'string' },
-        storyFollowUp: { type: 'string' },
-        productionNotes: { type: 'string' },
-        publishCopy: { type: 'string' },
+        coverText: { type: "string" },
+        thumbnailText: { type: "string" },
+        pinnedComment: { type: "string" },
+        storyFollowUp: { type: "string" },
+        productionNotes: { type: "string" },
+        publishCopy: { type: "string" },
         evidenceIds: strings,
         imageBrief,
         carouselSlides,
         videoPack,
         xThread: strings,
         whatsappSequence: strings,
-        executionReady: { type: 'boolean' },
+        executionReady: { type: "boolean" },
         readinessIssues: strings,
-        estimatedMinutes: { type: 'integer', minimum: 0, maximum: 240 },
-        requiresApproval: { type: 'boolean' },
+        estimatedMinutes: { type: "integer", minimum: 0, maximum: 240 },
+        requiresApproval: { type: "boolean" },
       },
       required: [
-        'platform',
-        'action',
-        'time',
-        'format',
-        'formatIntent',
-        'opportunityKey',
-        'storyArcKey',
-        'reason',
-        'whyThisFormat',
-        'whyThisTime',
-        'title',
-        'hook',
-        'caption',
-        'script',
-        'description',
-        'cta',
-        'hashtags',
-        'slides',
-        'coverText',
-        'thumbnailText',
-        'pinnedComment',
-        'storyFollowUp',
-        'productionNotes',
-        'publishCopy',
-        'evidenceIds',
-        'imageBrief',
-        'carouselSlides',
-        'videoPack',
-        'xThread',
-        'whatsappSequence',
-        'executionReady',
-        'readinessIssues',
-        'estimatedMinutes',
-        'requiresApproval',
+        "platform",
+        "action",
+        "time",
+        "format",
+        "formatIntent",
+        "opportunityKey",
+        "storyArcKey",
+        "reason",
+        "whyThisFormat",
+        "whyThisTime",
+        "title",
+        "hook",
+        "caption",
+        "script",
+        "description",
+        "cta",
+        "hashtags",
+        "slides",
+        "coverText",
+        "thumbnailText",
+        "pinnedComment",
+        "storyFollowUp",
+        "productionNotes",
+        "publishCopy",
+        "evidenceIds",
+        "imageBrief",
+        "carouselSlides",
+        "videoPack",
+        "xThread",
+        "whatsappSequence",
+        "executionReady",
+        "readinessIssues",
+        "estimatedMinutes",
+        "requiresApproval",
       ],
       additionalProperties: false,
     };
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        startDate: { type: 'string' },
-        endDate: { type: 'string' },
-        timezone: { type: 'string' },
-        learningStage: { type: 'string' },
-        summary: { type: 'string' },
+        startDate: { type: "string" },
+        endDate: { type: "string" },
+        timezone: { type: "string" },
+        learningStage: { type: "string" },
+        summary: { type: "string" },
         opportunities: {
-          type: 'array',
+          type: "array",
           minItems: 6,
           maxItems: 12,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              key: { type: 'string' },
-              title: { type: 'string' },
-              thesis: { type: 'string' },
-              whyNow: { type: 'string' },
-              sourceSummary: { type: 'string' },
+              key: { type: "string" },
+              title: { type: "string" },
+              thesis: { type: "string" },
+              whyNow: { type: "string" },
+              sourceSummary: { type: "string" },
               evidenceIds: strings,
-              companyName: { type: 'string' },
-              narrative: { type: 'string' },
+              companyName: { type: "string" },
+              narrative: { type: "string" },
               platforms: {
-                type: 'array',
-                items: { type: 'string', enum: GROWTH_PLATFORMS },
+                type: "array",
+                items: { type: "string", enum: GROWTH_PLATFORMS },
               },
               formats: {
-                type: 'array',
-                items: { type: 'string', enum: Object.values(MediaPostType) },
+                type: "array",
+                items: { type: "string", enum: Object.values(MediaPostType) },
               },
-              strategicFit: { type: 'integer', minimum: 0, maximum: 100 },
-              novelty: { type: 'integer', minimum: 0, maximum: 100 },
-              evidenceStrength: { type: 'integer', minimum: 0, maximum: 100 },
+              strategicFit: { type: "integer", minimum: 0, maximum: 100 },
+              novelty: { type: "integer", minimum: 0, maximum: 100 },
+              evidenceStrength: { type: "integer", minimum: 0, maximum: 100 },
               privacy: {
-                type: 'string',
-                enum: ['public_safe', 'needs_review'],
+                type: "string",
+                enum: ["public_safe", "needs_review"],
               },
-              usable: { type: 'boolean' },
+              usable: { type: "boolean" },
             },
             required: [
-              'key',
-              'title',
-              'thesis',
-              'whyNow',
-              'sourceSummary',
-              'evidenceIds',
-              'companyName',
-              'narrative',
-              'platforms',
-              'formats',
-              'strategicFit',
-              'novelty',
-              'evidenceStrength',
-              'privacy',
-              'usable',
+              "key",
+              "title",
+              "thesis",
+              "whyNow",
+              "sourceSummary",
+              "evidenceIds",
+              "companyName",
+              "narrative",
+              "platforms",
+              "formats",
+              "strategicFit",
+              "novelty",
+              "evidenceStrength",
+              "privacy",
+              "usable",
             ],
             additionalProperties: false,
           },
         },
         storyArcs: {
-          type: 'array',
+          type: "array",
           maxItems: 3,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              key: { type: 'string' },
-              title: { type: 'string' },
-              purpose: { type: 'string' },
-              narrative: { type: 'string' },
-              companyName: { type: 'string' },
-              durationDays: { type: 'integer', minimum: 1, maximum: 30 },
+              key: { type: "string" },
+              title: { type: "string" },
+              purpose: { type: "string" },
+              narrative: { type: "string" },
+              companyName: { type: "string" },
+              durationDays: { type: "integer", minimum: 1, maximum: 30 },
               beats: {
-                type: 'array',
+                type: "array",
                 items: {
-                  type: 'object',
+                  type: "object",
                   properties: {
-                    order: { type: 'integer', minimum: 1 },
-                    title: { type: 'string' },
-                    purpose: { type: 'string' },
-                    opportunityKey: { type: 'string' },
+                    order: { type: "integer", minimum: 1 },
+                    title: { type: "string" },
+                    purpose: { type: "string" },
+                    opportunityKey: { type: "string" },
                     platforms: {
-                      type: 'array',
-                      items: { type: 'string', enum: GROWTH_PLATFORMS },
+                      type: "array",
+                      items: { type: "string", enum: GROWTH_PLATFORMS },
                     },
                   },
                   required: [
-                    'order',
-                    'title',
-                    'purpose',
-                    'opportunityKey',
-                    'platforms',
+                    "order",
+                    "title",
+                    "purpose",
+                    "opportunityKey",
+                    "platforms",
                   ],
                   additionalProperties: false,
                 },
               },
             },
             required: [
-              'key',
-              'title',
-              'purpose',
-              'narrative',
-              'companyName',
-              'durationDays',
-              'beats',
+              "key",
+              "title",
+              "purpose",
+              "narrative",
+              "companyName",
+              "durationDays",
+              "beats",
             ],
             additionalProperties: false,
           },
         },
         days: {
-          type: 'array',
+          type: "array",
           minItems: 7,
           maxItems: 7,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              date: { type: 'string' },
-              theme: { type: 'string' },
-              workload: { type: 'string' },
+              date: { type: "string" },
+              theme: { type: "string" },
+              workload: { type: "string" },
               executions: {
-                type: 'array',
+                type: "array",
                 minItems: 5,
                 maxItems: 5,
                 items: execution,
               },
               engagement: {
-                type: 'array',
+                type: "array",
                 maxItems: 5,
                 items: {
-                  type: 'object',
+                  type: "object",
                   properties: {
-                    platform: { type: 'string', enum: GROWTH_PLATFORMS },
-                    time: { type: 'string' },
-                    count: { type: 'integer', minimum: 0, maximum: 30 },
-                    purpose: { type: 'string' },
-                    guidance: { type: 'string' },
+                    platform: { type: "string", enum: GROWTH_PLATFORMS },
+                    time: { type: "string" },
+                    count: { type: "integer", minimum: 0, maximum: 30 },
+                    purpose: { type: "string" },
+                    guidance: { type: "string" },
                   },
                   required: [
-                    'platform',
-                    'time',
-                    'count',
-                    'purpose',
-                    'guidance',
+                    "platform",
+                    "time",
+                    "count",
+                    "purpose",
+                    "guidance",
                   ],
                   additionalProperties: false,
                 },
               },
             },
-            required: ['date', 'theme', 'workload', 'executions', 'engagement'],
+            required: ["date", "theme", "workload", "executions", "engagement"],
             additionalProperties: false,
           },
         },
       },
       required: [
-        'startDate',
-        'endDate',
-        'timezone',
-        'learningStage',
-        'summary',
-        'opportunities',
-        'storyArcs',
-        'days',
+        "startDate",
+        "endDate",
+        "timezone",
+        "learningStage",
+        "summary",
+        "opportunities",
+        "storyArcs",
+        "days",
       ],
       additionalProperties: false,
     };

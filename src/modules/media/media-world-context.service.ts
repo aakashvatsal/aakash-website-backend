@@ -1,9 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { createHash } from 'crypto';
-import { Model, Types } from 'mongoose';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { createHash } from "crypto";
+import { Model, Types } from "mongoose";
 
-import { HobbiesService } from '../hobbies/hobbies.service';
+import { HobbiesService } from "../hobbies/hobbies.service";
+import {
+  FUND_MONTHLY_ALLOCATION_INR,
+  FUND_REVIEW_TARGET_HOURS,
+  FUND_START_AT,
+} from "../fund/fund.constants";
 
 import {
   HsakaaDailyContext,
@@ -11,20 +16,20 @@ import {
   HsakaaDailyContextItem,
   HsakaaDailyContextPrivacy,
   HsakaaDailyContextSource,
-} from '../../hsakaa/schemas/hsakaa-daily-context.schema';
+} from "../../hsakaa/schemas/hsakaa-daily-context.schema";
 import {
   HsakaaWeeklyReview,
   HsakaaWeeklyReviewDocument,
-} from '../../hsakaa/schemas/hsakaa-weekly-review.schema';
+} from "../../hsakaa/schemas/hsakaa-weekly-review.schema";
 import {
   HsakaaBrief,
   HsakaaBriefDocument,
-} from '../../hsakaa/schemas/hsakaa-brief.schema';
-import { Company, CompanyDocument } from '../companies/schemas/company.schema';
+} from "../../hsakaa/schemas/hsakaa-brief.schema";
+import { Company, CompanyDocument } from "../companies/schemas/company.schema";
 import {
   MediaContentItem,
   MediaContentItemDocument,
-} from './schemas/media-content-item.schema';
+} from "./schemas/media-content-item.schema";
 
 export interface MediaWorldContextItem {
   id: string;
@@ -40,8 +45,8 @@ export interface MediaWorldContextItem {
 
 export interface MediaWorldPresenceSignal {
   id: string;
-  category: 'routine' | 'learning' | 'hobby' | 'work' | 'human';
-  kind: 'whole_life_signal';
+  category: "routine" | "learning" | "hobby" | "work" | "human";
+  kind: "whole_life_signal";
   title: string;
   summary: string;
   occurredAt: string;
@@ -120,6 +125,15 @@ export interface MediaWorldContext {
   hobbies: MediaWorldHobbyContext[];
   personalOsSections: MediaWorldSectionContext[];
   privateOnlyCount: number;
+  hsakaaAid: {
+    name: "HSAKAA Aid";
+    startsAt: string;
+    monthlyAllocationInr: number;
+    reviewTargetHours: number;
+    applicationSurface: "hsakaa_chat";
+    humanApprovalRequired: true;
+    publicContentRules: string[];
+  };
   hsakaa: {
     latestBrief?: {
       headline: string;
@@ -204,7 +218,7 @@ export class MediaWorldContextService {
         .find({ isActive: true, isArchived: false })
         .sort({ isFeatured: -1, name: 1 })
         .select(
-          'name roles industries products markets currentFocus currentPriorities principles targetCustomer status stage',
+          "name roles industries products markets currentFocus currentPriorities principles targetCustomer status stage",
         )
         .lean(),
       this.briefModel.findOne({}).sort({ generatedAt: -1 }).lean(),
@@ -213,7 +227,7 @@ export class MediaWorldContextService {
         .find({ isActive: true })
         .sort({ createdAt: -1 })
         .limit(30)
-        .select('title thesis origin contentPillars createdAt')
+        .select("title thesis origin contentPillars createdAt")
         .lean(),
       this.hobbiesService.getOverview().catch(() => ({ active: [] })),
     ]);
@@ -272,11 +286,11 @@ export class MediaWorldContextService {
       }),
     );
 
-    const hsakaa: MediaWorldContext['hsakaa'] = {};
+    const hsakaa: MediaWorldContext["hsakaa"] = {};
     if (latestBrief?.content) {
       hsakaa.latestBrief = {
-        headline: latestBrief.content.headline ?? '',
-        summary: latestBrief.content.summary ?? '',
+        headline: latestBrief.content.headline ?? "",
+        summary: latestBrief.content.summary ?? "",
         opportunities: (latestBrief.content.opportunities ?? []).map(
           (item) => item.title,
         ),
@@ -285,8 +299,8 @@ export class MediaWorldContextService {
     }
     if (latestWeeklyReview?.content) {
       hsakaa.latestWeeklyReview = {
-        headline: latestWeeklyReview.content.headline ?? '',
-        summary: latestWeeklyReview.content.summary ?? '',
+        headline: latestWeeklyReview.content.headline ?? "",
+        summary: latestWeeklyReview.content.summary ?? "",
         lessons: (latestWeeklyReview.content.lessons ?? []).map(
           (item) => item.lesson,
         ),
@@ -308,7 +322,25 @@ export class MediaWorldContextService {
       ),
     }));
 
+    const hsakaaAid: MediaWorldContext["hsakaaAid"] = {
+      name: "HSAKAA Aid",
+      startsAt: FUND_START_AT.toISOString(),
+      monthlyAllocationInr: FUND_MONTHLY_ALLOCATION_INR,
+      reviewTargetHours: FUND_REVIEW_TARGET_HOURS,
+      applicationSurface: "hsakaa_chat",
+      humanApprovalRequired: true,
+      publicContentRules: [
+        "Use only public program facts and aggregate learnings.",
+        "Publicly, HSAKAA Aid has no predefined cause list right now. Do not present medical, education, living costs, emergencies or any other category as an official supported-cause list; describe requests as genuine, verifiable situations reviewed individually.",
+        "Never expose applicant names, contact details, payment details, evidence, case transcripts or identifiable hardship.",
+        "Never turn an applicant story into content without explicit, recorded consent.",
+        "Do not claim impact, approvals or payments unless separately verified as public-safe.",
+        "Prefer transparent builder updates: why the system exists, what the verification process is learning, aggregate monthly allocation/use, and process improvements.",
+      ],
+    };
+
     const fingerprintPayload = {
+      hsakaaAid,
       companies: companyContext,
       publicSafe: publicSafe.slice(0, 80),
       internalSafe: internalSafe.slice(0, 80),
@@ -324,9 +356,9 @@ export class MediaWorldContextService {
     return {
       generatedAt: new Date().toISOString(),
       windowDays: safeDays,
-      fingerprint: createHash('sha256')
+      fingerprint: createHash("sha256")
         .update(JSON.stringify(fingerprintPayload))
-        .digest('hex'),
+        .digest("hex"),
       coverage: {
         capturedDays: dailyContexts.length,
         totalItems: capturedItems.length,
@@ -339,6 +371,7 @@ export class MediaWorldContextService {
           (source) => !sourceCounts[source],
         ),
       },
+      hsakaaAid,
       companies: companyContext,
       publicSafe: publicSafe.slice(0, 100),
       internalSafe: internalSafe.slice(0, 100),
@@ -370,7 +403,7 @@ export class MediaWorldContextService {
 
   private sanitizeHobbiesOverview(value: unknown): MediaWorldHobbyContext[] {
     const overview =
-      value && typeof value === 'object'
+      value && typeof value === "object"
         ? (value as Record<string, unknown>)
         : {};
     const active = Array.isArray(overview.active) ? overview.active : [];
@@ -378,13 +411,13 @@ export class MediaWorldContextService {
 
     for (const raw of active) {
       const hobby =
-        raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+        raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
       const stage =
-        hobby.currentStage && typeof hobby.currentStage === 'object'
+        hobby.currentStage && typeof hobby.currentStage === "object"
           ? (hobby.currentStage as Record<string, unknown>)
           : {};
       const review =
-        hobby.latestReview && typeof hobby.latestReview === 'object'
+        hobby.latestReview && typeof hobby.latestReview === "object"
           ? (hobby.latestReview as Record<string, unknown>)
           : {};
       const id =
@@ -395,8 +428,8 @@ export class MediaWorldContextService {
       hobbies.push({
         id,
         name,
-        status: this.optionalString(hobby.status) ?? '',
-        intensity: this.optionalString(hobby.intensity) ?? '',
+        status: this.optionalString(hobby.status) ?? "",
+        intensity: this.optionalString(hobby.intensity) ?? "",
         currentStageKey: this.optionalString(hobby.currentStageKey),
         currentStageTitle: this.optionalString(stage.title),
         nextFocus:
@@ -420,22 +453,22 @@ export class MediaWorldContextService {
   ): MediaWorldPresenceSignal[] {
     return hobbies.map((hobby) => ({
       id: `hobby:${hobby.id}`,
-      category: 'hobby',
-      kind: 'whole_life_signal',
+      category: "hobby",
+      kind: "whole_life_signal",
       title: `${hobby.name} · active practice`,
       summary: [
         `${hobby.name} is an active HSAKAA Hobbies track.`,
         hobby.currentStageTitle
           ? `Current stage: ${hobby.currentStageTitle}.`
-          : '',
-        hobby.nextFocus ? `Current coaching focus: ${hobby.nextFocus}.` : '',
+          : "",
+        hobby.nextFocus ? `Current coaching focus: ${hobby.nextFocus}.` : "",
         `This week: ${hobby.sessionsThisWeek} recorded session(s), ${hobby.weeklyMinutes}/${hobby.weeklyTargetMinutes || 0} target minutes.`,
-        hobby.pace ? `Pace: ${hobby.pace}.` : '',
-        'Use only genuine practice/progress as content; do not invent a session and do not force a business analogy.',
+        hobby.pace ? `Pace: ${hobby.pace}.` : "",
+        "Use only genuine practice/progress as content; do not invent a session and do not force a business analogy.",
       ]
         .filter(Boolean)
-        .join(' '),
-      occurredAt: hobby.updatedAt ?? '1970-01-01T00:00:00.000Z',
+        .join(" "),
+      occurredAt: hobby.updatedAt ?? "1970-01-01T00:00:00.000Z",
       source: HsakaaDailyContextSource.HOBBY,
       privacy: HsakaaDailyContextPrivacy.PUBLIC_SAFE,
       significantChange: false,
@@ -491,7 +524,7 @@ export class MediaWorldContextService {
   }
 
   private optionalString(value: unknown) {
-    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
   }
 
   private safeNumber(value: unknown) {
@@ -525,7 +558,7 @@ export class MediaWorldContextService {
       add({
         id: `presence:${item.id}`,
         category,
-        kind: 'whole_life_signal',
+        kind: "whole_life_signal",
         title: item.title || this.defaultPresenceTitle(category),
         summary: this.safeWholeLifeSummary(item, category),
         occurredAt: item.occurredAt,
@@ -543,73 +576,73 @@ export class MediaWorldContextService {
 
   private wholeLifeCategory(
     item: HsakaaDailyContextItem,
-  ): MediaWorldPresenceSignal['category'] | null {
+  ): MediaWorldPresenceSignal["category"] | null {
     if (
       item.source === HsakaaDailyContextSource.LIBRARY ||
       item.source === HsakaaDailyContextSource.HIGHLIGHT
     ) {
-      return 'learning';
+      return "learning";
     }
 
     const text = `${item.kind} ${item.title} ${item.summary}`.toLowerCase();
     if (
       /\b(hobby|practice|guitar|chess|singing|voice|music|skill)\b/.test(text)
     ) {
-      return 'hobby';
+      return "hobby";
     }
     if (
       /\b(gym|workout|training|walk|walking|run|running|mobility|recovery|fitness)\b/.test(
         text,
       )
     ) {
-      return 'routine';
+      return "routine";
     }
     if (
       /\b(read|reading|book|learn|learning|study|course|experiment)\b/.test(
         text,
       )
     ) {
-      return 'learning';
+      return "learning";
     }
-    if (item.source === HsakaaDailyContextSource.TASK) return 'work';
+    if (item.source === HsakaaDailyContextSource.TASK) return "work";
     if (
       /\b(moment|observation|photo|travel|food|coffee|tea|place|weekend)\b/.test(
         text,
       )
     ) {
-      return 'human';
+      return "human";
     }
     return null;
   }
 
-  private defaultPresenceTitle(category: MediaWorldPresenceSignal['category']) {
-    if (category === 'routine') return 'Routine';
-    if (category === 'hobby') return 'Hobby / practice';
-    if (category === 'learning') return 'Learning';
-    if (category === 'work') return 'Current work';
-    return 'Human moment';
+  private defaultPresenceTitle(category: MediaWorldPresenceSignal["category"]) {
+    if (category === "routine") return "Routine";
+    if (category === "hobby") return "Hobby / practice";
+    if (category === "learning") return "Learning";
+    if (category === "work") return "Current work";
+    return "Human moment";
   }
 
   private safeWholeLifeSummary(
     item: HsakaaDailyContextItem,
-    category: MediaWorldPresenceSignal['category'],
+    category: MediaWorldPresenceSignal["category"],
   ) {
     if (
-      category === 'learning' &&
+      category === "learning" &&
       item.source === HsakaaDailyContextSource.LIBRARY
     ) {
       return `Learning activity around “${item.title}” may support a conditional reading/learning moment. Do not claim progress or completion unless the capture itself confirms it.`;
     }
-    if (category === 'hobby') {
-      return `${item.title || 'A hobby/practice signal'} may support a small learning-in-public moment. Prefer the actual practice, difficulty, progress or curiosity; do not force a business analogy.`;
+    if (category === "hobby") {
+      return `${item.title || "A hobby/practice signal"} may support a small learning-in-public moment. Prefer the actual practice, difficulty, progress or curiosity; do not force a business analogy.`;
     }
-    if (category === 'routine') {
-      return `${item.title || 'A routine signal'} may support a lightweight routine/health moment. Health context is public-safe by owner policy; use a metric or result only when the supplied source contains it, and never imply completion before it happens.`;
+    if (category === "routine") {
+      return `${item.title || "A routine signal"} may support a lightweight routine/health moment. Health context is public-safe by owner policy; use a metric or result only when the supplied source contains it, and never imply completion before it happens.`;
     }
-    if (category === 'work') {
-      return `${item.title || 'A current-work signal'} may support a behind-the-scenes builder moment. Supplied company context is public-safe; use only source-grounded facts and never invent a customer, metric, capability or outcome.`;
+    if (category === "work") {
+      return `${item.title || "A current-work signal"} may support a behind-the-scenes builder moment. Supplied company context is public-safe; use only source-grounded facts and never invent a customer, metric, capability or outcome.`;
     }
-    return `${item.title || 'A human moment'} may support a lightweight personality-led post if it is genuinely happening.`;
+    return `${item.title || "A human moment"} may support a lightweight personality-led post if it is genuinely happening.`;
   }
 
   private asMediaPublicSafe(

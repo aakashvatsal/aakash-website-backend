@@ -12,6 +12,7 @@ import { ConversationQueryDto } from '../modules/chat/dto/conversation-query.dto
 import { ImportMyChatDto } from '../modules/chat/dto/import-my-chat.dto';
 import { MyChatQueryDto } from '../modules/chat/dto/my-chat-query.dto';
 import { MessageRole } from '../modules/chat/schemas/message.schema';
+import { FundService } from '../modules/fund/fund.service';
 import { AskHsakaaDto } from './dto/ask-hsakaa.dto';
 import { AskPrivateHsakaaDto } from './dto/ask-private-hsakaa.dto';
 import { AskVerifiedPersonHsakaaDto } from './dto/ask-verified-person-hsakaa.dto';
@@ -86,6 +87,7 @@ export class HsakaaService {
     private readonly dailyJournalService: HsakaaDailyJournalService,
     private readonly voiceService: HsakaaVoiceService,
     private readonly speechService: HsakaaSpeechService,
+    private readonly fundService: FundService,
   ) {}
 
   async askVerifiedPerson(
@@ -109,6 +111,56 @@ export class HsakaaService {
         identity.personId,
         12,
       );
+
+    const fundRoute = await this.fundService.routeHsakaaMessage({
+      sessionId: dto.sessionId,
+      conversationId: conversation._id.toString(),
+      message,
+      previousMessages,
+    });
+
+    if (fundRoute?.kind === 'case') {
+      return {
+        answer: fundRoute.answer,
+        conversationId: conversation._id.toString(),
+        scope: 'fund',
+        fund: fundRoute.fund,
+      };
+    }
+
+    if (fundRoute?.kind === 'info') {
+      await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.USER,
+        content: message,
+        metadata: {
+          mode: dto.mode,
+          scope: 'verified_person',
+          personId: identity.personId.toString(),
+          fundInfo: true,
+        },
+      });
+      const assistantMessage = await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.ASSISTANT,
+        content: fundRoute.answer,
+        metadata: {
+          mode: dto.mode,
+          scope: 'verified_person',
+          personId: identity.personId.toString(),
+          fundInfo: true,
+          retrievedMemoryCount: 0,
+        },
+      });
+
+      return {
+        answer: fundRoute.answer,
+        conversationId: conversation._id.toString(),
+        messageId: assistantMessage._id.toString(),
+        scope: 'fund',
+        fund: fundRoute.fund,
+      };
+    }
 
     const scopeDecision = evaluateVerifiedPersonHsakaaScope(
       dto.mode,
@@ -169,7 +221,11 @@ export class HsakaaService {
         message,
         mode: dto.mode,
         scope: 'verified_person',
-        contextSections: [...context.sections, voiceContext],
+        contextSections: [
+          ...context.sections,
+          this.fundService.getPublicKnowledgeContext(),
+          voiceContext,
+        ],
         previousMessages,
       });
     } catch {
@@ -659,6 +715,51 @@ export class HsakaaService {
       12,
     );
 
+    const fundRoute = await this.fundService.routeHsakaaMessage({
+      sessionId: dto.sessionId,
+      conversationId: conversation._id.toString(),
+      message,
+      previousMessages,
+    });
+
+    if (fundRoute?.kind === 'case') {
+      return {
+        answer: fundRoute.answer,
+        conversationId: conversation._id.toString(),
+        scope: 'fund',
+        fund: fundRoute.fund,
+      };
+    }
+
+    if (fundRoute?.kind === 'info') {
+      await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.USER,
+        content: message,
+        metadata: { mode: dto.mode, scope: 'public', fundInfo: true },
+      });
+
+      const assistantMessage = await this.chatService.appendMessage({
+        conversationId: conversation._id,
+        role: MessageRole.ASSISTANT,
+        content: fundRoute.answer,
+        metadata: {
+          mode: dto.mode,
+          scope: 'public',
+          fundInfo: true,
+          retrievedMemoryCount: 0,
+        },
+      });
+
+      return {
+        answer: fundRoute.answer,
+        conversationId: conversation._id.toString(),
+        messageId: assistantMessage._id.toString(),
+        scope: 'fund',
+        fund: fundRoute.fund,
+      };
+    }
+
     const scopeDecision = evaluatePublicHsakaaScope(
       dto.mode,
       message,
@@ -711,7 +812,11 @@ export class HsakaaService {
       answer = await this.aiService.generateResponse({
         message,
         mode: dto.mode,
-        contextSections: [...context.sections, voiceContext],
+        contextSections: [
+          ...context.sections,
+          this.fundService.getPublicKnowledgeContext(),
+          voiceContext,
+        ],
         previousMessages,
       });
     } catch {

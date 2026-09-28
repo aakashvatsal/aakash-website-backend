@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEnum,
   IsMongoId,
   IsOptional,
@@ -33,4 +34,8 @@ export class AskHsakaaDto {
   @IsOptional()
   @IsMongoId()
   conversationId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  fundEntry?: boolean;
 }

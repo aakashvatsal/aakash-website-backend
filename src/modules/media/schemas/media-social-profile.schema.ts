@@ -1,18 +1,18 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, SchemaTypes, Types } from "mongoose";
 
-import { MediaPlatform } from './media-post.schema';
+import { MediaPlatform } from "./media-post.schema";
 
 export type MediaSocialProfileDocument = HydratedDocument<MediaSocialProfile>;
 
 export enum MediaSocialProfileSyncStatus {
-  SYNCED = 'synced',
-  NOT_CONFIGURED = 'not_configured',
-  NOT_SUPPORTED = 'not_supported',
-  ERROR = 'error',
+  SYNCED = "synced",
+  NOT_CONFIGURED = "not_configured",
+  NOT_SUPPORTED = "not_supported",
+  ERROR = "error",
 }
 
-@Schema({ timestamps: true, collection: 'media_social_profiles' })
+@Schema({ timestamps: true, collection: "media_social_profiles" })
 export class MediaSocialProfile {
   @Prop({ type: SchemaTypes.ObjectId, required: true, index: true })
   accountId: Types.ObjectId;
@@ -29,6 +29,9 @@ export class MediaSocialProfile {
   @Prop({ trim: true }) profileImageUrl?: string;
   @Prop({ trim: true }) bannerUrl?: string;
   @Prop({ trim: true }) websiteUrl?: string;
+
+  @Prop({ type: [SchemaTypes.ObjectId], ref: "MediaPublication", default: [] })
+  pinnedPublicationIds: Types.ObjectId[];
   @Prop() followerCount?: number;
   @Prop() followingCount?: number;
   @Prop() mediaCount?: number;

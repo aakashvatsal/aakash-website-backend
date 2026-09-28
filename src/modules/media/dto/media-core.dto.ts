@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Type } from "class-transformer";
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -15,29 +15,29 @@ import {
   Max,
   Min,
   ValidateNested,
-} from 'class-validator';
+} from "class-validator";
 import {
   MediaGoal,
   MediaPlatform,
   MediaPostStatus,
   MediaPostType,
   MediaSourceType,
-} from '../schemas/media-post.schema';
+} from "../schemas/media-post.schema";
 import {
   MediaAccountConnectionStatus,
   MediaDeliveryProvider,
-} from '../schemas/media-account.schema';
+} from "../schemas/media-account.schema";
 import {
   MediaAssetStatus,
   MediaAssetType,
-} from '../schemas/media-asset.schema';
+} from "../schemas/media-asset.schema";
 import {
   MediaContentItemStatus,
   MediaContentOrigin,
-} from '../schemas/media-content-item.schema';
-import { MediaGenerationPurpose } from '../schemas/media-generation-run.schema';
-import { MetricSnapshotPeriod } from '../schemas/media-metric-snapshot.schema';
-import { MediaGrowthExperimentStatus } from '../schemas/media-growth-experiment.schema';
+} from "../schemas/media-content-item.schema";
+import { MediaGenerationPurpose } from "../schemas/media-generation-run.schema";
+import { MetricSnapshotPeriod } from "../schemas/media-metric-snapshot.schema";
+import { MediaGrowthExperimentStatus } from "../schemas/media-growth-experiment.schema";
 
 export class MediaAccountCapabilitiesDto {
   @IsOptional() @IsBoolean() canPublish?: boolean;
@@ -367,6 +367,58 @@ export class ConnectBufferChannelDto {
 
 export class SyncMediaPublicationMetricsDto {
   @IsOptional() @IsEnum(MetricSnapshotPeriod) period?: MetricSnapshotPeriod;
+}
+
+export class RecordMediaPublicationMetricsDto {
+  @IsOptional() @IsEnum(MetricSnapshotPeriod) period?: MetricSnapshotPeriod;
+  @IsOptional() @IsDateString() capturedAt?: string;
+  @IsOptional() @IsInt() @Min(0) impressions?: number;
+  @IsOptional() @IsInt() @Min(0) reach?: number;
+  @IsOptional() @IsInt() @Min(0) views?: number;
+  @IsOptional() @IsInt() @Min(0) engagedViews?: number;
+  @IsOptional() @IsInt() @Min(0) likes?: number;
+  @IsOptional() @IsInt() @Min(0) comments?: number;
+  @IsOptional() @IsInt() @Min(0) shares?: number;
+  @IsOptional() @IsInt() @Min(0) saves?: number;
+  @IsOptional() @IsInt() @Min(0) sends?: number;
+  @IsOptional() @IsInt() @Min(0) clicks?: number;
+  @IsOptional() @IsInt() @Min(0) profileVisits?: number;
+  @IsOptional() @IsInt() @Min(0) followersGained?: number;
+  @IsOptional() @IsInt() @Min(0) followersLost?: number;
+  @IsOptional() @IsInt() @Min(0) leadsGenerated?: number;
+  @IsOptional() @IsInt() @Min(0) conversions?: number;
+  @IsOptional() @IsInt() @Min(0) watchTimeSeconds?: number;
+  @IsOptional() @IsInt() @Min(0) averageViewDurationSeconds?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) averageWatchPercentage?: number;
+  @IsOptional() @IsString() notes?: string;
+}
+
+export class CreateManualMediaEntryDto {
+  @IsEnum(MediaPlatform) platform: MediaPlatform;
+  @IsEnum(MediaPostType) format: MediaPostType;
+  @IsString() title: string;
+  @IsDateString() publishedAt: string;
+  @IsOptional() @IsMongoId() accountId?: string;
+  @IsOptional() @IsString() externalPostUrl?: string;
+  @IsOptional() @IsString() platformPostId?: string;
+  @IsOptional() @IsString() hook?: string;
+  @IsOptional() @IsString() caption?: string;
+  @IsOptional() @IsString() script?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsOptional() @IsString() cta?: string;
+  @IsOptional() @IsString() thesis?: string;
+  @IsOptional() @IsString() canonicalBody?: string;
+  @IsOptional() @IsString() story?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) contentPillars?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) audiences?: string[];
+  @IsOptional()
+  @IsArray()
+  @IsEnum(MediaGoal, { each: true })
+  goals?: MediaGoal[];
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RecordMediaPublicationMetricsDto)
+  metrics?: RecordMediaPublicationMetricsDto;
 }
 
 export class MediaGrowthSyncPublishedDto {

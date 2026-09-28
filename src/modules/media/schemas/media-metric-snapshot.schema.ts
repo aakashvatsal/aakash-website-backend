@@ -1,38 +1,40 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, SchemaTypes, Types } from "mongoose";
 
-import { MediaPlatform, MediaPostType } from './media-post.schema';
+import { MediaPlatform, MediaPostType } from "./media-post.schema";
 
 export type MediaMetricSnapshotDocument = HydratedDocument<MediaMetricSnapshot>;
 
 export enum MetricSnapshotPeriod {
-  ONE_HOUR = '1_hour',
-  TWENTY_FOUR_HOURS = '24_hours',
-  SEVENTY_TWO_HOURS = '72_hours',
-  SEVEN_DAYS = '7_days',
-  THIRTY_DAYS = '30_days',
-  LATEST = 'latest',
+  ONE_HOUR = "1_hour",
+  TWENTY_FOUR_HOURS = "24_hours",
+  FORTY_EIGHT_HOURS = "48_hours",
+  SEVENTY_TWO_HOURS = "72_hours",
+  NINETY_SIX_HOURS = "96_hours",
+  SEVEN_DAYS = "7_days",
+  THIRTY_DAYS = "30_days",
+  LATEST = "latest",
 }
 
 export enum MediaAnalyticsSource {
-  DIRECT_PLATFORM = 'direct_platform',
-  BUFFER = 'buffer',
-  MANUAL = 'manual',
-  LEGACY = 'legacy',
+  DIRECT_PLATFORM = "direct_platform",
+  BUFFER = "buffer",
+  MANUAL = "manual",
+  LEGACY = "legacy",
 }
 
 @Schema({
   timestamps: true,
-  collection: 'media_metric_snapshots',
+  collection: "media_metric_snapshots",
 })
 export class MediaMetricSnapshot {
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'MediaPublication', index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: "MediaPublication", index: true })
   mediaPublicationId?: Types.ObjectId;
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'MediaPost', index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: "MediaPost", index: true })
   mediaPostId?: Types.ObjectId;
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'MediaAccount', index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: "MediaAccount", index: true })
   accountId?: Types.ObjectId;
 
   @Prop({ type: String, enum: MediaPlatform, required: true, index: true })
@@ -107,7 +109,7 @@ MediaMetricSnapshotSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      mediaPublicationId: { $type: 'objectId' },
+      mediaPublicationId: { $type: "objectId" },
     },
   },
 );
@@ -116,7 +118,7 @@ MediaMetricSnapshotSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      mediaPostId: { $type: 'objectId' },
+      mediaPostId: { $type: "objectId" },
     },
   },
 );

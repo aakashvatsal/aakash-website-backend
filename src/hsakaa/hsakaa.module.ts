@@ -15,6 +15,7 @@ import { TasksModule } from '../modules/tasks/tasks.module';
 import { MeditationModule } from '../modules/meditation/meditation.module';
 import { RemindersModule } from '../modules/reminders/reminders.module';
 import { BrainDumpModule } from '../modules/brain-dump/brain-dump.module';
+import { FundModule } from '../modules/fund/fund.module';
 
 import { Task, TaskSchema } from '../modules/tasks/schemas/task.schema';
 import {
@@ -163,6 +164,7 @@ import { HsakaaSpeechService } from './hsakaa-speech.service';
     RemindersModule,
     MeditationModule,
     BrainDumpModule,
+    FundModule,
   ],
   controllers: [HsakaaController],
   providers: [

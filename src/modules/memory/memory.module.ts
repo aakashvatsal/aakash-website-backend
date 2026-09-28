@@ -2,6 +2,13 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { AiModule } from '../ai/ai.module';
+import { Company, CompanySchema } from '../companies/schemas/company.schema';
+import { Hobby, HobbySchema } from '../hobbies/schemas/hobby.schema';
+import {
+  LibraryItem,
+  LibraryItemSchema,
+} from '../library/schemas/library-item.schema';
+import { User, UserSchema } from '../users/schemas/user.schema';
 import {
   JournalEntry,
   JournalEntrySchema,
@@ -17,6 +24,7 @@ import { MemoryController } from './memory.controller';
 import { MemoryAccessPolicyService } from './memory-access-policy.service';
 import { MemoryInboxService } from './memory-inbox.service';
 import { MemoryService } from './memory.service';
+import { PublicMemoryImportService } from './public-memory-import.service';
 import { MemoryPeopleController } from './memory-people.controller';
 import { MemoryPeopleService } from './memory-people.service';
 import { MemoryRecallService } from './memory-recall.service';
@@ -91,6 +99,10 @@ import {
       { name: JournalEntry.name, schema: JournalEntrySchema },
       { name: MediaPost.name, schema: MediaPostSchema },
       { name: HsakaaDecisionCase.name, schema: HsakaaDecisionCaseSchema },
+      { name: User.name, schema: UserSchema },
+      { name: Company.name, schema: CompanySchema },
+      { name: Hobby.name, schema: HobbySchema },
+      { name: LibraryItem.name, schema: LibraryItemSchema },
     ]),
   ],
   controllers: [
@@ -103,6 +115,7 @@ import {
   ],
   providers: [
     MemoryService,
+    PublicMemoryImportService,
     MemoryAccessPolicyService,
     MemoryInboxService,
     MemoryPeopleService,

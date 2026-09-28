@@ -1,26 +1,26 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, SchemaTypes, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, SchemaTypes, Types } from "mongoose";
 
-import { MEDIA_PUBLIC_IDENTITY_PILLARS } from '../media-public-identity';
-import type { MediaPublicIdentityPillar } from '../media-public-identity';
-import { MetricSnapshotPeriod } from './media-metric-snapshot.schema';
-import { MediaPlatform, MediaPostType } from './media-post.schema';
+import { MEDIA_PUBLIC_IDENTITY_PILLARS } from "../media-public-identity";
+import type { MediaPublicIdentityPillar } from "../media-public-identity";
+import { MetricSnapshotPeriod } from "./media-metric-snapshot.schema";
+import { MediaPlatform, MediaPostType } from "./media-post.schema";
 
 export type MediaPerformanceInsightDocument =
   HydratedDocument<MediaPerformanceInsight>;
 
-@Schema({ timestamps: true, collection: 'media_performance_insights' })
+@Schema({ timestamps: true, collection: "media_performance_insights" })
 export class MediaPerformanceInsight {
   @Prop({
     type: SchemaTypes.ObjectId,
-    ref: 'MediaPublication',
+    ref: "MediaPublication",
     required: true,
     unique: true,
     index: true,
   })
   publicationId: Types.ObjectId;
 
-  @Prop({ type: SchemaTypes.ObjectId, ref: 'MediaContentItem', index: true })
+  @Prop({ type: SchemaTypes.ObjectId, ref: "MediaContentItem", index: true })
   contentItemId?: Types.ObjectId;
 
   @Prop({ type: String, enum: MediaPlatform, required: true, index: true })
@@ -41,7 +41,7 @@ export class MediaPerformanceInsight {
   @Prop({
     type: String,
     enum: MEDIA_PUBLIC_IDENTITY_PILLARS,
-    default: 'ideas_thinking',
+    default: "ideas_thinking",
     index: true,
   })
   identityPillar: MediaPublicIdentityPillar;
@@ -77,6 +77,9 @@ export class MediaPerformanceInsight {
 
   @Prop({ type: SchemaTypes.Mixed, default: {} })
   evidence: Record<string, unknown>;
+
+  @Prop({ type: SchemaTypes.Mixed, default: {} })
+  management: Record<string, unknown>;
 
   @Prop({ trim: true })
   aiModel?: string;

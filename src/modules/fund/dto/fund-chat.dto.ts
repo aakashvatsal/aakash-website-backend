@@ -1,5 +1,4 @@
 import {
-  IsEnum,
   IsMongoId,
   IsOptional,
   IsString,
@@ -8,21 +7,21 @@ import {
   MinLength,
 } from 'class-validator';
 
-import { HsakaaMode } from './ask-hsakaa.dto';
+export class FundChatDto {
+  @IsUUID('4')
+  sessionId: string;
 
-export class AskVerifiedPersonHsakaaDto {
-  @IsEnum(HsakaaMode)
-  mode: HsakaaMode;
+  @IsOptional()
+  @IsMongoId()
+  caseId?: string;
 
   @IsString()
   @MinLength(1)
   @MaxLength(4000)
   message: string;
+}
 
-  @IsOptional()
-  @IsMongoId()
-  conversationId?: string;
-
+export class FundPublicCaseQueryDto {
   @IsUUID('4')
   sessionId: string;
 }

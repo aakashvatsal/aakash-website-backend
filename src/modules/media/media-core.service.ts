@@ -2,36 +2,39 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+} from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
 import {
   CreateMediaAccountDto,
   CreateMediaAssetDto,
   CreateMediaContentItemDto,
   CreateMediaPublicationDto,
+  CreateManualMediaEntryDto,
   UpdateMediaAccountDto,
-} from './dto/media-core.dto';
+} from "./dto/media-core.dto";
 import {
   MediaAccount,
   MediaAccountDocument,
-} from './schemas/media-account.schema';
-import { MediaAsset, MediaAssetDocument } from './schemas/media-asset.schema';
+} from "./schemas/media-account.schema";
+import { MediaAsset, MediaAssetDocument } from "./schemas/media-asset.schema";
 import {
   MediaContentItem,
   MediaContentItemDocument,
   MediaContentItemStatus,
   MediaContentOrigin,
-} from './schemas/media-content-item.schema';
+} from "./schemas/media-content-item.schema";
 import {
+  MediaDeliveryStatus,
   MediaPublication,
   MediaPublicationDocument,
-} from './schemas/media-publication.schema';
+} from "./schemas/media-publication.schema";
 import {
   MediaPost,
   MediaPostDocument,
   MediaPlatform,
-} from './schemas/media-post.schema';
+  MediaPostStatus,
+} from "./schemas/media-post.schema";
 
 type LegacyMediaPostRecord = MediaPost & { _id: Types.ObjectId };
 
@@ -95,13 +98,13 @@ export class MediaCoreService {
 
   async updateAccount(accountId: string, dto: UpdateMediaAccountDto) {
     if (!Types.ObjectId.isValid(accountId)) {
-      throw new BadRequestException('Media account ID is invalid.');
+      throw new BadRequestException("Media account ID is invalid.");
     }
     const account = await this.accountModel.findOne({
       _id: new Types.ObjectId(accountId),
       isActive: true,
     });
-    if (!account) throw new NotFoundException('Media account not found.');
+    if (!account) throw new NotFoundException("Media account not found.");
 
     if (dto.isPrimary === true) {
       await this.accountModel.updateMany(
@@ -172,6 +175,72 @@ export class MediaCoreService {
       metadata: dto.metadata ?? {},
     });
   }
+  async createManualEntry(dto: CreateManualMediaEntryDto) {
+    if (
+      dto.accountId &&
+      !(await this.accountModel.exists({
+        _id: new Types.ObjectId(dto.accountId),
+        isActive: true,
+      }))
+    ) {
+      throw new NotFoundException("Media account not found.");
+    }
+
+    const publishedAt = new Date(dto.publishedAt);
+    const contentItem = await this.contentModel.create({
+      title: dto.title.trim(),
+      thesis: dto.thesis?.trim() || undefined,
+      canonicalBody:
+        dto.canonicalBody?.trim() ||
+        dto.caption?.trim() ||
+        dto.script?.trim() ||
+        dto.description?.trim() ||
+        undefined,
+      story: dto.story?.trim() || undefined,
+      evidence: [],
+      contentPillars: dto.contentPillars ?? [],
+      audiences: dto.audiences ?? [],
+      goals: dto.goals ?? [],
+      status: MediaContentItemStatus.READY,
+      origin: MediaContentOrigin.MANUAL,
+      metadata: {
+        manualEntry: true,
+        analyticsFirst: true,
+      },
+    });
+
+    const publication = await this.publicationModel.create({
+      contentItemId: contentItem._id,
+      accountId: dto.accountId ? new Types.ObjectId(dto.accountId) : undefined,
+      platform: dto.platform,
+      format: dto.format,
+      status: MediaPostStatus.POSTED,
+      title: dto.title.trim(),
+      hook: dto.hook?.trim() || undefined,
+      caption: dto.caption?.trim() || undefined,
+      script: dto.script?.trim() || undefined,
+      description: dto.description?.trim() || undefined,
+      cta: dto.cta?.trim() || undefined,
+      hashtags: [],
+      slides: [],
+      publishedAt,
+      deliveryStatus: MediaDeliveryStatus.PUBLISHED,
+      autoPublish: false,
+      manualPublishCompletedAt: publishedAt,
+      externalPostUrl: dto.externalPostUrl?.trim() || undefined,
+      platformPostId: dto.platformPostId?.trim() || undefined,
+      metadata: {
+        manualEntry: true,
+        analyticsFirst: true,
+      },
+    });
+
+    return {
+      contentItem: contentItem.toObject(),
+      publication: publication.toObject(),
+    };
+  }
+
   async createPublication(dto: CreateMediaPublicationDto) {
     if (
       !(await this.contentModel.exists({
@@ -179,7 +248,7 @@ export class MediaCoreService {
         isActive: true,
       }))
     )
-      throw new NotFoundException('Media content item not found.');
+      throw new NotFoundException("Media content item not found.");
     if (
       dto.accountId &&
       !(await this.accountModel.exists({
@@ -187,7 +256,7 @@ export class MediaCoreService {
         isActive: true,
       }))
     )
-      throw new NotFoundException('Media account not found.');
+      throw new NotFoundException("Media account not found.");
     return this.publicationModel.create({
       ...dto,
       contentItemId: new Types.ObjectId(dto.contentItemId),
@@ -218,7 +287,7 @@ export class MediaCoreService {
   createAsset(dto: CreateMediaAssetDto) {
     if (!dto.contentItemId && !dto.publicationId)
       throw new BadRequestException(
-        'Asset must belong to a content item or publication.',
+        "Asset must belong to a content item or publication.",
       );
     return this.assetModel.create({
       ...dto,
@@ -271,7 +340,7 @@ export class MediaCoreService {
       { legacyMediaPostId: legacyId },
       {
         $set: {
-          title: post.content?.title ?? 'Untitled media idea',
+          title: post.content?.title ?? "Untitled media idea",
           thesis: post.strategy?.coreMessage,
           canonicalBody:
             post.content?.detailedDescription ??

@@ -1,27 +1,27 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model } from "mongoose";
 
-import { AiService } from '../ai/ai.service';
-import { MediaCoreService } from './media-core.service';
-import { MediaGrowthService } from './media-growth.service';
+import { AiService } from "../ai/ai.service";
+import { MediaCoreService } from "./media-core.service";
+import { MediaGrowthService } from "./media-growth.service";
 import {
   MediaWorldContext,
   MediaWorldContextService,
-} from './media-world-context.service';
+} from "./media-world-context.service";
 import {
   MediaContentItem,
   MediaContentItemDocument,
-} from './schemas/media-content-item.schema';
+} from "./schemas/media-content-item.schema";
 import {
   MediaPresenceStrategy,
   MediaPresenceStrategyDocument,
-} from './schemas/media-presence-strategy.schema';
+} from "./schemas/media-presence-strategy.schema";
 import {
   MediaVoiceProfile,
   MediaVoiceProfileDocument,
-} from './schemas/media-voice-profile.schema';
-import { MediaPlatform, MediaPostType } from './schemas/media-post.schema';
+} from "./schemas/media-voice-profile.schema";
+import { MediaPlatform, MediaPostType } from "./schemas/media-post.schema";
 
 const GROWTH_PLATFORMS = [
   MediaPlatform.LINKEDIN,
@@ -129,12 +129,12 @@ export class MediaPresenceService {
 
   getStrategy() {
     return this.strategyModel
-      .findOne({ key: 'primary', isActive: true })
+      .findOne({ key: "primary", isActive: true })
       .lean();
   }
 
   getVoiceProfile() {
-    return this.voiceModel.findOne({ key: 'primary', isActive: true }).lean();
+    return this.voiceModel.findOne({ key: "primary", isActive: true }).lean();
   }
 
   worldContext(days = 120) {
@@ -157,7 +157,7 @@ export class MediaPresenceService {
     const context =
       suppliedContext ?? (await this.worldContextService.build(120));
     const existing = await this.strategyModel.findOne({
-      key: 'primary',
+      key: "primary",
       isActive: true,
     });
     if (
@@ -177,24 +177,25 @@ export class MediaPresenceService {
       const response =
         await this.aiService.generateStructuredResponse<GeneratedPresenceStrategy>(
           {
-            name: 'hsakaa_media_presence_strategy_v31',
+            name: "hsakaa_media_presence_strategy_v31",
             instructions: [
-              'You are HSAKAA Presence Strategist for Aakash. Build a durable personal-brand strategy, not a one-week content list.',
-              'The goal is to make the real Aakash more visible: builder/operator/technologist, his companies as evidence of what he builds, his learning and personality without turning him into a generic creator or motivational influencer.',
-              'Starting from day one is fine. When media performance history is thin, explicitly favor exploration and learning instead of pretending to know what already wins.',
-              'MEDIA PRIVACY POLICY: PEOPLE and MEMORY are excluded entirely. Every other supplied Personal OS source—including Companies, Health, Tasks, Journal, Library, Highlights, Decisions, Hobbies, Media and HSAKAA—is PUBLIC_SAFE for Media by owner policy.',
-              'Use source-grounded company priorities/products/markets/status and health/routine metrics when supplied. Never invent metrics, customers, achievements, launches, funding, revenue, diagnoses, outcomes or facts that are absent from context.',
-              'Do not infer or reconstruct PEOPLE/MEMORY details from other context.',
-              'Configured company context is public-safe evidence, not merely internal strategy context.',
-              'Design distinct jobs for LinkedIn, Instagram, YouTube, X and WhatsApp. Do not make them five copies of the same feed.',
-              'Posting every day is not mandatory. Set realistic minimum/preferred/maximum weekly cadence and allow skip days when quality, novelty or workload does not justify posting.',
-              'The platform format vocabulary must come only from the supplied enum values.',
-              'Company content must support the umbrella Aakash narrative rather than turning the personal brand into repeated company advertising.',
-              'Include explicit Never Become guardrails against fake-guru language, manufactured vulnerability, generic hustle/motivation, unsupported certainty and repetitive company promotion.',
-              'This strategy may recommend review boundaries, but it does not approve, schedule or publish content.',
-            ].join('\n'),
+              "You are HSAKAA Presence Strategist for Aakash. Build a durable personal-brand strategy, not a one-week content list.",
+              "The goal is to make the real Aakash more visible: builder/operator/technologist, his companies as evidence of what he builds, his learning and personality without turning him into a generic creator or motivational influencer.",
+              "Starting from day one is fine. When media performance history is thin, explicitly favor exploration and learning instead of pretending to know what already wins.",
+              "MEDIA PRIVACY POLICY: PEOPLE and MEMORY are excluded entirely. Every other supplied Personal OS source—including Companies, Health, Tasks, Journal, Library, Highlights, Decisions, Hobbies, Media and HSAKAA—is PUBLIC_SAFE for Media by owner policy.",
+              "Use source-grounded company priorities/products/markets/status and health/routine metrics when supplied. Never invent metrics, customers, achievements, launches, funding, revenue, diagnoses, outcomes or facts that are absent from context.",
+              "Do not infer or reconstruct PEOPLE/MEMORY details from other context.",
+              "Configured company context is public-safe evidence, not merely internal strategy context.",
+              "Design distinct jobs for LinkedIn, Instagram, YouTube, X and WhatsApp. Do not make them five copies of the same feed.",
+              "Posting every day is not mandatory. Set realistic minimum/preferred/maximum weekly cadence and allow skip days when quality, novelty or workload does not justify posting.",
+              "The platform format vocabulary must come only from the supplied enum values.",
+              "Company content must support the umbrella Aakash narrative rather than turning the personal brand into repeated company advertising.",
+              "Treat HSAKAA Aid as a first-class public-service chapter when hsakaaAid context is supplied. Use only public program facts, consented stories and verified aggregate outcomes. Never use applicant PII, evidence, payment details, private transcripts or identifiable hardship.",
+              "Include explicit Never Become guardrails against fake-guru language, manufactured vulnerability, generic hustle/motivation, unsupported certainty and repetitive company promotion.",
+              "This strategy may recommend review boundaries, but it does not approve, schedule or publish content.",
+            ].join("\n"),
             input: JSON.stringify({
-              owner: 'Aakash',
+              owner: "Aakash",
               notes: input.notes?.trim() || null,
               configuredAccounts: accounts.map((account) => ({
                 platform: account.platform,
@@ -206,12 +207,13 @@ export class MediaPresenceService {
               internalSafeContext: context.internalSafe.slice(0, 80),
               needsReviewContext: context.needsReview.slice(0, 40),
               hsakaa: context.hsakaa,
+              hsakaaAid: context.hsakaaAid,
               recentMedia: context.recentMedia,
               growthLearnings,
               privacyPolicy: context.policy,
             }),
-            verbosity: 'medium',
-            reasoningEffort: 'medium',
+            verbosity: "medium",
+            reasoningEffort: "medium",
             maxOutputTokens: 9000,
             schema: this.strategyJsonSchema(),
           },
@@ -220,13 +222,13 @@ export class MediaPresenceService {
       this.assertPlatformCoverage(response.data.platformRoles);
       const nextVersion = (existing?.version ?? 0) + 1;
       const baselineNeverBecome = [
-        'Do not become a generic motivational or hustle-content account.',
-        'Do not manufacture vulnerability, controversy, achievements or certainty for engagement.',
-        'Do not let company promotion overwhelm Aakash as a person and builder.',
-        'Do not mechanically repeat winning hooks, examples, structures or phrases.',
+        "Do not become a generic motivational or hustle-content account.",
+        "Do not manufacture vulnerability, controversy, achievements or certainty for engagement.",
+        "Do not let company promotion overwhelm Aakash as a person and builder.",
+        "Do not mechanically repeat winning hooks, examples, structures or phrases.",
       ];
       const strategy = await this.strategyModel.findOneAndUpdate(
-        { key: 'primary' },
+        { key: "primary" },
         {
           $set: {
             ...response.data,
@@ -234,7 +236,7 @@ export class MediaPresenceService {
               ...response.data.neverBecome,
               ...baselineNeverBecome,
             ]),
-            key: 'primary',
+            key: "primary",
             version: nextVersion,
             aiModel: response.model,
             aiResponseId: response.responseId,
@@ -263,7 +265,7 @@ export class MediaPresenceService {
     const samples = await this.voiceSamples();
     const fingerprint = `${context.fingerprint}:${this.hashSamples(samples)}`;
     const existing = await this.voiceModel.findOne({
-      key: 'primary',
+      key: "primary",
       isActive: true,
     });
     if (
@@ -277,17 +279,17 @@ export class MediaPresenceService {
     try {
       const response =
         await this.aiService.generateStructuredResponse<GeneratedVoiceProfile>({
-          name: 'hsakaa_media_voice_profile_v31',
+          name: "hsakaa_media_voice_profile_v31",
           instructions: [
             "You are modeling Aakash's communication style for HSAKAA Media.",
-            'Infer style, rhythm and communication preferences, not private facts. Never copy a private story or personal detail into the profile.',
-            'Do not turn repeated phrases into a template. Learn mechanisms such as directness, reflection, specificity, humour and technical depth while explicitly protecting against phrase repetition.',
-            'Do not create an influencer persona. The profile should help generated content sound like the same Aakash across platforms while remaining native to each platform.',
-            'When sample evidence is thin, describe the profile as a working hypothesis and keep confidence conservative.',
-            'Authenticity checks must reject fake-guru language, invented certainty, manufactured vulnerability, unsupported achievements, generic motivational filler and buzzword-heavy copy.',
-          ].join('\n'),
+            "Infer style, rhythm and communication preferences, not private facts. Never copy a private story or personal detail into the profile.",
+            "Do not turn repeated phrases into a template. Learn mechanisms such as directness, reflection, specificity, humour and technical depth while explicitly protecting against phrase repetition.",
+            "Do not create an influencer persona. The profile should help generated content sound like the same Aakash across platforms while remaining native to each platform.",
+            "When sample evidence is thin, describe the profile as a working hypothesis and keep confidence conservative.",
+            "Authenticity checks must reject fake-guru language, invented certainty, manufactured vulnerability, unsupported achievements, generic motivational filler and buzzword-heavy copy.",
+          ].join("\n"),
           input: JSON.stringify({
-            owner: 'Aakash',
+            owner: "Aakash",
             notes: input.notes?.trim() || null,
             sourceSamples: samples,
             publicSafeSignals: context.publicSafe.slice(0, 30).map((item) => ({
@@ -298,8 +300,8 @@ export class MediaPresenceService {
             recentMediaTitles: context.recentMedia.slice(0, 20),
             sampleCount: samples.length,
           }),
-          verbosity: 'medium',
-          reasoningEffort: 'medium',
+          verbosity: "medium",
+          reasoningEffort: "medium",
           maxOutputTokens: 6000,
           schema: this.voiceJsonSchema(),
         });
@@ -310,13 +312,13 @@ export class MediaPresenceService {
           ? Math.min(response.data.confidence, 45)
           : response.data.confidence;
       const baselineChecks = [
-        'Would Aakash genuinely say this aloud or write it himself?',
-        'Does every factual claim have evidence or an explicit review requirement?',
-        'Is this specific enough to avoid generic creator or motivational language?',
-        'Does it preserve the voice without reusing signature phrases mechanically?',
+        "Would Aakash genuinely say this aloud or write it himself?",
+        "Does every factual claim have evidence or an explicit review requirement?",
+        "Is this specific enough to avoid generic creator or motivational language?",
+        "Does it preserve the voice without reusing signature phrases mechanically?",
       ];
       return this.voiceModel.findOneAndUpdate(
-        { key: 'primary' },
+        { key: "primary" },
         {
           $set: {
             ...response.data,
@@ -326,7 +328,7 @@ export class MediaPresenceService {
             ]),
             confidence,
             sourceSampleCount: samples.length,
-            key: 'primary',
+            key: "primary",
             version: nextVersion,
             aiModel: response.model,
             aiResponseId: response.responseId,
@@ -365,6 +367,7 @@ export class MediaPresenceService {
         personalOsSections: world.personalOsSections,
         coverage: world.coverage,
         hsakaa: world.hsakaa,
+        hsakaaAid: world.hsakaaAid,
         privacyPolicy: world.policy,
       },
     };
@@ -378,6 +381,7 @@ export class MediaPresenceService {
       coverage: context.coverage,
       companies: context.companies,
       hsakaa: context.hsakaa,
+      hsakaaAid: context.hsakaaAid,
       publicSafePreview: context.publicSafe.slice(0, 8),
       internalSafePreview: context.internalSafe.slice(0, 8),
       needsReviewPreview: context.needsReview.slice(0, 8),
@@ -393,13 +397,13 @@ export class MediaPresenceService {
       .find({ isActive: true })
       .sort({ createdAt: -1 })
       .limit(30)
-      .select('title thesis canonicalBody story origin')
+      .select("title thesis canonicalBody story origin")
       .lean();
     return items
       .map((item) => ({
         title: item.title,
-        thesis: item.thesis ?? '',
-        text: item.canonicalBody || item.story || '',
+        thesis: item.thesis ?? "",
+        text: item.canonicalBody || item.story || "",
         origin: item.origin,
       }))
       .filter((item) => item.text.trim().length >= 40)
@@ -424,7 +428,7 @@ export class MediaPresenceService {
     );
     if (missing.length) {
       throw new Error(
-        `Presence strategy omitted required platforms: ${missing.join(', ')}`,
+        `Presence strategy omitted required platforms: ${missing.join(", ")}`,
       );
     }
   }
@@ -436,109 +440,109 @@ export class MediaPresenceService {
   private errorMessage(error: unknown) {
     return error instanceof Error
       ? error.message
-      : 'Unknown Media Presence error.';
+      : "Unknown Media Presence error.";
   }
 
   private strategyJsonSchema(): Record<string, unknown> {
-    const arrayOfStrings = { type: 'array', items: { type: 'string' } };
+    const arrayOfStrings = { type: "array", items: { type: "string" } };
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        northStar: { type: 'string' },
-        positioning: { type: 'string' },
+        northStar: { type: "string" },
+        positioning: { type: "string" },
         knownFor: arrayOfStrings,
         audiences: {
-          type: 'array',
+          type: "array",
           minItems: 2,
           maxItems: 8,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              name: { type: 'string' },
-              need: { type: 'string' },
-              desiredPerception: { type: 'string' },
+              name: { type: "string" },
+              need: { type: "string" },
+              desiredPerception: { type: "string" },
             },
-            required: ['name', 'need', 'desiredPerception'],
+            required: ["name", "need", "desiredPerception"],
             additionalProperties: false,
           },
         },
         narratives: {
-          type: 'array',
+          type: "array",
           minItems: 3,
           maxItems: 10,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              key: { type: 'string' },
-              title: { type: 'string' },
-              role: { type: 'string' },
-              targetSharePercent: { type: 'number', minimum: 0, maximum: 100 },
-              companyName: { type: 'string' },
+              key: { type: "string" },
+              title: { type: "string" },
+              role: { type: "string" },
+              targetSharePercent: { type: "number", minimum: 0, maximum: 100 },
+              companyName: { type: "string" },
               guardrails: arrayOfStrings,
             },
             required: [
-              'key',
-              'title',
-              'role',
-              'targetSharePercent',
-              'companyName',
-              'guardrails',
+              "key",
+              "title",
+              "role",
+              "targetSharePercent",
+              "companyName",
+              "guardrails",
             ],
             additionalProperties: false,
           },
         },
         platformRoles: {
-          type: 'array',
+          type: "array",
           minItems: 5,
           maxItems: 5,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              platform: { type: 'string', enum: GROWTH_PLATFORMS },
-              role: { type: 'string' },
-              purpose: { type: 'string' },
+              platform: { type: "string", enum: GROWTH_PLATFORMS },
+              role: { type: "string" },
+              purpose: { type: "string" },
               primaryFormats: {
-                type: 'array',
-                items: { type: 'string', enum: Object.values(MediaPostType) },
+                type: "array",
+                items: { type: "string", enum: Object.values(MediaPostType) },
               },
-              minPostsPerWeek: { type: 'number', minimum: 0, maximum: 30 },
+              minPostsPerWeek: { type: "number", minimum: 0, maximum: 30 },
               preferredPostsPerWeek: {
-                type: 'number',
+                type: "number",
                 minimum: 0,
                 maximum: 30,
               },
-              maxPostsPerWeek: { type: 'number', minimum: 0, maximum: 50 },
-              allowSkipDays: { type: 'boolean' },
+              maxPostsPerWeek: { type: "number", minimum: 0, maximum: 50 },
+              allowSkipDays: { type: "boolean" },
             },
             required: [
-              'platform',
-              'role',
-              'purpose',
-              'primaryFormats',
-              'minPostsPerWeek',
-              'preferredPostsPerWeek',
-              'maxPostsPerWeek',
-              'allowSkipDays',
+              "platform",
+              "role",
+              "purpose",
+              "primaryFormats",
+              "minPostsPerWeek",
+              "preferredPostsPerWeek",
+              "maxPostsPerWeek",
+              "allowSkipDays",
             ],
             additionalProperties: false,
           },
         },
         companyBalance: {
-          type: 'array',
+          type: "array",
           maxItems: 10,
           items: {
-            type: 'object',
+            type: "object",
             properties: {
-              companyName: { type: 'string' },
-              narrativeRole: { type: 'string' },
-              targetSharePercent: { type: 'number', minimum: 0, maximum: 100 },
+              companyName: { type: "string" },
+              narrativeRole: { type: "string" },
+              targetSharePercent: { type: "number", minimum: 0, maximum: 100 },
               guardrails: arrayOfStrings,
             },
             required: [
-              'companyName',
-              'narrativeRole',
-              'targetSharePercent',
-              'guardrails',
+              "companyName",
+              "narrativeRole",
+              "targetSharePercent",
+              "guardrails",
             ],
             additionalProperties: false,
           },
@@ -551,59 +555,59 @@ export class MediaPresenceService {
         privacyRules: arrayOfStrings,
       },
       required: [
-        'northStar',
-        'positioning',
-        'knownFor',
-        'audiences',
-        'narratives',
-        'platformRoles',
-        'companyBalance',
-        'thirtyDayObjectives',
-        'ninetyDayObjectives',
-        'reputationGoals',
-        'neverBecome',
-        'claimsRequiringReview',
-        'privacyRules',
+        "northStar",
+        "positioning",
+        "knownFor",
+        "audiences",
+        "narratives",
+        "platformRoles",
+        "companyBalance",
+        "thirtyDayObjectives",
+        "ninetyDayObjectives",
+        "reputationGoals",
+        "neverBecome",
+        "claimsRequiringReview",
+        "privacyRules",
       ],
       additionalProperties: false,
     };
   }
 
   private voiceJsonSchema(): Record<string, unknown> {
-    const arrayOfStrings = { type: 'array', items: { type: 'string' } };
+    const arrayOfStrings = { type: "array", items: { type: "string" } };
     return {
-      type: 'object',
+      type: "object",
       properties: {
-        summary: { type: 'string' },
+        summary: { type: "string" },
         principles: arrayOfStrings,
-        sentenceRhythm: { type: 'string' },
-        vocabulary: { type: 'string' },
-        humour: { type: 'string' },
-        profanity: { type: 'string' },
-        technicalDepth: { type: 'string' },
-        emotionalOpenness: { type: 'string' },
-        storytelling: { type: 'string' },
+        sentenceRhythm: { type: "string" },
+        vocabulary: { type: "string" },
+        humour: { type: "string" },
+        profanity: { type: "string" },
+        technicalDepth: { type: "string" },
+        emotionalOpenness: { type: "string" },
+        storytelling: { type: "string" },
         doMore: arrayOfStrings,
         doNot: arrayOfStrings,
         avoidPhrases: arrayOfStrings,
         authenticityChecks: arrayOfStrings,
-        confidence: { type: 'number', minimum: 0, maximum: 100 },
+        confidence: { type: "number", minimum: 0, maximum: 100 },
       },
       required: [
-        'summary',
-        'principles',
-        'sentenceRhythm',
-        'vocabulary',
-        'humour',
-        'profanity',
-        'technicalDepth',
-        'emotionalOpenness',
-        'storytelling',
-        'doMore',
-        'doNot',
-        'avoidPhrases',
-        'authenticityChecks',
-        'confidence',
+        "summary",
+        "principles",
+        "sentenceRhythm",
+        "vocabulary",
+        "humour",
+        "profanity",
+        "technicalDepth",
+        "emotionalOpenness",
+        "storytelling",
+        "doMore",
+        "doNot",
+        "avoidPhrases",
+        "authenticityChecks",
+        "confidence",
       ],
       additionalProperties: false,
     };

@@ -169,6 +169,7 @@ export class ChatService {
           ? ('user' as const)
           : ('assistant' as const),
       content: message.content,
+      metadata: message.metadata ?? {},
     }));
   }
 
@@ -340,6 +341,7 @@ export class ChatService {
           ? ('user' as const)
           : ('assistant' as const),
       content: message.content,
+      metadata: message.metadata ?? {},
     }));
   }
 

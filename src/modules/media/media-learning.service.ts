@@ -1,40 +1,40 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
 
-import { AiService } from '../ai/ai.service';
-import { MediaGrowthService } from './media-growth.service';
+import { AiService } from "../ai/ai.service";
+import { MediaGrowthService } from "./media-growth.service";
 import {
   MEDIA_PUBLIC_IDENTITY_PILLARS,
   resolveMediaPublicIdentityPillar,
-} from './media-public-identity';
+} from "./media-public-identity";
 import {
   MediaAudienceInsight,
   MediaAudienceInsightDocument,
   MediaAudienceSignalType,
-} from './schemas/media-audience-insight.schema';
+} from "./schemas/media-audience-insight.schema";
 import {
   MediaContentItem,
   MediaContentItemDocument,
-} from './schemas/media-content-item.schema';
+} from "./schemas/media-content-item.schema";
 import {
   MediaEngagementIntent,
   MediaEngagementItem,
   MediaEngagementItemDocument,
-} from './schemas/media-engagement-item.schema';
+} from "./schemas/media-engagement-item.schema";
 import {
   MediaMetricSnapshot,
   MediaMetricSnapshotDocument,
   MetricSnapshotPeriod,
-} from './schemas/media-metric-snapshot.schema';
+} from "./schemas/media-metric-snapshot.schema";
 import {
   MediaPerformanceInsight,
   MediaPerformanceInsightDocument,
-} from './schemas/media-performance-insight.schema';
+} from "./schemas/media-performance-insight.schema";
 import {
   MediaPublication,
   MediaPublicationDocument,
-} from './schemas/media-publication.schema';
+} from "./schemas/media-publication.schema";
 
 interface GeneratedPerformanceInsight {
   publicationId: string;
@@ -45,6 +45,12 @@ interface GeneratedPerformanceInsight {
   doLess: string[];
   nextExperiment: string;
   mechanisms: string[];
+  pinDecision: "pin" | "do_not_pin" | "wait";
+  pinReason: string;
+  boostDecision: "boost" | "do_not_boost" | "wait";
+  boostReason: string;
+  changeRecommendations: string[];
+  repurposeIdeas: string[];
 }
 
 interface GeneratedAudienceInsight {
@@ -101,9 +107,10 @@ export class MediaLearningService {
       audience,
       pillarSignals,
       policy: {
-        lifecyclePeriods: Object.values(MetricSnapshotPeriod).filter(
-          (item) => item !== MetricSnapshotPeriod.LATEST,
-        ),
+        lifecyclePeriods: [
+          MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+          MetricSnapshotPeriod.NINETY_SIX_HOURS,
+        ],
         compareAgainstOwnPlatformFormatBaseline: true,
         learnMechanismNotExactWording: true,
         audienceQuestionsBecomePlanningEvidence: true,
@@ -139,9 +146,11 @@ export class MediaLearningService {
       .lean();
     const selected = new Map<string, (typeof snapshots)[number]>();
     const periodRank: Record<string, number> = {
-      [MetricSnapshotPeriod.THIRTY_DAYS]: 6,
-      [MetricSnapshotPeriod.SEVEN_DAYS]: 5,
-      [MetricSnapshotPeriod.SEVENTY_TWO_HOURS]: 4,
+      [MetricSnapshotPeriod.THIRTY_DAYS]: 8,
+      [MetricSnapshotPeriod.SEVEN_DAYS]: 7,
+      [MetricSnapshotPeriod.NINETY_SIX_HOURS]: 6,
+      [MetricSnapshotPeriod.SEVENTY_TWO_HOURS]: 5,
+      [MetricSnapshotPeriod.FORTY_EIGHT_HOURS]: 4,
       [MetricSnapshotPeriod.TWENTY_FOUR_HOURS]: 3,
       [MetricSnapshotPeriod.ONE_HOUR]: 2,
       [MetricSnapshotPeriod.LATEST]: 1,
@@ -246,62 +255,90 @@ export class MediaLearningService {
       const response = await this.aiService.generateStructuredResponse<{
         insights: GeneratedPerformanceInsight[];
       }>({
-        name: 'hsakaa_media_performance_intelligence_v33',
+        name: "hsakaa_media_performance_intelligence_v33",
         instructions: [
-          'You are HSAKAA performance analyst for Aakash. Explain what the evidence suggests, not what sounds clever.',
+          "You are HSAKAA performance analyst for Aakash. Explain what the evidence suggests, not what sounds clever.",
           "Compare a post against Aakash's own platform + format + lifecycle-period baseline, using the supplied percentile.",
-          'Separate discovery/hook, consumption/retention, resonance/share-save, conversation/comments, profile/follower conversion and CTA effects when metrics support those conclusions.',
-          'Do not infer unavailable metrics. Do not claim causation from correlation. Say evidence is weak when sample size or signals are weak.',
-          'Learn mechanisms, not exact hooks, phrases, stories or structures. Anti-repetition remains authoritative.',
-          'Every requested publicationId must appear exactly once.',
-        ].join('\n'),
+          "Separate discovery/hook, consumption/retention, resonance/share-save, conversation/comments, profile/follower conversion and CTA effects when metrics support those conclusions.",
+          "Do not infer unavailable metrics. Do not claim causation from correlation. Say evidence is weak when sample size or signals are weak.",
+          "Learn mechanisms, not exact hooks, phrases, stories or structures. Anti-repetition remains authoritative.",
+          "Act as a social media manager too. Decide whether each published post should be pinned/featured, left alone, changed in future variants, repurposed, or considered for paid boosting.",
+          "A boost recommendation must amplify proven organic resonance, never rescue weak content. If the sample is small, lifecycle is too early, or comparable history is weak, return boostDecision=wait.",
+          "Pin/feature only content that is both relatively strong and representative of the public identity Aakash wants new visitors to understand. A high score alone is not enough.",
+          "changeRecommendations should be concrete packaging or creative changes such as hook, first frame, thumbnail, caption, CTA, pacing or format. Do not rewrite the full post.",
+          "Every requested publicationId must appear exactly once.",
+        ].join("\n"),
         input: JSON.stringify({ publications: input }),
         schema: {
-          type: 'object',
+          type: "object",
           properties: {
             insights: {
-              type: 'array',
+              type: "array",
               minItems: input.length,
               maxItems: input.length,
               items: {
-                type: 'object',
+                type: "object",
                 properties: {
-                  publicationId: { type: 'string' },
-                  summary: { type: 'string' },
-                  whyItWorked: { type: 'string' },
-                  whatLimitedIt: { type: 'string' },
-                  doMore: { type: 'array', items: { type: 'string' } },
-                  doLess: { type: 'array', items: { type: 'string' } },
-                  nextExperiment: { type: 'string' },
-                  mechanisms: { type: 'array', items: { type: 'string' } },
+                  publicationId: { type: "string" },
+                  summary: { type: "string" },
+                  whyItWorked: { type: "string" },
+                  whatLimitedIt: { type: "string" },
+                  doMore: { type: "array", items: { type: "string" } },
+                  doLess: { type: "array", items: { type: "string" } },
+                  nextExperiment: { type: "string" },
+                  mechanisms: { type: "array", items: { type: "string" } },
+                  pinDecision: {
+                    type: "string",
+                    enum: ["pin", "do_not_pin", "wait"],
+                  },
+                  pinReason: { type: "string" },
+                  boostDecision: {
+                    type: "string",
+                    enum: ["boost", "do_not_boost", "wait"],
+                  },
+                  boostReason: { type: "string" },
+                  changeRecommendations: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
+                  repurposeIdeas: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
                 },
                 required: [
-                  'publicationId',
-                  'summary',
-                  'whyItWorked',
-                  'whatLimitedIt',
-                  'doMore',
-                  'doLess',
-                  'nextExperiment',
-                  'mechanisms',
+                  "publicationId",
+                  "summary",
+                  "whyItWorked",
+                  "whatLimitedIt",
+                  "doMore",
+                  "doLess",
+                  "nextExperiment",
+                  "mechanisms",
+                  "pinDecision",
+                  "pinReason",
+                  "boostDecision",
+                  "boostReason",
+                  "changeRecommendations",
+                  "repurposeIdeas",
                 ],
                 additionalProperties: false,
               },
             },
           },
-          required: ['insights'],
+          required: ["insights"],
           additionalProperties: false,
         },
         maxOutputTokens: 8000,
-        reasoningEffort: 'medium',
-        verbosity: 'medium',
+        reasoningEffort: "medium",
+        verbosity: "medium",
       });
       generated = response.data.insights;
       aiModel = response.model;
       aiResponseId = response.responseId;
     } catch (error) {
       throw new ServiceUnavailableException(
-        `HSAKAA could not analyze Media performance. ${error instanceof Error ? error.message : 'Unknown analysis error.'}`,
+        `HSAKAA could not analyze Media performance. ${error instanceof Error ? error.message : "Unknown analysis error."}`,
       );
     }
 
@@ -355,12 +392,22 @@ export class MediaLearningService {
                   metrics: item.metrics,
                   contentPillars: item.context.pillars,
                   publicFigureLearningDimensions: [
-                    'reach',
-                    'authority',
-                    'affinity',
-                    'engagement',
+                    "reach",
+                    "authority",
+                    "affinity",
+                    "engagement",
                   ],
                 },
+                management: this.buildManagementRecommendation({
+                  analysis,
+                  publication,
+                  snapshot,
+                  percentile: item.percentile,
+                  baselineSamples:
+                    peerScores.get(
+                      `${publication.platform}|${publication.format}|${snapshot.period}`,
+                    )?.length ?? 0,
+                }),
                 aiModel,
                 aiResponseId,
                 generatedAt: new Date(),
@@ -403,58 +450,58 @@ export class MediaLearningService {
     const response = await this.aiService.generateStructuredResponse<{
       insights: GeneratedAudienceInsight[];
     }>({
-      name: 'hsakaa_media_audience_intelligence_v33',
+      name: "hsakaa_media_audience_intelligence_v33",
       instructions: [
-        'Cluster Aakash social engagement into recurring audience signals. Prefer repeated questions/problems/objections and high-intent lead/collaboration signals over generic praise.',
-        'Do not identify private people in summaries. Use only supplied engagement IDs. Do not invent recurrence.',
-        'A recurring content opportunity should preserve the underlying audience need without copying an old post or audience wording verbatim.',
-        'Return at most 20 useful clusters. Single high-intent lead/collaboration signals may be retained even with one occurrence; ordinary content themes should normally require repetition.',
-      ].join('\n'),
+        "Cluster Aakash social engagement into recurring audience signals. Prefer repeated questions/problems/objections and high-intent lead/collaboration signals over generic praise.",
+        "Do not identify private people in summaries. Use only supplied engagement IDs. Do not invent recurrence.",
+        "A recurring content opportunity should preserve the underlying audience need without copying an old post or audience wording verbatim.",
+        "Return at most 20 useful clusters. Single high-intent lead/collaboration signals may be retained even with one occurrence; ordinary content themes should normally require repetition.",
+      ].join("\n"),
       input: JSON.stringify({ engagement: compact }),
       schema: {
-        type: 'object',
+        type: "object",
         properties: {
           insights: {
-            type: 'array',
+            type: "array",
             maxItems: 20,
             items: {
-              type: 'object',
+              type: "object",
               properties: {
-                key: { type: 'string' },
+                key: { type: "string" },
                 type: {
-                  type: 'string',
+                  type: "string",
                   enum: Object.values(MediaAudienceSignalType),
                 },
-                topic: { type: 'string' },
-                summary: { type: 'string' },
-                engagementIds: { type: 'array', items: { type: 'string' } },
-                recommendedContentAngle: { type: 'string' },
+                topic: { type: "string" },
+                summary: { type: "string" },
+                engagementIds: { type: "array", items: { type: "string" } },
+                recommendedContentAngle: { type: "string" },
                 recommendedPlatforms: {
-                  type: 'array',
-                  items: { type: 'string' },
+                  type: "array",
+                  items: { type: "string" },
                 },
-                highIntent: { type: 'boolean' },
+                highIntent: { type: "boolean" },
               },
               required: [
-                'key',
-                'type',
-                'topic',
-                'summary',
-                'engagementIds',
-                'recommendedContentAngle',
-                'recommendedPlatforms',
-                'highIntent',
+                "key",
+                "type",
+                "topic",
+                "summary",
+                "engagementIds",
+                "recommendedContentAngle",
+                "recommendedPlatforms",
+                "highIntent",
               ],
               additionalProperties: false,
             },
           },
         },
-        required: ['insights'],
+        required: ["insights"],
         additionalProperties: false,
       },
       maxOutputTokens: 6000,
-      reasoningEffort: 'medium',
-      verbosity: 'medium',
+      reasoningEffort: "medium",
+      verbosity: "medium",
     });
 
     const itemMap = new Map(items.map((item) => [item._id.toString(), item]));
@@ -491,6 +538,102 @@ export class MediaLearningService {
         .find({ isActive: true })
         .sort({ confidence: -1, occurrences: -1 })
         .lean(),
+    };
+  }
+
+  private buildManagementRecommendation(input: {
+    analysis: GeneratedPerformanceInsight;
+    publication: { publishedAt?: Date | null };
+    snapshot: {
+      capturedAt: Date;
+      period: MetricSnapshotPeriod;
+      performanceScore?: number;
+      shareSaveRate?: number;
+      followerConversionRate?: number;
+      engagementRate?: number;
+    };
+    percentile: number;
+    baselineSamples: number;
+  }) {
+    const { analysis, publication, snapshot, percentile, baselineSamples } =
+      input;
+    const ageHours = publication.publishedAt
+      ? Math.max(
+          0,
+          (snapshot.capturedAt.getTime() -
+            new Date(publication.publishedAt).getTime()) /
+            3_600_000,
+        )
+      : 0;
+    const maturePeriod = [
+      MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+      MetricSnapshotPeriod.NINETY_SIX_HOURS,
+      MetricSnapshotPeriod.SEVEN_DAYS,
+      MetricSnapshotPeriod.THIRTY_DAYS,
+    ].includes(snapshot.period);
+    const matureEnough = maturePeriod || ageHours >= 48;
+    const performanceScore = snapshot.performanceScore ?? 0;
+    const organicSignal =
+      performanceScore >= 65 &&
+      ((snapshot.shareSaveRate ?? 0) >= 0.5 ||
+        (snapshot.followerConversionRate ?? 0) >= 0.1 ||
+        (snapshot.engagementRate ?? 0) >= 3);
+
+    let boostDecision = analysis.boostDecision;
+    let boostReason = analysis.boostReason;
+    if (!matureEnough || baselineSamples < 3) {
+      boostDecision = "wait";
+      boostReason =
+        "Not enough mature or comparable organic data yet. Collect more post history before spending.";
+    } else if (!organicSignal) {
+      boostDecision = "do_not_boost";
+      boostReason =
+        "The current organic signal is not strong enough to justify paid amplification. Improve the content first.";
+    } else if (analysis.boostDecision === "boost") {
+      boostDecision = "boost";
+    } else {
+      boostDecision = analysis.boostDecision;
+    }
+
+    let pinDecision = analysis.pinDecision;
+    let pinReason = analysis.pinReason;
+    if (baselineSamples < 2 || !matureEnough) {
+      pinDecision = "wait";
+      pinReason =
+        "Wait for a more mature result before changing pinned or featured content.";
+    } else if (percentile < 70 && analysis.pinDecision === "pin") {
+      pinDecision = "do_not_pin";
+      pinReason =
+        "This is not yet a strong enough relative performer to earn a pinned or featured slot.";
+    }
+
+    const confidence =
+      baselineSamples >= 8 && matureEnough
+        ? "high"
+        : baselineSamples >= 3 && matureEnough
+          ? "medium"
+          : "low";
+
+    return {
+      dataConfidence: confidence,
+      baselineSamples,
+      percentile,
+      performanceScore,
+      pin: { decision: pinDecision, reason: pinReason },
+      boost: {
+        decision: boostDecision,
+        reason: boostReason,
+        suggestedTestBudgetInr:
+          boostDecision === "boost"
+            ? baselineSamples >= 8
+              ? 1000
+              : 500
+            : undefined,
+        automaticSpend: false,
+      },
+      changes: analysis.changeRecommendations.slice(0, 5),
+      repurposeIdeas: analysis.repurposeIdeas.slice(0, 4),
+      nextExperiment: analysis.nextExperiment,
     };
   }
 
@@ -539,7 +682,7 @@ export class MediaLearningService {
     performance: Array<
       Pick<
         MediaPerformanceInsight,
-        'identityPillar' | 'publicFigureSignals' | 'confidence'
+        "identityPillar" | "publicFigureSignals" | "confidence"
       >
     >,
   ) {
@@ -550,7 +693,7 @@ export class MediaLearningService {
         0,
       );
       const average = (
-        key: 'reach' | 'authority' | 'affinity' | 'engagement',
+        key: "reach" | "authority" | "affinity" | "engagement",
       ) =>
         weightTotal
           ? this.roundSignal(
@@ -572,10 +715,10 @@ export class MediaLearningService {
                 rows.length,
             )
           : 0,
-        reach: average('reach'),
-        authority: average('authority'),
-        affinity: average('affinity'),
-        engagement: average('engagement'),
+        reach: average("reach"),
+        authority: average("authority"),
+        affinity: average("affinity"),
+        engagement: average("engagement"),
       };
     });
   }

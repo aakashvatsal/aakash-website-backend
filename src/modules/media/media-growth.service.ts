@@ -2,58 +2,59 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+} from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
 
 import {
   CreateMediaGrowthExperimentDto,
   RecordMediaAccountMetricsDto,
+  RecordMediaPublicationMetricsDto,
   RebuildMediaGrowthLearningsDto,
   UpdateMediaGrowthExperimentDto,
-} from './dto/media-core.dto';
-import { MediaAnalyticsService } from './services/media-analytics.service';
-import { MediaBufferService } from './media-buffer.service';
+} from "./dto/media-core.dto";
+import { MediaAnalyticsService } from "./services/media-analytics.service";
+import { MediaBufferService } from "./media-buffer.service";
 import {
   MediaAccount,
   MediaAccountDocument,
-} from './schemas/media-account.schema';
+} from "./schemas/media-account.schema";
 import {
   MediaAccountMetricSnapshot,
   MediaAccountMetricSnapshotDocument,
-} from './schemas/media-account-metric-snapshot.schema';
+} from "./schemas/media-account-metric-snapshot.schema";
 import {
   MediaContentItem,
   MediaContentItemDocument,
-} from './schemas/media-content-item.schema';
+} from "./schemas/media-content-item.schema";
 import {
   MediaContentMemory,
   MediaContentMemoryDocument,
   MediaContentMemoryScope,
-} from './schemas/media-content-memory.schema';
+} from "./schemas/media-content-memory.schema";
 import {
   MediaGrowthDimension,
   MediaGrowthLearning,
   MediaGrowthLearningDirection,
   MediaGrowthLearningDocument,
-} from './schemas/media-growth-learning.schema';
+} from "./schemas/media-growth-learning.schema";
 import {
   MediaGrowthExperiment,
   MediaGrowthExperimentDocument,
   MediaGrowthExperimentStatus,
-} from './schemas/media-growth-experiment.schema';
+} from "./schemas/media-growth-experiment.schema";
 import {
   MediaAnalyticsSource,
   MediaMetricSnapshot,
   MediaMetricSnapshotDocument,
   MetricSnapshotPeriod,
-} from './schemas/media-metric-snapshot.schema';
-import { MediaPlatform, MediaPostStatus } from './schemas/media-post.schema';
+} from "./schemas/media-metric-snapshot.schema";
+import { MediaPlatform, MediaPostStatus } from "./schemas/media-post.schema";
 import {
   MediaDeliveryStatus,
   MediaPublication,
   MediaPublicationDocument,
-} from './schemas/media-publication.schema';
+} from "./schemas/media-publication.schema";
 
 export interface PublicationPerformance {
   publicationId: string;
@@ -217,12 +218,12 @@ export class MediaGrowthService {
     const publications = await this.publicationModel
       .find({
         isActive: true,
-        publishedAt: { $type: 'date' },
+        publishedAt: { $type: "date" },
         $and: [
           {
             $or: [
-              { platformPostId: { $type: 'string', $ne: '' } },
-              { bufferPostId: { $type: 'string', $ne: '' } },
+              { platformPostId: { $type: "string", $ne: "" } },
+              { bufferPostId: { $type: "string", $ne: "" } },
             ],
           },
           {
@@ -261,17 +262,14 @@ export class MediaGrowthService {
         publicationId: publication._id.toString(),
         platform: publication.platform,
         format: publication.format,
-        title: publication.title || publication.hook || 'Untitled publication',
+        title: publication.title || publication.hook || "Untitled publication",
         publishedAt: publication.publishedAt,
         period,
       })),
     );
     const lifecyclePeriods = [
-      MetricSnapshotPeriod.ONE_HOUR,
-      MetricSnapshotPeriod.TWENTY_FOUR_HOURS,
-      MetricSnapshotPeriod.SEVENTY_TWO_HOURS,
-      MetricSnapshotPeriod.SEVEN_DAYS,
-      MetricSnapshotPeriod.THIRTY_DAYS,
+      MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+      MetricSnapshotPeriod.NINETY_SIX_HOURS,
     ];
     const coverage = Object.fromEntries(
       lifecyclePeriods.map((period) => [
@@ -309,11 +307,151 @@ export class MediaGrowthService {
           error:
             error instanceof Error
               ? error.message
-              : 'Lifecycle analytics sync failed.',
+              : "Lifecycle analytics sync failed.",
         });
       }
     }
     return { attempted: overview.due.length, synced, failures };
+  }
+
+  async manualAnalyticsQueue(limit = 160) {
+    const safeLimit = Math.min(Math.max(Math.trunc(limit || 160), 20), 300);
+    const publications = await this.publicationModel
+      .find({
+        isActive: true,
+        $or: [
+          { scheduledAt: { $exists: true } },
+          { publishedAt: { $exists: true } },
+          { manualPublishCompletedAt: { $exists: true } },
+        ],
+      })
+      .sort({ publishedAt: -1, scheduledAt: -1, createdAt: -1 })
+      .limit(safeLimit)
+      .lean();
+
+    if (!publications.length) {
+      return {
+        generatedAt: new Date().toISOString(),
+        checkpoints: [
+          MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+          MetricSnapshotPeriod.NINETY_SIX_HOURS,
+        ],
+        items: [],
+      };
+    }
+
+    const publicationIds = publications.map((item) => item._id);
+    const snapshots = await this.metricModel
+      .find({
+        mediaPublicationId: { $in: publicationIds },
+        period: {
+          $in: [
+            MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+            MetricSnapshotPeriod.NINETY_SIX_HOURS,
+          ],
+        },
+      })
+      .sort({ capturedAt: -1 })
+      .lean();
+
+    const snapshotsByPublication = new Map<
+      string,
+      Map<MetricSnapshotPeriod, (typeof snapshots)[number]>
+    >();
+    for (const snapshot of snapshots) {
+      const publicationId = snapshot.mediaPublicationId?.toString();
+      if (!publicationId) continue;
+      const periods =
+        snapshotsByPublication.get(publicationId) ??
+        new Map<MetricSnapshotPeriod, (typeof snapshots)[number]>();
+      if (!periods.has(snapshot.period)) periods.set(snapshot.period, snapshot);
+      snapshotsByPublication.set(publicationId, periods);
+    }
+
+    const now = Date.now();
+    const hour = 3_600_000;
+    const checkpoint = (
+      publicationId: string,
+      anchor: Date | undefined,
+      period: MetricSnapshotPeriod,
+      hours: number,
+    ) => {
+      const existing = snapshotsByPublication.get(publicationId)?.get(period);
+      const dueAt = anchor
+        ? new Date(new Date(anchor).getTime() + hours * hour)
+        : undefined;
+      const due = dueAt ? dueAt.getTime() <= now : false;
+      return {
+        period,
+        dueAt,
+        state: existing ? "complete" : due ? "due" : "waiting",
+        capturedAt: existing?.capturedAt,
+        metrics: existing
+          ? {
+              impressions: existing.impressions,
+              reach: existing.reach,
+              views: existing.views,
+              likes: existing.likes,
+              comments: existing.comments,
+              shares: existing.shares,
+              saves: existing.saves,
+              sends: existing.sends,
+              clicks: existing.clicks,
+              profileVisits: existing.profileVisits,
+              followersGained: existing.followersGained,
+              watchTimeSeconds: existing.watchTimeSeconds,
+              averageWatchPercentage: existing.averageWatchPercentage,
+              performanceScore: existing.performanceScore,
+            }
+          : undefined,
+      };
+    };
+
+    return {
+      generatedAt: new Date().toISOString(),
+      checkpoints: [
+        MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+        MetricSnapshotPeriod.NINETY_SIX_HOURS,
+      ],
+      items: publications.map((publication) => {
+        const anchor =
+          publication.publishedAt ??
+          publication.manualPublishCompletedAt ??
+          publication.scheduledAt;
+        const publicationId = publication._id.toString();
+        return {
+          publicationId,
+          contentItemId: publication.contentItemId.toString(),
+          accountId: publication.accountId?.toString(),
+          platform: publication.platform,
+          format: publication.format,
+          status: publication.status,
+          deliveryStatus: publication.deliveryStatus,
+          title:
+            publication.title || publication.hook || "Untitled publication",
+          hook: publication.hook,
+          caption: publication.caption,
+          cta: publication.cta,
+          scheduledAt: publication.scheduledAt,
+          publishedAt: publication.publishedAt,
+          manualPublishCompletedAt: publication.manualPublishCompletedAt,
+          analyticsAnchorAt: anchor,
+          externalPostUrl: publication.externalPostUrl,
+          fortyEightHours: checkpoint(
+            publicationId,
+            anchor,
+            MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+            48,
+          ),
+          ninetySixHours: checkpoint(
+            publicationId,
+            anchor,
+            MetricSnapshotPeriod.NINETY_SIX_HOURS,
+            96,
+          ),
+        };
+      }),
+    };
   }
 
   async syncPublicationMetrics(
@@ -326,14 +464,14 @@ export class MediaGrowthService {
       publication.deliveryStatus !== MediaDeliveryStatus.PUBLISHED
     ) {
       throw new BadRequestException(
-        'Metrics can only be synced for a published Media publication.',
+        "Metrics can only be synced for a published Media publication.",
       );
     }
     const bufferPostId = publication.bufferPostId?.trim();
     const platformPostId = publication.platformPostId?.trim();
     if (!bufferPostId && !platformPostId) {
       throw new BadRequestException(
-        'A Buffer post ID or platform post ID is required before analytics can be synced.',
+        "A Buffer post ID or platform post ID is required before analytics can be synced.",
       );
     }
 
@@ -408,8 +546,8 @@ export class MediaGrowthService {
         $and: [
           {
             $or: [
-              { platformPostId: { $type: 'string', $ne: '' } },
-              { bufferPostId: { $type: 'string', $ne: '' } },
+              { platformPostId: { $type: "string", $ne: "" } },
+              { bufferPostId: { $type: "string", $ne: "" } },
             ],
           },
           {
@@ -434,11 +572,74 @@ export class MediaGrowthService {
         failures.push({
           publicationId: publication._id.toString(),
           error:
-            error instanceof Error ? error.message : 'Analytics sync failed.',
+            error instanceof Error ? error.message : "Analytics sync failed.",
         });
       }
     }
     return { attempted: publications.length, synced, failures };
+  }
+
+  async recordPublicationMetrics(
+    publicationId: string,
+    dto: RecordMediaPublicationMetricsDto,
+  ) {
+    const publication = await this.requirePublication(publicationId);
+    const period = dto.period ?? MetricSnapshotPeriod.LATEST;
+    const capturedAt = dto.capturedAt ? new Date(dto.capturedAt) : new Date();
+    const normalized = {
+      impressions: dto.impressions ?? 0,
+      reach: dto.reach ?? 0,
+      views: dto.views ?? 0,
+      engagedViews: dto.engagedViews ?? 0,
+      likes: dto.likes ?? 0,
+      comments: dto.comments ?? 0,
+      shares: dto.shares ?? 0,
+      saves: dto.saves ?? 0,
+      sends: dto.sends ?? 0,
+      clicks: dto.clicks ?? 0,
+      profileVisits: dto.profileVisits ?? 0,
+      followersGained: dto.followersGained ?? 0,
+      followersLost: dto.followersLost ?? 0,
+      leadsGenerated: dto.leadsGenerated ?? 0,
+      conversions: dto.conversions ?? 0,
+      watchTimeSeconds: dto.watchTimeSeconds ?? 0,
+      averageViewDurationSeconds: dto.averageViewDurationSeconds ?? 0,
+      averageWatchPercentage: dto.averageWatchPercentage,
+    };
+    const derived = this.deriveRates(normalized);
+
+    return this.metricModel
+      .findOneAndUpdate(
+        { mediaPublicationId: publication._id, period },
+        {
+          $set: {
+            mediaPublicationId: publication._id,
+            ...(publication.legacyMediaPostId
+              ? { mediaPostId: publication.legacyMediaPostId }
+              : {}),
+            ...(publication.accountId
+              ? { accountId: publication.accountId }
+              : {}),
+            platform: publication.platform,
+            format: publication.format,
+            capturedAt,
+            period,
+            source: MediaAnalyticsSource.MANUAL,
+            ...normalized,
+            engagementRate: derived.engagementRate,
+            shareSaveRate: derived.shareSaveRate,
+            followerConversionRate: derived.followerConversionRate,
+            performanceScore: derived.performanceScore,
+            rawMetrics: {
+              manual: true,
+              notes: dto.notes?.trim() || undefined,
+              enteredAt: new Date().toISOString(),
+            },
+          },
+        },
+        { upsert: true, new: true, runValidators: true },
+      )
+      .lean();
   }
 
   async publicationPerformance(publicationId: string) {
@@ -459,10 +660,10 @@ export class MediaGrowthService {
     dto: RecordMediaAccountMetricsDto,
   ) {
     const account = await this.accountModel.findOne({
-      _id: this.objectId(accountId, 'Media account ID'),
+      _id: this.objectId(accountId, "Media account ID"),
       isActive: true,
     });
-    if (!account) throw new NotFoundException('Media account not found.');
+    if (!account) throw new NotFoundException("Media account not found.");
     const capturedAt = dto.capturedAt ? new Date(dto.capturedAt) : new Date();
     capturedAt.setMilliseconds(0);
     return this.accountMetricModel
@@ -481,7 +682,7 @@ export class MediaGrowthService {
             views: dto.views ?? 0,
             websiteClicks: dto.websiteClicks ?? 0,
             leads: dto.leads ?? 0,
-            source: dto.source?.trim() || 'manual_or_connector',
+            source: dto.source?.trim() || "manual_or_connector",
             rawMetrics: dto.rawMetrics ?? {},
           },
         },
@@ -492,13 +693,13 @@ export class MediaGrowthService {
 
   async syncAccountMetrics(accountId: string) {
     const account = await this.accountModel.findOne({
-      _id: this.objectId(accountId, 'Media account ID'),
+      _id: this.objectId(accountId, "Media account ID"),
       isActive: true,
     });
-    if (!account) throw new NotFoundException('Media account not found.');
+    if (!account) throw new NotFoundException("Media account not found.");
     if (!account.capabilities?.canReadAnalytics) {
       throw new BadRequestException(
-        'This Media account is not configured for analytics access.',
+        "This Media account is not configured for analytics access.",
       );
     }
 
@@ -525,7 +726,7 @@ export class MediaGrowthService {
             views: metrics.normalized.views ?? 0,
             websiteClicks: metrics.normalized.websiteClicks ?? 0,
             leads: metrics.normalized.leads ?? 0,
-            source: 'direct_platform',
+            source: "direct_platform",
             rawMetrics: metrics.raw,
           },
         },
@@ -537,7 +738,7 @@ export class MediaGrowthService {
   async syncAccounts(limit = 50) {
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const accounts = await this.accountModel
-      .find({ isActive: true, 'capabilities.canReadAnalytics': true })
+      .find({ isActive: true, "capabilities.canReadAnalytics": true })
       .sort({ isPrimary: -1, platform: 1 })
       .limit(safeLimit)
       .lean();
@@ -553,7 +754,7 @@ export class MediaGrowthService {
           error:
             error instanceof Error
               ? error.message
-              : 'Account analytics sync failed.',
+              : "Account analytics sync failed.",
         });
       }
     }
@@ -562,10 +763,10 @@ export class MediaGrowthService {
 
   async accountGrowth(accountId: string, days = 90) {
     const account = await this.accountModel.findOne({
-      _id: this.objectId(accountId, 'Media account ID'),
+      _id: this.objectId(accountId, "Media account ID"),
       isActive: true,
     });
-    if (!account) throw new NotFoundException('Media account not found.');
+    if (!account) throw new NotFoundException("Media account not found.");
     const safeDays = Math.min(Math.max(days, 7), 3650);
     const since = new Date(Date.now() - safeDays * 86_400_000);
     const snapshots = await this.accountMetricModel
@@ -613,7 +814,7 @@ export class MediaGrowthService {
     ) => {
       const normalizedValue = value?.trim();
       if (!normalizedValue) return;
-      const key = `${platform ?? 'all'}|${dimension}|${normalizedValue.toLowerCase()}`;
+      const key = `${platform ?? "all"}|${dimension}|${normalizedValue.toLowerCase()}`;
       const existing = groups.get(key) ?? {
         dimension,
         value: normalizedValue,
@@ -651,7 +852,7 @@ export class MediaGrowthService {
       if (sample.publishedAt) {
         add(
           MediaGrowthDimension.PUBLISH_HOUR,
-          String(sample.publishedAt.getHours()).padStart(2, '0'),
+          String(sample.publishedAt.getHours()).padStart(2, "0"),
           sample,
           sample.platform,
         );
@@ -697,8 +898,8 @@ export class MediaGrowthService {
               Math.min(Math.abs(liftPercent), 50) * 0.3,
           ),
         );
-        const platformLabel = group.platform ? ` on ${group.platform}` : '';
-        const summary = `${group.dimension.replaceAll('_', ' ')} “${group.value}” is ${liftPercent >= 0 ? '+' : ''}${liftPercent}% versus the relevant baseline${platformLabel} across ${group.samples.length} measured publications.`;
+        const platformLabel = group.platform ? ` on ${group.platform}` : "";
+        const summary = `${group.dimension.replaceAll("_", " ")} “${group.value}” is ${liftPercent >= 0 ? "+" : ""}${liftPercent}% versus the relevant baseline${platformLabel} across ${group.samples.length} measured publications.`;
         const recommendedAction =
           direction === MediaGrowthLearningDirection.POSITIVE
             ? `Use this pattern more often${platformLabel}, while rotating topic, angle and examples so growth learning does not create repetitive content.`
@@ -801,10 +1002,10 @@ export class MediaGrowthService {
       control: dto.control.trim(),
       variant: dto.variant.trim(),
       controlPublicationIds: (dto.controlPublicationIds ?? []).map((id) =>
-        this.objectId(id, 'control publication ID'),
+        this.objectId(id, "control publication ID"),
       ),
       variantPublicationIds: (dto.variantPublicationIds ?? []).map((id) =>
-        this.objectId(id, 'variant publication ID'),
+        this.objectId(id, "variant publication ID"),
       ),
       status: dto.status ?? MediaGrowthExperimentStatus.PLANNED,
       startedAt: dto.startedAt ? new Date(dto.startedAt) : undefined,
@@ -826,20 +1027,20 @@ export class MediaGrowthService {
     if (dto.variant !== undefined) set.variant = dto.variant.trim();
     if (dto.controlPublicationIds !== undefined)
       set.controlPublicationIds = dto.controlPublicationIds.map((id) =>
-        this.objectId(id, 'control publication ID'),
+        this.objectId(id, "control publication ID"),
       );
     if (dto.variantPublicationIds !== undefined)
       set.variantPublicationIds = dto.variantPublicationIds.map((id) =>
-        this.objectId(id, 'variant publication ID'),
+        this.objectId(id, "variant publication ID"),
       );
     if (dto.status !== undefined) set.status = dto.status;
     if (dto.startedAt !== undefined) set.startedAt = new Date(dto.startedAt);
     if (dto.completedAt !== undefined)
       set.completedAt = new Date(dto.completedAt);
     if (dto.winner !== undefined) {
-      if (!['control', 'variant', 'inconclusive'].includes(dto.winner)) {
+      if (!["control", "variant", "inconclusive"].includes(dto.winner)) {
         throw new BadRequestException(
-          'Experiment winner must be control, variant or inconclusive.',
+          "Experiment winner must be control, variant or inconclusive.",
         );
       }
       set.winner = dto.winner;
@@ -853,7 +1054,7 @@ export class MediaGrowthService {
     const updated = await this.experimentModel
       .findOneAndUpdate(
         {
-          _id: this.objectId(experimentId, 'growth experiment ID'),
+          _id: this.objectId(experimentId, "growth experiment ID"),
           isActive: true,
         },
         { $set: set },
@@ -861,7 +1062,7 @@ export class MediaGrowthService {
       )
       .lean();
     if (!updated)
-      throw new NotFoundException('Media growth experiment not found.');
+      throw new NotFoundException("Media growth experiment not found.");
     return updated;
   }
 
@@ -872,11 +1073,8 @@ export class MediaGrowthService {
     const ageMs = Math.max(0, Date.now() - new Date(publishedAt).getTime());
     const hour = 3_600_000;
     const thresholds: Array<[MetricSnapshotPeriod, number]> = [
-      [MetricSnapshotPeriod.ONE_HOUR, hour],
-      [MetricSnapshotPeriod.TWENTY_FOUR_HOURS, 24 * hour],
-      [MetricSnapshotPeriod.SEVENTY_TWO_HOURS, 72 * hour],
-      [MetricSnapshotPeriod.SEVEN_DAYS, 7 * 24 * hour],
-      [MetricSnapshotPeriod.THIRTY_DAYS, 30 * 24 * hour],
+      [MetricSnapshotPeriod.FORTY_EIGHT_HOURS, 48 * hour],
+      [MetricSnapshotPeriod.NINETY_SIX_HOURS, 96 * hour],
     ];
     return thresholds
       .filter(
@@ -920,7 +1118,7 @@ export class MediaGrowthService {
           platform: publication.platform,
           format: publication.format,
           title:
-            publication.title || publication.hook || 'Untitled publication',
+            publication.title || publication.hook || "Untitled publication",
           publishedAt: publication.publishedAt,
           performanceScore: snapshot.performanceScore || 0,
           engagementRate: snapshot.engagementRate || 0,
@@ -1048,11 +1246,11 @@ export class MediaGrowthService {
 
   private async requirePublication(publicationId: string) {
     const publication = await this.publicationModel.findOne({
-      _id: this.objectId(publicationId, 'Media publication ID'),
+      _id: this.objectId(publicationId, "Media publication ID"),
       isActive: true,
     });
     if (!publication)
-      throw new NotFoundException('Media publication not found.');
+      throw new NotFoundException("Media publication not found.");
     return publication;
   }
 

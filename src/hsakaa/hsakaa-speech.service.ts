@@ -3,6 +3,9 @@ import { ConfigService } from '@nestjs/config';
 
 const DEFAULT_MODEL = 'eleven_flash_v2_5';
 const DEFAULT_OUTPUT_FORMAT = 'mp3_44100_128';
+const DEFAULT_SPEED = 1.2;
+const MIN_SPEED = 0.7;
+const MAX_SPEED = 1.2;
 const MAX_SPEECH_CHARACTERS = 4000;
 
 @Injectable()
@@ -44,6 +47,7 @@ export class HsakaaSpeechService {
     const outputFormat = configuredOutput.startsWith('mp3_')
       ? configuredOutput
       : DEFAULT_OUTPUT_FORMAT;
+    const speed = this.getConfiguredSpeed();
 
     const endpoint = new URL(
       `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream`,
@@ -62,6 +66,9 @@ export class HsakaaSpeechService {
         body: JSON.stringify({
           text,
           model_id: modelId,
+          voice_settings: {
+            speed,
+          },
         }),
       });
     } catch {
@@ -84,6 +91,18 @@ export class HsakaaSpeechService {
     }
 
     return Buffer.from(bytes);
+  }
+
+  private getConfiguredSpeed() {
+    const configured = Number(
+      this.configService.get<string>('ELEVENLABS_SPEED')?.trim(),
+    );
+
+    if (!Number.isFinite(configured)) {
+      return DEFAULT_SPEED;
+    }
+
+    return Math.min(Math.max(configured, MIN_SPEED), MAX_SPEED);
   }
 
   private prepareText(value: string) {

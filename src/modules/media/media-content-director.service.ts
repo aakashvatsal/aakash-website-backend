@@ -4,45 +4,45 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
-} from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+} from "@nestjs/common";
+import { InjectModel } from "@nestjs/mongoose";
+import { Model, Types } from "mongoose";
 
-import { AiGenerationUsage, AiService } from '../ai/ai.service';
+import { AiGenerationUsage, AiService } from "../ai/ai.service";
 import {
   AcceptMediaDirectorCandidateDto,
   GenerateMediaContentBatchDto,
   RejectMediaDirectorCandidateDto,
-} from './dto/media-core.dto';
-import { MediaContentIntelligenceService } from './media-content-intelligence.service';
-import { MediaCoreService } from './media-core.service';
-import { MediaGrowthService } from './media-growth.service';
-import { MediaPresenceService } from './media-presence.service';
+} from "./dto/media-core.dto";
+import { MediaContentIntelligenceService } from "./media-content-intelligence.service";
+import { MediaCoreService } from "./media-core.service";
+import { MediaGrowthService } from "./media-growth.service";
+import { MediaPresenceService } from "./media-presence.service";
 import {
   MediaContentItem,
   MediaContentItemDocument,
   MediaContentItemStatus,
   MediaContentOrigin,
-} from './schemas/media-content-item.schema';
+} from "./schemas/media-content-item.schema";
 import {
   MediaGenerationPurpose,
   MediaGenerationRun,
   MediaGenerationRunDocument,
   MediaGenerationRunStatus,
-} from './schemas/media-generation-run.schema';
+} from "./schemas/media-generation-run.schema";
 import {
   MediaGoal,
   MediaPlatform,
   MediaPostStatus,
   MediaPostType,
-} from './schemas/media-post.schema';
+} from "./schemas/media-post.schema";
 import {
   MediaPublication,
   MediaPublicationDocument,
-} from './schemas/media-publication.schema';
+} from "./schemas/media-publication.schema";
 
 export type MediaDirectorCandidateStatus =
-  'generated' | 'blocked' | 'accepted' | 'rejected';
+  "generated" | "blocked" | "accepted" | "rejected";
 
 export interface MediaDirectorPublicationDraft {
   platform: MediaPlatform;
@@ -252,7 +252,7 @@ export class MediaContentDirectorService {
       _id: this.objectId(runId),
       isActive: true,
     });
-    if (!run) throw new NotFoundException('Media generation run not found.');
+    if (!run) throw new NotFoundException("Media generation run not found.");
     return run;
   }
 
@@ -261,13 +261,13 @@ export class MediaContentDirectorService {
     const candidates = this.candidatesFrom(run.candidates);
     const candidate = candidates.find((item) => item.key === candidateKey);
     if (!candidate)
-      throw new NotFoundException('Media director candidate not found.');
+      throw new NotFoundException("Media director candidate not found.");
     return { run, candidate };
   }
 
   async generate(dto: GenerateMediaContentBatchDto) {
     const brief = dto.brief.trim();
-    if (!brief) throw new BadRequestException('Content brief is required.');
+    if (!brief) throw new BadRequestException("Content brief is required.");
 
     const purpose = dto.purpose ?? MediaGenerationPurpose.IDEATION;
     const candidateCount = Math.min(Math.max(dto.candidateCount ?? 4, 2), 8);
@@ -275,7 +275,7 @@ export class MediaContentDirectorService {
     const platforms = this.resolvePlatforms(dto.platforms, accounts);
     if (!platforms.length) {
       throw new BadRequestException(
-        'Configure at least one Media growth account or explicitly choose a platform.',
+        "Configure at least one Media growth account or explicitly choose a platform.",
       );
     }
 
@@ -310,7 +310,7 @@ export class MediaContentDirectorService {
       purpose,
       status: MediaGenerationRunStatus.GENERATING,
       aiModel: this.aiService.getModel(),
-      promptVersion: 'media-director-6f-v1',
+      promptVersion: "media-director-6f-v1",
       brief,
       requestedPlatforms: platforms,
       strategySnapshot,
@@ -376,7 +376,7 @@ export class MediaContentDirectorService {
       run.metadata = {
         ...(run.metadata ?? {}),
         error:
-          error instanceof Error ? error.message : 'Unknown generation error',
+          error instanceof Error ? error.message : "Unknown generation error",
       };
       await run.save();
 
@@ -388,7 +388,7 @@ export class MediaContentDirectorService {
         throw error;
       }
       throw new ServiceUnavailableException(
-        'HSAKAA could not generate Media candidates. Please try again.',
+        "HSAKAA could not generate Media candidates. Please try again.",
       );
     }
   }
@@ -412,14 +412,14 @@ export class MediaContentDirectorService {
       return { contentItem: content, publications, run, alreadyAccepted: true };
     }
 
-    if (candidate.status === 'rejected') {
+    if (candidate.status === "rejected") {
       throw new ConflictException(
-        'Rejected Media candidates cannot be accepted.',
+        "Rejected Media candidates cannot be accepted.",
       );
     }
-    if (candidate.status === 'blocked') {
+    if (candidate.status === "blocked") {
       throw new ConflictException(
-        'This candidate is blocked by the anti-repetition policy. Generate a genuinely different angle instead.',
+        "This candidate is blocked by the anti-repetition policy. Generate a genuinely different angle instead.",
       );
     }
 
@@ -431,7 +431,7 @@ export class MediaContentDirectorService {
     );
     if (!selected.length) {
       throw new BadRequestException(
-        'Select at least one generated platform execution.',
+        "Select at least one generated platform execution.",
       );
     }
 
@@ -502,7 +502,7 @@ export class MediaContentDirectorService {
       item.key === candidate.key
         ? {
             ...item,
-            status: 'accepted' as const,
+            status: "accepted" as const,
             acceptedContentItemId: content._id.toString(),
           }
         : item,
@@ -528,9 +528,9 @@ export class MediaContentDirectorService {
     dto: RejectMediaDirectorCandidateDto = {},
   ) {
     const { run, candidate } = await this.getCandidate(runId, candidateKey);
-    if (candidate.acceptedContentItemId || candidate.status === 'accepted') {
+    if (candidate.acceptedContentItemId || candidate.status === "accepted") {
       throw new ConflictException(
-        'Accepted Media candidates cannot be rejected.',
+        "Accepted Media candidates cannot be rejected.",
       );
     }
     if (candidate.rejectedMemoryId) {
@@ -548,7 +548,7 @@ export class MediaContentDirectorService {
       audiences: candidate.audiences,
       generationRunId: run._id.toString(),
       rejectionReason:
-        dto.reason?.trim() || 'Rejected in HSAKAA Content Director',
+        dto.reason?.trim() || "Rejected in HSAKAA Content Director",
       metadata: {
         mediaDirectorCandidateKey: candidate.key,
         publications: candidate.publications.map((publication) => ({
@@ -563,7 +563,7 @@ export class MediaContentDirectorService {
       item.key === candidate.key
         ? {
             ...item,
-            status: 'rejected' as const,
+            status: "rejected" as const,
             rejectedMemoryId: memory._id.toString(),
           }
         : item,
@@ -602,22 +602,24 @@ export class MediaContentDirectorService {
     return this.aiService.generateStructuredResponse<{
       candidates: GeneratedCandidate[];
     }>({
-      name: 'hsakaa_media_director_candidates',
+      name: "hsakaa_media_director_candidates",
       instructions: [
-        'You are HSAKAA Content Director for Aakash. Generate distinct, specific content candidates designed to grow his real accounts.',
-        'Do not use generic motivational filler, invented achievements, invented metrics, invented quotes, or unsupported claims.',
-        'Each candidate must have a materially different thesis/angle/story structure, not merely different wording.',
-        `Create ${input.candidateCount} candidates. For each candidate create one tailored execution for every requested platform: ${input.platforms.join(', ')}.`,
-        'LinkedIn should favor founder authority, useful stories and clear thinking; Instagram should favor personality, visual storytelling and discovery; YouTube should favor depth/searchability or strong Shorts; X should favor concise ideas, sharp observations and conversations; WhatsApp should favor close-audience distribution and direct usefulness.',
-        'Platform variants must feel native to that platform rather than copy-paste adaptations.',
-        'A canonical content candidate is still a draft. Do not imply it is approved, scheduled or published.',
-        'Keep this ideation response compact. The Production Studio can expand accepted ideas later: canonicalBody <= 220 words, story <= 160 words, each caption/description <= 120 words, each script <= 220 words, hashtags <= 8, and slides <= 8 concise strings.',
-        'The strategy snapshot may include growthLearnings derived from measured historical performance. Treat high-confidence learnings as evidence, not rigid rules. Preserve novelty by rotating topics, examples, hooks and structures instead of mechanically repeating a winning pattern.',
-        'If a Media Presence Strategy is present, treat its north star, platform roles, narrative balance, reputation goals and Never Become guardrails as the durable strategy layer above this batch.',
-        'If an Aakash Voice Profile is present, follow its communication mechanisms and authenticity checks without mechanically copying signature phrases.',
-        'mediaWorldContext PUBLIC_SAFE items may ground factual content. INTERNAL_SAFE items may shape angle/priority but must not be exposed as facts. NEEDS_REVIEW items must not be used as public facts until owner approval.',
-        'Private-only details are intentionally excluded from Media generation. Never infer or reconstruct them.',
-      ].join('\n'),
+        "You are HSAKAA Content Director for Aakash. Generate distinct, specific content candidates designed to grow his real accounts.",
+        "Do not use generic motivational filler, invented achievements, invented metrics, invented quotes, or unsupported claims.",
+        "Each candidate must have a materially different thesis/angle/story structure, not merely different wording.",
+        `Create ${input.candidateCount} candidates. For each candidate create one tailored execution for every requested platform: ${input.platforms.join(", ")}.`,
+        "LinkedIn should favor founder authority, useful stories and clear thinking; Instagram should favor personality, visual storytelling and discovery; YouTube should favor depth/searchability or strong Shorts; X should favor concise ideas, sharp observations and conversations; WhatsApp should favor close-audience distribution and direct usefulness.",
+        "Platform variants must feel native to that platform rather than copy-paste adaptations.",
+        "A canonical content candidate is still a draft. Do not imply it is approved, scheduled or published.",
+        "Keep this ideation response compact. The Production Studio can expand accepted ideas later: canonicalBody <= 220 words, story <= 160 words, each caption/description <= 120 words, each script <= 220 words, hashtags <= 8, and slides <= 8 concise strings.",
+        "The strategy snapshot may include growthLearnings derived from measured historical performance. Treat high-confidence learnings as evidence, not rigid rules. Preserve novelty by rotating topics, examples, hooks and structures instead of mechanically repeating a winning pattern.",
+        "If a Media Presence Strategy is present, treat its north star, platform roles, narrative balance, reputation goals and Never Become guardrails as the durable strategy layer above this batch.",
+        "If an Aakash Voice Profile is present, follow its communication mechanisms and authenticity checks without mechanically copying signature phrases.",
+        "mediaWorldContext PUBLIC_SAFE items may ground factual content. INTERNAL_SAFE items may shape angle/priority but must not be exposed as facts. NEEDS_REVIEW items must not be used as public facts until owner approval.",
+        "HSAKAA Aid is a first-class content pillar when mediaWorldContext.hsakaaAid is present or hsakaa_aid is requested. Use only the supplied public program facts and aggregate/system-level learning. Never expose applicant PII, case transcripts, evidence, payment details or identifiable hardship. Never turn an applicant story into content without explicit recorded consent.",
+        "For HSAKAA Aid, prefer transparent builder content: why the program exists, how verification is designed, what the process is learning, aggregate monthly allocation/use once verified, and product/process improvements. Avoid saviour language, pity framing, manufactured emotional stories and unverified impact claims.",
+        "Private-only details are intentionally excluded from Media generation. Never infer or reconstruct them.",
+      ].join("\n"),
       input: JSON.stringify({
         brief: input.brief,
         purpose: input.purpose,
@@ -636,90 +638,90 @@ export class MediaContentDirectorService {
       // executions. The shared 2.4k default is intentionally too small for that
       // payload and can truncate otherwise-valid JSON. Keep reasoning low and
       // reserve the full structured-output budget for the draft content itself.
-      verbosity: 'medium',
-      reasoningEffort: 'low',
+      verbosity: "medium",
+      reasoningEffort: "low",
       maxOutputTokens: 12000,
       schema: {
-        type: 'object',
+        type: "object",
         properties: {
           candidates: {
-            type: 'array',
+            type: "array",
             minItems: 2,
             maxItems: 8,
             items: {
-              type: 'object',
+              type: "object",
               properties: {
-                title: { type: 'string' },
-                thesis: { type: 'string' },
-                whyNow: { type: 'string' },
-                canonicalBody: { type: 'string' },
-                story: { type: 'string' },
-                evidence: { type: 'array', items: { type: 'string' } },
-                contentPillars: { type: 'array', items: { type: 'string' } },
-                audiences: { type: 'array', items: { type: 'string' } },
+                title: { type: "string" },
+                thesis: { type: "string" },
+                whyNow: { type: "string" },
+                canonicalBody: { type: "string" },
+                story: { type: "string" },
+                evidence: { type: "array", items: { type: "string" } },
+                contentPillars: { type: "array", items: { type: "string" } },
+                audiences: { type: "array", items: { type: "string" } },
                 goals: {
-                  type: 'array',
-                  items: { type: 'string', enum: Object.values(MediaGoal) },
+                  type: "array",
+                  items: { type: "string", enum: Object.values(MediaGoal) },
                 },
-                rationale: { type: 'string' },
+                rationale: { type: "string" },
                 publications: {
-                  type: 'array',
+                  type: "array",
                   items: {
-                    type: 'object',
+                    type: "object",
                     properties: {
                       platform: {
-                        type: 'string',
+                        type: "string",
                         enum: Object.values(MediaPlatform),
                       },
                       format: {
-                        type: 'string',
+                        type: "string",
                         enum: Object.values(MediaPostType),
                       },
-                      title: { type: 'string' },
-                      hook: { type: 'string' },
-                      caption: { type: 'string' },
-                      script: { type: 'string' },
-                      description: { type: 'string' },
-                      cta: { type: 'string' },
-                      hashtags: { type: 'array', items: { type: 'string' } },
-                      slides: { type: 'array', items: { type: 'string' } },
-                      rationale: { type: 'string' },
+                      title: { type: "string" },
+                      hook: { type: "string" },
+                      caption: { type: "string" },
+                      script: { type: "string" },
+                      description: { type: "string" },
+                      cta: { type: "string" },
+                      hashtags: { type: "array", items: { type: "string" } },
+                      slides: { type: "array", items: { type: "string" } },
+                      rationale: { type: "string" },
                     },
                     required: [
-                      'platform',
-                      'format',
-                      'title',
-                      'hook',
-                      'caption',
-                      'script',
-                      'description',
-                      'cta',
-                      'hashtags',
-                      'slides',
-                      'rationale',
+                      "platform",
+                      "format",
+                      "title",
+                      "hook",
+                      "caption",
+                      "script",
+                      "description",
+                      "cta",
+                      "hashtags",
+                      "slides",
+                      "rationale",
                     ],
                     additionalProperties: false,
                   },
                 },
               },
               required: [
-                'title',
-                'thesis',
-                'whyNow',
-                'canonicalBody',
-                'story',
-                'evidence',
-                'contentPillars',
-                'audiences',
-                'goals',
-                'rationale',
-                'publications',
+                "title",
+                "thesis",
+                "whyNow",
+                "canonicalBody",
+                "story",
+                "evidence",
+                "contentPillars",
+                "audiences",
+                "goals",
+                "rationale",
+                "publications",
               ],
               additionalProperties: false,
             },
           },
         },
-        required: ['candidates'],
+        required: ["candidates"],
         additionalProperties: false,
       },
     });
@@ -784,14 +786,14 @@ export class MediaContentDirectorService {
         repetitionRisk: canonicalAnalysis.repetitionRisk,
         closestSimilarity: canonicalAnalysis.similarMatches[0]?.score ?? 0,
         internalSimilarity: 0,
-        status: blocked ? 'blocked' : 'generated',
+        status: blocked ? "blocked" : "generated",
         critic: {
           strategicFit: 50,
           platformFit: 50,
           specificity: 50,
           strengths: [],
-          risks: blocked ? ['Blocked by anti-repetition memory.'] : [],
-          improvement: '',
+          risks: blocked ? ["Blocked by anti-repetition memory."] : [],
+          improvement: "",
         },
         finalScore: blocked ? 0 : canonicalAnalysis.noveltyScore,
       });
@@ -809,9 +811,9 @@ export class MediaContentDirectorService {
       return await this.aiService.generateStructuredResponse<{
         reviews: CriticReview[];
       }>({
-        name: 'hsakaa_media_director_critic',
+        name: "hsakaa_media_director_critic",
         instructions:
-          'Act as a demanding content strategy editor. Score each candidate independently for strategic fit, native platform fit and specificity. Penalize generic founder advice, vague claims, interchangeable hooks and weak reasons to care. The anti-repetition decision supplied by the system is authoritative; do not override blocked candidates. Give practical improvements, not rewritten candidates.',
+          "Act as a demanding content strategy editor. Score each candidate independently for strategic fit, native platform fit and specificity. Penalize generic founder advice, vague claims, interchangeable hooks and weak reasons to care. The anti-repetition decision supplied by the system is authoritative; do not override blocked candidates. Give practical improvements, not rewritten candidates.",
         input: JSON.stringify({
           brief,
           strategySnapshot,
@@ -831,37 +833,37 @@ export class MediaContentDirectorService {
             })),
           })),
         }),
-        verbosity: 'medium',
+        verbosity: "medium",
         schema: {
-          type: 'object',
+          type: "object",
           properties: {
             reviews: {
-              type: 'array',
+              type: "array",
               items: {
-                type: 'object',
+                type: "object",
                 properties: {
-                  key: { type: 'string' },
-                  strategicFit: { type: 'integer', minimum: 0, maximum: 100 },
-                  platformFit: { type: 'integer', minimum: 0, maximum: 100 },
-                  specificity: { type: 'integer', minimum: 0, maximum: 100 },
-                  strengths: { type: 'array', items: { type: 'string' } },
-                  risks: { type: 'array', items: { type: 'string' } },
-                  improvement: { type: 'string' },
+                  key: { type: "string" },
+                  strategicFit: { type: "integer", minimum: 0, maximum: 100 },
+                  platformFit: { type: "integer", minimum: 0, maximum: 100 },
+                  specificity: { type: "integer", minimum: 0, maximum: 100 },
+                  strengths: { type: "array", items: { type: "string" } },
+                  risks: { type: "array", items: { type: "string" } },
+                  improvement: { type: "string" },
                 },
                 required: [
-                  'key',
-                  'strategicFit',
-                  'platformFit',
-                  'specificity',
-                  'strengths',
-                  'risks',
-                  'improvement',
+                  "key",
+                  "strategicFit",
+                  "platformFit",
+                  "specificity",
+                  "strengths",
+                  "risks",
+                  "improvement",
                 ],
                 additionalProperties: false,
               },
             },
           },
-          required: ['reviews'],
+          required: ["reviews"],
           additionalProperties: false,
         },
       });
@@ -875,11 +877,11 @@ export class MediaContentDirectorService {
             specificity: 70,
             strengths: [],
             risks: [],
-            improvement: '',
+            improvement: "",
           })),
         },
         model: this.aiService.getModel(),
-        responseId: 'critic-fallback',
+        responseId: "critic-fallback",
         usage: this.emptyUsage(),
       };
     }
@@ -897,11 +899,11 @@ export class MediaContentDirectorService {
         specificity: 60,
         strengths: [],
         risks: [],
-        improvement: '',
+        improvement: "",
       };
       const internalPenalty = Math.round(candidate.internalSimilarity * 25);
       const finalScore =
-        candidate.status === 'blocked'
+        candidate.status === "blocked"
           ? 0
           : Math.max(
               0,
@@ -939,10 +941,10 @@ export class MediaContentDirectorService {
         );
       }
       candidates[index].internalSimilarity = highest;
-      if (highest >= 0.9 && candidates[index].status === 'generated') {
-        candidates[index].status = 'blocked';
+      if (highest >= 0.9 && candidates[index].status === "generated") {
+        candidates[index].status = "blocked";
         candidates[index].critic.risks.push(
-          'Too similar to another candidate in the same generation batch.',
+          "Too similar to another candidate in the same generation batch.",
         );
       }
     }
@@ -953,14 +955,14 @@ export class MediaContentDirectorService {
     platforms: MediaPlatform[],
   ): Omit<
     MediaDirectorCandidate,
-    | 'key'
-    | 'noveltyScore'
-    | 'repetitionRisk'
-    | 'closestSimilarity'
-    | 'internalSimilarity'
-    | 'status'
-    | 'critic'
-    | 'finalScore'
+    | "key"
+    | "noveltyScore"
+    | "repetitionRisk"
+    | "closestSimilarity"
+    | "internalSimilarity"
+    | "status"
+    | "critic"
+    | "finalScore"
   > {
     const publications = platforms.map((platform) => {
       const found = raw.publications?.find(
@@ -977,37 +979,37 @@ export class MediaContentDirectorService {
         title: found?.title?.trim() || raw.title,
         hook: found?.hook?.trim() || raw.title,
         caption: found?.caption?.trim() || raw.canonicalBody,
-        script: found?.script?.trim() || '',
+        script: found?.script?.trim() || "",
         description: found?.description?.trim() || raw.thesis,
-        cta: found?.cta?.trim() || '',
+        cta: found?.cta?.trim() || "",
         hashtags: this.cleanStrings(found?.hashtags),
         slides: this.cleanStrings(found?.slides),
-        rationale: found?.rationale?.trim() || '',
+        rationale: found?.rationale?.trim() || "",
       };
     });
 
     return {
-      title: raw.title?.trim() || 'Untitled HSAKAA content candidate',
-      thesis: raw.thesis?.trim() || '',
-      whyNow: raw.whyNow?.trim() || '',
-      canonicalBody: raw.canonicalBody?.trim() || '',
-      story: raw.story?.trim() || '',
+      title: raw.title?.trim() || "Untitled HSAKAA content candidate",
+      thesis: raw.thesis?.trim() || "",
+      whyNow: raw.whyNow?.trim() || "",
+      canonicalBody: raw.canonicalBody?.trim() || "",
+      story: raw.story?.trim() || "",
       evidence: this.cleanStrings(raw.evidence),
       contentPillars: this.cleanStrings(raw.contentPillars),
       audiences: this.cleanStrings(raw.audiences),
       goals: (raw.goals ?? []).filter((goal) =>
         Object.values(MediaGoal).includes(goal),
       ),
-      rationale: raw.rationale?.trim() || '',
+      rationale: raw.rationale?.trim() || "",
       publications: publications as Omit<
         MediaDirectorPublicationDraft,
-        'noveltyScore' | 'repetitionRisk' | 'allowed' | 'closestSimilarity'
+        "noveltyScore" | "repetitionRisk" | "allowed" | "closestSimilarity"
       >[] as MediaDirectorPublicationDraft[],
     };
   }
 
   private buildStrategySnapshot(
-    accounts: Awaited<ReturnType<MediaCoreService['listAccounts']>>,
+    accounts: Awaited<ReturnType<MediaCoreService["listAccounts"]>>,
     platforms: MediaPlatform[],
     dto: GenerateMediaContentBatchDto,
   ) {
@@ -1055,7 +1057,7 @@ export class MediaContentDirectorService {
       };
     });
     return JSON.stringify({
-      userContext: dto.contextSummary ?? '',
+      userContext: dto.contextSummary ?? "",
       recentCanonicalContent: content,
       recentContentMemory: memory,
     });
@@ -1063,7 +1065,7 @@ export class MediaContentDirectorService {
 
   private resolvePlatforms(
     requested: MediaPlatform[] | undefined,
-    accounts: Awaited<ReturnType<MediaCoreService['listAccounts']>>,
+    accounts: Awaited<ReturnType<MediaCoreService["listAccounts"]>>,
   ) {
     if (requested?.length) return [...new Set(requested)];
     const configured = accounts
@@ -1075,13 +1077,13 @@ export class MediaContentDirectorService {
 
   private runStatus(candidates: MediaDirectorCandidate[]) {
     const accepted = candidates.filter(
-      (candidate) => candidate.status === 'accepted',
+      (candidate) => candidate.status === "accepted",
     ).length;
     const rejected = candidates.filter(
-      (candidate) => candidate.status === 'rejected',
+      (candidate) => candidate.status === "rejected",
     ).length;
     const actionable = candidates.filter(
-      (candidate) => candidate.status !== 'blocked',
+      (candidate) => candidate.status !== "blocked",
     ).length;
     if (actionable > 0 && accepted === actionable)
       return MediaGenerationRunStatus.ACCEPTED;
@@ -1104,7 +1106,7 @@ export class MediaContentDirectorService {
       candidate.thesis,
       candidate.canonicalBody,
       candidate.story,
-    ].join(' ');
+    ].join(" ");
   }
 
   private lexicalSimilarity(first: string, second: string) {
@@ -1121,7 +1123,7 @@ export class MediaContentDirectorService {
   private tokens(value: string) {
     return value
       .toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
       .map((token) => token.trim())
       .filter((token) => token.length > 2);
@@ -1135,12 +1137,12 @@ export class MediaContentDirectorService {
 
   private objectId(id: string) {
     if (!Types.ObjectId.isValid(id))
-      throw new BadRequestException('Invalid MongoDB identifier.');
+      throw new BadRequestException("Invalid MongoDB identifier.");
     return new Types.ObjectId(id);
   }
 
   private toRecord(value: unknown): Record<string, unknown> {
-    if (value && typeof value === 'object') {
+    if (value && typeof value === "object") {
       return value as Record<string, unknown>;
     }
     return {};

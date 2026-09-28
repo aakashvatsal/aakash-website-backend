@@ -14,6 +14,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DietModule } from './modules/diet/diet.module';
 import { HaircareModule } from './modules/haircare/haircare.module';
 import { HealthReportsModule } from './modules/health-reports/health-reports.module';
+import { FundModule } from './modules/fund/fund.module';
 import { HealthModule } from './modules/health/health.module';
 import { HobbiesModule } from './modules/hobbies/hobbies.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
@@ -68,6 +69,7 @@ import { UsersModule } from './modules/users/users.module';
     DietModule,
     SupplementsModule,
     HealthReportsModule,
+    FundModule,
     SkincareModule,
     HaircareModule,
     IntimateCareModule,
