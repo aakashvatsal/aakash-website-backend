@@ -169,20 +169,48 @@ export class FundService {
     const directIntent = isOpenCase
       ? 'apply'
       : this.classifyHsakaaFundIntent(params.message);
+    const confirmedApplication =
+      !isOpenCase &&
+      directIntent === 'none' &&
+      this.isHsakaaFundApplicationConfirmation(
+        params.message,
+        params.previousMessages ?? [],
+      );
     const isFundInfoFollowUp =
       !isOpenCase &&
+      !confirmedApplication &&
       directIntent === 'none' &&
       this.isHsakaaFundInfoFollowUp(
         params.message,
         params.previousMessages ?? [],
       );
-    const intent = isFundInfoFollowUp ? 'info' : directIntent;
+    const intent = confirmedApplication
+      ? 'apply'
+      : isFundInfoFollowUp
+        ? 'info'
+        : directIntent;
 
     if (intent === 'none') {
       return null;
     }
 
     const availability = this.getAvailability();
+
+    if (intent === 'confirm') {
+      return {
+        kind: 'info',
+        answer: availability.enabled
+          ? 'If you mean financial support through HSAKAA Aid, I can help with that. Is money the blocker for this situation?'
+          : 'If you mean financial support through HSAKAA Aid, I can explain how it works. The public program opens on October 1, 2026.',
+        fund: {
+          active: false,
+          startsAt: availability.startsAt,
+          monthlyAllocation: availability.monthlyAllocation,
+          humanApprovalRequired: true,
+          reviewTargetHours: availability.reviewTargetHours,
+        },
+      };
+    }
 
     if (intent === 'info') {
       return {
@@ -1310,7 +1338,9 @@ export class FundService {
     return `HF-${month}-${randomBytes(3).toString('hex').toUpperCase()}`;
   }
 
-  private classifyHsakaaFundIntent(message: string): 'apply' | 'info' | 'none' {
+  private classifyHsakaaFundIntent(
+    message: string,
+  ): 'apply' | 'info' | 'confirm' | 'none' {
     const text = message.trim().toLowerCase();
 
     const explicitFundTopic =
@@ -1321,6 +1351,10 @@ export class FundService {
       /\b(?:can'?t|cannot|unable\s+to|struggling\s+to)\s+(?:afford|pay|cover)\b/i;
     const helpWithExpense =
       /\b(?:help|support|assistance)\b.{0,80}\b(?:medical|hospital|medicine|treatment|fees?|school|college|rent|food|bill|bills|expense|expenses|emergency|surgery|test|tests|payment)\b/i;
+    const ambiguousSupportRequest =
+      /\b(?:i|we|my\s+family|our\s+family)\b.{0,70}\b(?:need|want|require|looking\s+for|asking\s+for)\b.{0,50}\b(?:help|support|assistance)\b/i;
+    const sensitiveNeedContext =
+      /\b(?:sick|sic|ill|unwell|hospital|doctor|medical|medicine|treatment|health|operation|surgery|test|tests|emergency)\b/i;
     const amountWithNeed =
       /\b(?:need|require|short\s+of|need\s+around)\b.{0,40}(?:₹\s*\d|rs\.?\s*\d|inr\s*\d|\d[\d,]*(?:\s*rupees?)?)/i;
 
@@ -1335,11 +1369,47 @@ export class FundService {
 
     if (explicitFundTopic.test(text)) {
       const applicationCue =
-        /\b(apply|application|need\s+help|need\s+support|want\s+help|request\s+help|can\s+you\s+help\s+me|i\s+need|we\s+need)\b/i;
+        /\b(apply|application|need\s+help|need\s+support|want\s+help|request\s+help|can\s+you\s+help\s+me|i\s+need|we\s+need|connect\s+me|switch\s+me|take\s+me|start\s+(?:an?\s+)?(?:aid|fund)\s+(?:case|request)|open\s+(?:an?\s+)?(?:aid|fund)\s+(?:case|request)|help\s+me\s+apply|let\s+me\s+apply|i\s+want\s+(?:to\s+use\s+)?(?:hsakaa\s+)?(?:aid|fund))\b/i;
       return applicationCue.test(text) ? 'apply' : 'info';
     }
 
+    if (ambiguousSupportRequest.test(text) && sensitiveNeedContext.test(text)) {
+      return 'confirm';
+    }
+
     return 'none';
+  }
+
+  private isHsakaaFundApplicationConfirmation(
+    message: string,
+    previousMessages: Array<{
+      role: 'user' | 'assistant';
+      content: string;
+      metadata?: Record<string, unknown>;
+    }>,
+  ) {
+    const text = message
+      .trim()
+      .toLowerCase()
+      .replace(/[?!.]+$/g, '')
+      .trim();
+
+    const confirms =
+      /^(?:yes|yeah|yep|yup|correct|exactly|yes\s+it\s+is|it\s+is|money\s+is\s+the\s+blocker|yes\s*,?\s*money\s+is\s+the\s+blocker|i\s+mean\s+financial\s+support|financial\s+support)$/i.test(
+        text,
+      );
+    if (!confirms) return false;
+
+    const lastAssistant = [...previousMessages]
+      .reverse()
+      .find((item) => item.role === 'assistant');
+    if (!lastAssistant || lastAssistant.metadata?.fundInfo !== true) {
+      return false;
+    }
+
+    return /\b(?:is\s+money\s+the\s+blocker|money\s+the\s+blocker|do\s+you\s+mean\s+financial\s+support|if\s+you\s+mean\s+financial\s+support|financial\s+support\s+through\s+hsakaa\s+aid)\b/i.test(
+      lastAssistant.content,
+    );
   }
 
   private isHsakaaFundInfoFollowUp(
@@ -1446,6 +1516,14 @@ export class FundService {
       )
     ) {
       return 'There is no predefined public cause list right now. If financial support could genuinely help your situation, explain what happened and what you need. The request must be understandable and verifiable before human review.';
+    }
+
+    if (
+      /\b(?:how\s+(?:do|can)\s+i|where\s+do\s+i)\s+(?:upload|attach|send)\s+(?:a\s+)?(?:document|documents|file|files|bill|evidence|photo|pdf)\b|\b(?:upload|attach)\s+(?:a\s+)?(?:document|file|bill|evidence|photo|pdf)\b/i.test(
+        text,
+      )
+    ) {
+      return 'Once your Aid case is active, use the Attach button beside the chat box to send a PDF or image. If you do not see Attach, tell me you need financial support or ask me to connect you to HSAKAA Aid so I can open the case first.';
     }
 
     if (
