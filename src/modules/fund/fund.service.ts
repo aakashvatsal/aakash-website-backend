@@ -176,19 +176,29 @@ export class FundService {
         params.message,
         params.previousMessages ?? [],
       );
+    const continuedApplication =
+      !isOpenCase &&
+      !confirmedApplication &&
+      directIntent === 'none' &&
+      this.isHsakaaFundApplicationContinuation(
+        params.message,
+        params.previousMessages ?? [],
+      );
     const isFundInfoFollowUp =
       !isOpenCase &&
       !confirmedApplication &&
+      !continuedApplication &&
       directIntent === 'none' &&
       this.isHsakaaFundInfoFollowUp(
         params.message,
         params.previousMessages ?? [],
       );
-    const intent = confirmedApplication
-      ? 'apply'
-      : isFundInfoFollowUp
-        ? 'info'
-        : directIntent;
+    const intent =
+      confirmedApplication || continuedApplication
+        ? 'apply'
+        : isFundInfoFollowUp
+          ? 'info'
+          : directIntent;
 
     if (intent === 'none') {
       return null;
@@ -1355,6 +1365,10 @@ export class FundService {
       /\b(?:i|we|my\s+family|our\s+family)\b.{0,70}\b(?:need|want|require|looking\s+for|asking\s+for)\b.{0,50}\b(?:help|support|assistance)\b/i;
     const sensitiveNeedContext =
       /\b(?:sick|sic|ill|unwell|hospital|doctor|medical|medicine|treatment|health|operation|surgery|test|tests|emergency)\b/i;
+    // These are routing signals only. They never act as eligibility rules or
+    // public HSAKAA Aid cause categories.
+    const materialAssistanceContext =
+      /\b(?:shelter|orphan(?:s|age)?|homeless(?:ness)?|rent|utilities?|groceries|food|tuition|school\s+fees?|college\s+fees?|education\s+fees?|hospital\s+bill|medical\s+bill|medicine|treatment|surgery|funeral|cremation|housing|accommodation|wheelchair|assistive\s+device|livelihood|job\s+loss|wages?|essential\s+expense|unpaid\s+bill)\b/i;
     const amountWithNeed =
       /\b(?:need|require|short\s+of|need\s+around)\b.{0,40}(?:₹\s*\d|rs\.?\s*\d|inr\s*\d|\d[\d,]*(?:\s*rupees?)?)/i;
 
@@ -1362,7 +1376,9 @@ export class FundService {
       directApplication.test(text) ||
       inabilityToPay.test(text) ||
       helpWithExpense.test(text) ||
-      amountWithNeed.test(text)
+      amountWithNeed.test(text) ||
+      (ambiguousSupportRequest.test(text) &&
+        materialAssistanceContext.test(text))
     ) {
       return 'apply';
     }
@@ -1409,6 +1425,64 @@ export class FundService {
 
     return /\b(?:is\s+money\s+the\s+blocker|money\s+the\s+blocker|do\s+you\s+mean\s+financial\s+support|if\s+you\s+mean\s+financial\s+support|financial\s+support\s+through\s+hsakaa\s+aid)\b/i.test(
       lastAssistant.content,
+    );
+  }
+
+  private isHsakaaFundApplicationContinuation(
+    message: string,
+    previousMessages: Array<{
+      role: 'user' | 'assistant';
+      content: string;
+      metadata?: Record<string, unknown>;
+    }>,
+  ) {
+    const text = message
+      .trim()
+      .toLowerCase()
+      .replace(/[?!.]+$/g, '')
+      .trim();
+
+    if (!text) return false;
+
+    const recentAssistant = [...previousMessages]
+      .reverse()
+      .find((item) => item.role === 'assistant');
+
+    if (!recentAssistant) return false;
+
+    const assistantText = recentAssistant.content.toLowerCase();
+    const offeredAid =
+      /\bhsakaa\s+aid\b/i.test(assistantText) &&
+      /\b(?:may\s+be\s+able\s+to\s+help|can\s+help|financial\s+support|money\s+(?:is|the)\s+blocker|exact\s+expense|expense\s+you\s+need\s+support|what\s+will\s+the\s+money\s+cover|what\s+would\s+the\s+payment\s+cover)\b/i.test(
+        assistantText,
+      );
+
+    if (!offeredAid) return false;
+
+    const isStandaloneAmount =
+      /^(?:(?:₹|rs\.?|inr)\s*)?\d[\d,]*(?:\.\d{1,2})?(?:\s*(?:rupees?|inr))?$/i.test(
+        text,
+      );
+    const isAffirmative =
+      /^(?:yes|yeah|yep|yup|correct|exactly|it\s+is|yes\s+please|please|i\s+do|we\s+do)$/i.test(
+        text,
+      );
+    const isApplicationDetail =
+      /\b(?:rent|bill|invoice|fees?|food|groceries|utilities?|shelter|hospital|medicine|treatment|school|college|tuition|housing|accommodation|payment|expense|unpaid|due|₹|rupees?|inr)\b/i.test(
+        text,
+      );
+    const asksForInformation =
+      /^(?:what|why|when|where|who|how|does|do|did|can|could|would|will|is|are|tell\s+me|explain)\b/i.test(
+        text,
+      );
+
+    // If HSAKAA itself has already offered Aid and asked for a concrete
+    // application detail, the next short answer should complete the handoff
+    // instead of falling back into the normal Aakash chat.
+    return (
+      isStandaloneAmount ||
+      isAffirmative ||
+      (isApplicationDetail && !asksForInformation)
     );
   }
 
