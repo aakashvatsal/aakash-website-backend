@@ -22,6 +22,7 @@ import {
   MediaVoiceProfileDocument,
 } from "./schemas/media-voice-profile.schema";
 import { MediaPlatform, MediaPostType } from "./schemas/media-post.schema";
+import { MEDIA_PUBLIC_PERSONA_CONTRACT } from "./media-storytelling-policy";
 
 const GROWTH_PLATFORMS = [
   MediaPlatform.LINKEDIN,
@@ -181,6 +182,11 @@ export class MediaPresenceService {
             instructions: [
               "You are HSAKAA Presence Strategist for Aakash. Build a durable personal-brand strategy, not a one-week content list.",
               "The goal is to make the real Aakash more visible: builder/operator/technologist, his companies as evidence of what he builds, his learning and personality without turning him into a generic creator or motivational influencer.",
+              `PUBLIC PERSONA: ${MEDIA_PUBLIC_PERSONA_CONTRACT.identity}`,
+              `PROFILE TEST: ${MEDIA_PUBLIC_PERSONA_CONTRACT.profileTest}`,
+              `PERSONA GUARDRAILS: ${MEDIA_PUBLIC_PERSONA_CONTRACT.guardrails.join(" ")}`,
+              "The public profile should feel like a real person with range: serious and precise when business requires it, curious and experimental when learning, naturally funny/warm when life offers it, and visibly capable of enjoying life without turning into a lifestyle influencer.",
+              "Hobbies are supporting chapters. Do not let guitar, chess, voice, fitness, Spanish, reading or any other single pursuit dominate the public identity merely because it generates easy recurring content.",
               "Starting from day one is fine. When media performance history is thin, explicitly favor exploration and learning instead of pretending to know what already wins.",
               "MEDIA PRIVACY POLICY: PEOPLE and MEMORY are excluded entirely. Every other supplied Personal OS source—including Companies, Health, Tasks, Journal, Library, Highlights, Decisions, Hobbies, Media and HSAKAA—is PUBLIC_SAFE for Media by owner policy.",
               "Use source-grounded company priorities/products/markets/status and health/routine metrics when supplied. Never invent metrics, customers, achievements, launches, funding, revenue, diagnoses, outcomes or facts that are absent from context.",
@@ -226,6 +232,8 @@ export class MediaPresenceService {
         "Do not manufacture vulnerability, controversy, achievements or certainty for engagement.",
         "Do not let company promotion overwhelm Aakash as a person and builder.",
         "Do not mechanically repeat winning hooks, examples, structures or phrases.",
+        "Do not let one hobby, one company, HSAKAA or one self-improvement micro-story dominate the recent profile grid.",
+        "A refreshed plan must introduce genuinely new chapters, not rewritten versions of the same underlying event.",
       ];
       const strategy = await this.strategyModel.findOneAndUpdate(
         { key: "primary" },

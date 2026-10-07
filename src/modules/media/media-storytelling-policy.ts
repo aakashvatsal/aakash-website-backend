@@ -1,4 +1,42 @@
-export const MEDIA_STORYTELLING_VERSION = "v4.3-actual-life-growth";
+export const MEDIA_STORYTELLING_VERSION = "v4.4-persona-diversity-cooldown";
+
+
+export const MEDIA_PUBLIC_PERSONA_CONTRACT = {
+  identity:
+    "Aakash should feel like a thoughtful builder/operator with real business depth who is also curious, funny, experimental and visibly enjoying a full life. The profile must never collapse into one company, one hobby, one AI topic or one self-improvement challenge.",
+  profileTest:
+    "A stranger scanning the latest 9-12 feed posts should understand that Aakash builds serious companies, thinks deeply, keeps learning, has hobbies and friendships with life, can be playful, and knows when to become serious about business.",
+  weeklySignals: {
+    founderOperator:
+      "Show at least one genuinely strong builder/operator/company decision, trade-off, problem or checkpoint when grounded evidence exists.",
+    ideasThinking:
+      "Show Aakash thinking, questioning or changing his mind without turning every idea into advice.",
+    buildingAakash:
+      "Show learning, practice or self-development only when there is a real new chapter, not a recycled micro-update.",
+    humanEnjoyingLife:
+      "Show at least one grounded moment whose main job is warmth, fun, taste, travel, humour, environment, friendship-with-life or ordinary enjoyment when evidence exists. It does not need a lesson.",
+  },
+  guardrails: [
+    "No single hobby should become the public identity. Hobbies are recurring supporting chapters, not the whole profile.",
+    "Do not turn every personal moment into a founder lesson or productivity metaphor.",
+    "Do not turn serious company work into lifestyle content. When the business moment is important, let Aakash be precise, operator-like and serious.",
+    "Fun means natural humour, curiosity, social warmth, travel, hobbies, dogs, food, environments and real reactions when grounded. Never manufacture antics or a creator persona.",
+    "The profile should feel inhabited and aspirational because Aakash is living an interesting life, not because every post is trying to prove that he is interesting.",
+  ],
+} as const;
+
+export const MEDIA_REPEAT_COOLDOWN_POLICY = {
+  exactEvidenceFeedCooldownDays: 21,
+  sameConceptFeedCooldownDays: 14,
+  broadConceptLookbackDays: 30,
+  rules: [
+    "Refreshing or regenerating content must produce a genuinely new chapter, not a paraphrase of an existing post.",
+    "The same evidence item should not power another primary feed post for 21 days unless a materially new source signal proves that the story changed.",
+    "A recurring hobby may appear in lightweight Stories between feed chapters, but a feed post requires a new event, milestone, failure, breakthrough, before/after comparison or meaningfully different question.",
+    "Micro-progress such as practising the same guitar chord transition is not a new feed story merely because the wording, camera angle or hook changes.",
+    "If there is no fresh grounded chapter, skip the slot or choose another part of Aakash's life instead of recycling.",
+  ],
+} as const;
 
 export const MEDIA_CURRENT_GROWTH_SEASON = {
   key: "growth-season-2026-09-21",
@@ -288,6 +326,11 @@ export function mediaStorytellingPromptPolicy() {
     `REAL EVENT CLASSIFICATION: when supported by evidence, classify moments mentally using ${MEDIA_STORY_EVENT_TYPES.join(", ")}. Never fabricate any of them. Never invent conflict, customer events, financial loss, emotional events, relationship details, health outcomes, milestones, travel events or conversations.`,
     "NARRATIVE DEBT: it is healthy to leave a genuine question unresolved and return to it later. Do not force a complete moral or business lesson into every post. A small failure may simply end with trying again tomorrow.",
     "AUDIENCE MEMORY: do not repeatedly re-introduce facts the audience has already been told. Use historical fingerprints, currentRollingWindow and archived plan memory to infer what has already been established. Advance the chapter instead of saying “I recently started…” every week.",
+    `PUBLIC PERSONA CONTRACT: ${MEDIA_PUBLIC_PERSONA_CONTRACT.identity} ${MEDIA_PUBLIC_PERSONA_CONTRACT.profileTest}`,
+    `PERSONA GUARDRAILS: ${MEDIA_PUBLIC_PERSONA_CONTRACT.guardrails.join(" ")}`,
+    `REPEAT COOLDOWN: ${MEDIA_REPEAT_COOLDOWN_POLICY.rules.join(" ")}`,
+    "REFRESH MEANS NEW CHAPTER: when a day/week is refreshed, do not regenerate the same subject with a different hook. If the underlying event, evidence, tension and payoff are substantially the same, treat it as already used and choose another grounded story or skip.",
+    "HOBBIES ARE TEXTURE, NOT IDENTITY: guitar, voice, chess, reading, Spanish, fitness and other recurring pursuits should make Aakash feel alive and multidimensional. Do not make one hobby the account. Minor repeated practice belongs in Stories; feed posts need a material new chapter.",
     "STORY FRAMEWORK ROTATION: vary structures across open-loop, expectation→attempt→failure→reaction→next attempt, transformation, in-medias-res, contradiction, observation, tiny human moment and documentary progression. Do not default every asset to Hook→Problem→Lesson→CTA.",
     "ONE TRUTH, NATIVE TREATMENTS: derivatives may share one grounded event but each platform must have a distinct audience job, opening, pacing, depth and payoff. Never merely resize or lightly rewrite the same post across platforms.",
     "ENGLISH ONLY: all publishable scripts, spoken dialogue, captions, overlays, carousel copy, titles, descriptions, X posts, WhatsApp copy and calls-to-action must be English. A non-English word may appear only when the subject itself requires it, for example a Spanish-learning example. Do not generate Hindi or Hinglish unless the per-asset input explicitly overrides this rule.",

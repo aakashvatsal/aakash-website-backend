@@ -31,6 +31,8 @@ import {
   MEDIA_CURRENT_GROWTH_SEASON,
   MEDIA_HEALTH_CONTENT_POLICY,
   MEDIA_PLATFORM_NATIVE_RULES,
+  MEDIA_PUBLIC_PERSONA_CONTRACT,
+  MEDIA_REPEAT_COOLDOWN_POLICY,
   MEDIA_RECURRING_CAST,
   MEDIA_SHOOTING_LIBRARY,
   MEDIA_STORY_SELECTION_DIMENSIONS,
@@ -217,6 +219,7 @@ type PlanningBlueprintRepairContext = {
   presenceStrategy: PlanningPresenceStrategy;
   validEvidence: Set<string>;
   mutableDates?: Set<string>;
+  historicalFingerprints?: PlanningMemory[];
 };
 
 type PlanningEvidenceCatalogEntry = {
@@ -559,12 +562,15 @@ export class MediaPlanningService {
         "maximize impressions/recommendation eligibility, qualified choice-to-view, shares/saves, completion/watch time and meaningful conversation where they predict follow-through",
         "optimize titles, thumbnails/covers and first-seconds packaging for strangers before asking existing followers to care",
         "use platform-native distribution rather than identical cross-posts",
+        "make the recent profile grid clearly communicate founder/operator depth, serious business judgment, curiosity, real learning, fun and an enjoyable full life rather than one repeated hobby or company theme",
+        "treat hobbies as supporting story chapters and only promote a hobby update to feed when there is a materially new event, failure, breakthrough, milestone or question",
       ],
       guardrails: [
         "no bought followers, engagement pods or artificial amplification",
         "no fake controversy, manufactured vulnerability or unrelated trend-chasing",
         "do not sacrifice Aakash voice, privacy or factual integrity for reach",
         "do not increase posting volume when quality or real context is missing",
+        "never regenerate the same underlying story just by changing the hook, wording, camera angle or format",
       ],
     };
   }
@@ -900,6 +906,8 @@ export class MediaPlanningService {
           storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
           shootingLibrary: MEDIA_SHOOTING_LIBRARY,
           weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+          publicPersonaContract: MEDIA_PUBLIC_PERSONA_CONTRACT,
+          repeatCooldownPolicy: MEDIA_REPEAT_COOLDOWN_POLICY,
         },
       };
       let blueprintResponse = await this.generateBlueprint(
@@ -920,6 +928,7 @@ export class MediaPlanningService {
           worldContext: presence.worldContext,
           presenceStrategy: presence.presenceStrategy,
           validEvidence,
+          historicalFingerprints: antiRepetitionFingerprints,
         },
       );
 
@@ -953,6 +962,7 @@ export class MediaPlanningService {
             worldContext: presence.worldContext,
             presenceStrategy: presence.presenceStrategy,
             validEvidence,
+            historicalFingerprints: antiRepetitionFingerprints,
           },
         );
         this.assertBlueprint(
@@ -1481,6 +1491,8 @@ export class MediaPlanningService {
           storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
           shootingLibrary: MEDIA_SHOOTING_LIBRARY,
           weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+          publicPersonaContract: MEDIA_PUBLIC_PERSONA_CONTRACT,
+          repeatCooldownPolicy: MEDIA_REPEAT_COOLDOWN_POLICY,
         },
       };
 
@@ -1519,6 +1531,7 @@ export class MediaPlanningService {
           presenceStrategy: presence.presenceStrategy,
           validEvidence,
           mutableDates: new Set([targetDate]),
+          historicalFingerprints: antiRepetitionFingerprints,
         },
       );
       blueprintResponse.data = this.applyRepairedSingleDayBlueprint(
@@ -1573,6 +1586,7 @@ export class MediaPlanningService {
             presenceStrategy: presence.presenceStrategy,
             validEvidence,
             mutableDates: new Set([targetDate]),
+            historicalFingerprints: antiRepetitionFingerprints,
           },
         );
         blueprintResponse.data = this.applyRepairedSingleDayBlueprint(
@@ -1703,6 +1717,8 @@ export class MediaPlanningService {
           storySelectionDimensions: MEDIA_STORY_SELECTION_DIMENSIONS,
           shootingLibrary: MEDIA_SHOOTING_LIBRARY,
           weeklyHumanityContract: MEDIA_WEEKLY_HUMANITY_CONTRACT,
+          publicPersonaContract: MEDIA_PUBLIC_PERSONA_CONTRACT,
+          repeatCooldownPolicy: MEDIA_REPEAT_COOLDOWN_POLICY,
         },
       };
       const posts = await this.generateReliableDayPosts({
@@ -2690,7 +2706,12 @@ export class MediaPlanningService {
       );
       this.assertNoInternalStrategyLeak(combined, item.platform, date);
       this.assertNoPlaceholderCopy(combined, item.platform, date);
-      this.assertHistoricalNovelty(combined, historicalFingerprints, item);
+      this.assertHistoricalNovelty(
+        combined,
+        historicalFingerprints,
+        item,
+        opportunity,
+      );
       for (const previous of weekCopies) {
         if (this.textSimilarity(combined, previous.text) >= 0.82) {
           throw new Error(
@@ -3045,6 +3066,11 @@ export class MediaPlanningService {
       "ACTUAL-LIFE FLOOR: storytellingPolicy.weeklyHumanityContract is a real planning constraint. When grounded routine/hobby/learning/human evidence exists, ensure the week contains at least two distinct actual-life feed clusters, including at least one Instagram feed cluster, plus at least three Instagram Story days grounded in whole-life signals. A HSAKAA privacy discussion about Health does NOT count as actual-life fitness content.",
       "FITNESS PLATFORM FIT: Instagram/YouTube may use gym/walk material for movement, documentary texture, human struggle and recurring progress. LinkedIn should use Health only when there is a genuinely professional story rather than a forced discipline analogy. Stories may use low-production gym/walk context freely when grounded and privacy-safe.",
       "PUBLIC IDENTITY: Aakash is the thoughtful builder who is deliberately building companies and himself. He should feel curious, analytical, ambitious, calm, human, experimental and slightly unconventional—not like a product-management instructor, AI influencer, motivational creator or lifestyle influencer.",
+      `PROFILE IDENTITY TEST: ${MEDIA_PUBLIC_PERSONA_CONTRACT.identity} ${MEDIA_PUBLIC_PERSONA_CONTRACT.profileTest}`,
+      `PROFILE GUARDRAILS: ${MEDIA_PUBLIC_PERSONA_CONTRACT.guardrails.join(" ")}`,
+      `CONTENT COOLDOWN: ${MEDIA_REPEAT_COOLDOWN_POLICY.rules.join(" ")}`,
+      "A recurring hobby is not automatically a recurring feed series. A guitar chord transition, chess mistake, voice drill, reading update or gym routine may return to feed only when the underlying chapter materially changed. Minor continuation belongs in Stories or should be skipped.",
+      "When refreshing a plan, the burden of novelty is higher: do not paraphrase the old plan. Choose a different grounded event, tension, identity dimension or platform job.",
       "For every opportunity set identityPillar for backward-compatible high-level identity AND strategyNarrativeKey copied exactly from presenceStrategy.narratives[].key. Also set a stable topicClusterKey: all derivatives of the same underlying idea/event must share one cluster key even across platforms. Set growthIntent to authority, discovery, conversion, affinity or conversation based on the primary growth job of the idea.",
       "Do not translate every personal signal into a professional framework. A chess moment may simply be about chess; a guitar/voice/fitness/reading moment may simply show the journey, struggle, taste or curiosity. Human_unfiltered content should usually contain no business analogy. Building_aakash should centre Aakash improving himself. Learning_experiments should centre the journey/progress/question before any generalized lesson.",
       "WHOLE-PERSONAL-OS CONTEXT: inspect every supplied Personal OS source across Tasks, Brain Dump, Journal, Library, Highlights, Decisions, Health, Hobbies, Media history, Companies and HSAKAA. PEOPLE and MEMORY are intentionally excluded from Media and must never be inferred, reconstructed or requested through another source. By owner policy, every other supplied Personal OS source is PUBLIC_SAFE Media context.",
@@ -3562,6 +3588,7 @@ export class MediaPlanningService {
       mutableDates,
       startDate,
       endDate,
+      historicalFingerprints = [],
     } = context;
     const wholeLifeSignals = worldContext.wholeLifeSignals ?? [];
 
@@ -3631,6 +3658,7 @@ export class MediaPlanningService {
         repaired,
         worldContext,
         mutableDates,
+        historicalFingerprints,
       );
       repaired = this.repairWholeLifeStoryBalance(
         repaired,
@@ -3668,10 +3696,16 @@ export class MediaPlanningService {
       repaired,
       worldContext,
       mutableDates,
+      historicalFingerprints,
     );
     repaired = this.repairWholeLifeStoryBalance(
       repaired,
       worldContext,
+      mutableDates,
+    );
+    repaired = this.repairHistoricalConceptSaturation(
+      repaired,
+      historicalFingerprints,
       mutableDates,
     );
     return repaired;
@@ -3812,6 +3846,7 @@ export class MediaPlanningService {
     blueprint: PlanningBlueprint,
     worldContext: PlanningWorldContext,
     mutableDates?: Set<string>,
+    historicalFingerprints: PlanningMemory[] = [],
   ): PlanningBlueprint {
     const repaired = this.cloneBlueprintForPortfolioRepair(blueprint);
     const signals = this.safeActualLifeSignals(worldContext);
@@ -3826,7 +3861,8 @@ export class MediaPlanningService {
       (item) =>
         item.usable &&
         item.privacy === "public_safe" &&
-        (item.evidenceIds ?? []).some((id) => signalIds.has(id)),
+        (item.evidenceIds ?? []).some((id) => signalIds.has(id)) &&
+        !this.historicalOpportunityRisk(item, historicalFingerprints),
     );
     if (!actualLifeOpportunities.length) return repaired;
 
@@ -3871,8 +3907,8 @@ export class MediaPlanningService {
         .filter((item) => !excludeClusters.has(item.topicClusterKey))
         .sort((left, right) => {
           const score = (item: (typeof actualLifeOpportunities)[number]) =>
-            (item.strategyNarrativeKey === "building_aakash" ? 50 : 0) +
-            (item.strategyNarrativeKey === "human_personality" ? 45 : 0) +
+            (item.strategyNarrativeKey === "human_personality" ? 60 : 0) +
+            (item.strategyNarrativeKey === "building_aakash" ? 35 : 0) +
             (item.growthIntent === "conversion" ? 35 : 0) +
             (item.novelty ?? 0) +
             (item.strategicFit ?? 0);
@@ -6215,6 +6251,127 @@ export class MediaPlanningService {
     return repaired;
   }
 
+  private repairHistoricalConceptSaturation(
+    blueprint: PlanningBlueprint,
+    historicalFingerprints: PlanningMemory[],
+    mutableDates?: Set<string>,
+  ): PlanningBlueprint {
+    if (!historicalFingerprints.length) return blueprint;
+    const repaired = this.cloneBlueprintForPortfolioRepair(blueprint);
+    const mutable = (date: string) => !mutableDates || mutableDates.has(date);
+    const byKey = new Map(
+      repaired.opportunities.map((item) => [item.key, item]),
+    );
+
+    const pillarCounts = () => {
+      const counts = new Map<MediaPublicIdentityPillar, number>();
+      const clusters = new Set<string>();
+      for (const day of repaired.days) {
+        for (const execution of day.executions) {
+          if (execution.action !== "post") continue;
+          const opportunity = byKey.get(execution.opportunityKey ?? "");
+          if (!opportunity || clusters.has(opportunity.topicClusterKey)) continue;
+          clusters.add(opportunity.topicClusterKey);
+          counts.set(
+            opportunity.identityPillar,
+            (counts.get(opportunity.identityPillar) ?? 0) + 1,
+          );
+        }
+      }
+      return counts;
+    };
+
+    for (const day of repaired.days) {
+      if (!mutable(day.date)) continue;
+      for (const execution of day.executions) {
+        if (execution.action !== "post") continue;
+        const current = byKey.get(execution.opportunityKey ?? "");
+        if (!current) continue;
+        const risk = this.historicalOpportunityRisk(
+          current,
+          historicalFingerprints,
+        );
+        if (!risk) continue;
+
+        const usedClusters = new Set(
+          repaired.days.flatMap((candidateDay) =>
+            candidateDay.executions
+              .filter((item) => item.action === "post")
+              .map(
+                (item) =>
+                  byKey.get(item.opportunityKey ?? "")?.topicClusterKey,
+              )
+              .filter((value): value is string => Boolean(value)),
+          ),
+        );
+        const counts = pillarCounts();
+        const replacement = repaired.opportunities
+          .filter((candidate) => {
+            if (candidate.key === current.key) return false;
+            if (!candidate.usable || candidate.privacy !== "public_safe") {
+              return false;
+            }
+            if (!candidate.evidenceIds?.length) return false;
+            if (usedClusters.has(candidate.topicClusterKey)) return false;
+            if (
+              this.historicalOpportunityRisk(
+                candidate,
+                historicalFingerprints,
+              )
+            ) {
+              return false;
+            }
+            return (
+              !candidate.platforms?.length ||
+              candidate.platforms.includes(execution.platform)
+            );
+          })
+          .sort((left, right) => {
+            const score = (
+              candidate: GeneratedPlan["opportunities"][number],
+            ) => {
+              const underrepresented =
+                4 - (counts.get(candidate.identityPillar) ?? 0);
+              const personaBonus =
+                candidate.identityPillar === "human_unfiltered"
+                  ? 18
+                  : candidate.identityPillar === "builder_operator"
+                    ? 16
+                    : candidate.identityPillar === "ideas_thinking"
+                      ? 12
+                      : 10;
+              return (
+                underrepresented * 12 +
+                personaBonus +
+                (candidate.growthIntent === "discovery" ? 12 : 0) +
+                (candidate.growthIntent === "conversion" ? 10 : 0) +
+                (candidate.novelty ?? 0) / 3 +
+                (candidate.strategicFit ?? 0) / 4
+              );
+            };
+            return score(right) - score(left);
+          })[0];
+
+        if (replacement) {
+          execution.opportunityKey = replacement.key;
+          execution.storyArcKey = "";
+          execution.reason =
+            `Historical concept cooldown replaced a repeated feed idea (${risk}) with a fresh grounded chapter so refresh does not become paraphrase.`;
+          continue;
+        }
+
+        execution.action = "skip";
+        execution.time = "";
+        execution.opportunityKey = "";
+        execution.storyArcKey = "";
+        execution.reason =
+          `Skipped instead of repeating an exhausted feed idea (${risk}). HSAKAA needs a materially new source event before this topic returns to feed.`;
+      }
+    }
+
+    return repaired;
+  }
+
   private applyRepairedSingleDayBlueprint(
     fresh: PlanningBlueprint,
     merged: PlanningBlueprint,
@@ -8127,6 +8284,7 @@ export class MediaPlanningService {
               combined,
               historicalFingerprints,
               item,
+              opportunity,
             );
           }
           for (const previous of weekCopies) {
@@ -8561,6 +8719,7 @@ export class MediaPlanningService {
     text: string,
     historicalFingerprints: PlanningMemory[],
     item: MediaPlanningExecution,
+    opportunity?: GeneratedPlan["opportunities"][number],
   ) {
     const currentTokens = this.tokens(text);
     for (const memory of historicalFingerprints) {
@@ -8572,12 +8731,105 @@ export class MediaPlanningService {
         text,
         typeof memory.normalizedText === "string" ? memory.normalizedText : "",
       );
-      if (Math.max(lexicalScore, normalizedScore) >= 0.86) {
+      if (Math.max(lexicalScore, normalizedScore) >= 0.82) {
         throw new Error(
           `Planned ${item.platform} copy is too close to historical Media memory ${String(memory._id)}; create a genuinely new angle/wording.`,
         );
       }
     }
+
+    if (opportunity) {
+      const conceptRisk = this.historicalOpportunityRisk(
+        opportunity,
+        historicalFingerprints,
+      );
+      if (conceptRisk) {
+        throw new Error(
+          `Planned ${item.platform} concept is historically exhausted (${conceptRisk}); choose a materially new event/chapter instead of rewriting it.`,
+        );
+      }
+    }
+  }
+
+  private historicalOpportunityRisk(
+    opportunity: GeneratedPlan["opportunities"][number],
+    historicalFingerprints: PlanningMemory[],
+  ) {
+    if (!historicalFingerprints.length) return "";
+    const now = Date.now();
+    const conceptTokens = this.tokens(
+      [
+        opportunity.title,
+        opportunity.thesis,
+        opportunity.whyNow,
+        opportunity.topicClusterKey,
+      ].join(" "),
+    );
+    const evidence = new Set(opportunity.evidenceIds ?? []);
+
+    for (const memory of historicalFingerprints) {
+      const record = memory as unknown as Record<string, unknown>;
+      const createdAtRaw = record.createdAt;
+      const createdAt =
+        createdAtRaw instanceof Date
+          ? createdAtRaw.getTime()
+          : typeof createdAtRaw === "string" ||
+              typeof createdAtRaw === "number"
+            ? new Date(createdAtRaw).getTime()
+            : NaN;
+      const ageDays = Number.isFinite(createdAt)
+        ? Math.max(0, (now - createdAt) / 86_400_000)
+        : 0;
+      if (ageDays > MEDIA_REPEAT_COOLDOWN_POLICY.broadConceptLookbackDays) {
+        continue;
+      }
+
+      const exampleKeys = Array.isArray(record.exampleKeys)
+        ? record.exampleKeys.filter(
+            (value): value is string => typeof value === "string",
+          )
+        : [];
+      const evidenceOverlap = exampleKeys.some((id) => evidence.has(id));
+      if (
+        evidenceOverlap &&
+        ageDays <= MEDIA_REPEAT_COOLDOWN_POLICY.exactEvidenceFeedCooldownDays
+      ) {
+        return `same source evidence reused inside ${MEDIA_REPEAT_COOLDOWN_POLICY.exactEvidenceFeedCooldownDays}-day feed cooldown`;
+      }
+
+      const memoryTopic =
+        typeof record.topic === "string" ? record.topic : "";
+      const exactTopic =
+        this.planningKeyFragment(memoryTopic) ===
+        this.planningKeyFragment(opportunity.topicClusterKey);
+      const memoryConceptTokens = this.tokens(
+        [
+          typeof record.title === "string" ? record.title : "",
+          memoryTopic,
+          typeof record.thesis === "string" ? record.thesis : "",
+          typeof record.angle === "string" ? record.angle : "",
+        ].join(" "),
+      );
+      const conceptSimilarity = this.jaccard(
+        conceptTokens,
+        memoryConceptTokens,
+      );
+
+      if (
+        ageDays <= MEDIA_REPEAT_COOLDOWN_POLICY.sameConceptFeedCooldownDays &&
+        exactTopic &&
+        conceptSimilarity >= 0.5
+      ) {
+        return `same topic chapter repeated inside ${MEDIA_REPEAT_COOLDOWN_POLICY.sameConceptFeedCooldownDays}-day cooldown`;
+      }
+      if (
+        ageDays <= MEDIA_REPEAT_COOLDOWN_POLICY.broadConceptLookbackDays &&
+        conceptSimilarity >= 0.78
+      ) {
+        return `underlying thesis/angle is ${Math.round(conceptSimilarity * 100)}% similar to recent planned content`;
+      }
+    }
+    return "";
   }
 
   private textSimilarity(a: string, b: string) {
