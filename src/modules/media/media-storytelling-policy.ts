@@ -1,4 +1,4 @@
-export const MEDIA_STORYTELLING_VERSION = "v4.4-persona-diversity-cooldown";
+export const MEDIA_STORYTELLING_VERSION = "v4.5-series-public-figure";
 
 
 export const MEDIA_PUBLIC_PERSONA_CONTRACT = {
@@ -320,6 +320,7 @@ export const MEDIA_SHOOTING_LIBRARY = [
 
 export function mediaStorytellingPromptPolicy() {
   return [
+    `ACTIVE SERIES / FORMAT QUOTAS: ${JSON.stringify(MEDIA_SERIES_CREATOR_POLICY)}; weekly quotas are hard floors, series are a maximum of six total, format-specific minimums must be met.`,
     `STORY ENGINE ${MEDIA_STORYTELLING_VERSION}: do not plan isolated posts. Treat Aakash's public presence as an ongoing story whose chapters are his real building, learning, attempts, failures, successes, uncertainty, travel and changing views.`,
     "NARRATIVE GOAL: make people root for Aakash, not admire a manufactured perfect version of him. The public character is a thoughtful builder who repeatedly becomes a beginner, documents the process and stays useful without turning every moment into a lesson.",
     "STORY FIRST: before selecting a format, identify the real event, current tension, what the audience already knows, what is new now, what remains unresolved and what the next believable chapter could be. A post should advance a story, begin a new grounded story, or deliberately provide lightweight human presence.",
@@ -354,3 +355,30 @@ export function mediaStorytellingPromptPolicy() {
     "WEEKLY ACTUAL-LIFE CHECK: when grounded routine/hobby/learning/human evidence exists, the final seven-day plan must contain enough actual life to feel inhabited. Aim for at least two distinct actual-life feed clusters, at least one on Instagram, and at least three Story days grounded in whole-life signals. Do not satisfy this with another HSAKAA/health-privacy analysis; the content must show Aakash actually doing, attempting, moving, reading, practising, walking, training, travelling/preparing, reacting or living.",
   ].join("\n");
 }
+
+
+/** Active creative portfolio. HSAKAA must not silently introduce a seventh series. */
+export const MEDIA_SERIES_CREATOR_POLICY = {
+  maxActive: 6,
+  active: [
+    { key: "me-vs-me", name: "Me vs Me", channels: ["instagram", "youtube"], angle: "Internal dialogue between impulsive and thoughtful Aakash; wit first, useful realization second, not sketches or comedian persona." },
+    { key: "learning-at-30", name: "Learning at 30", channels: ["instagram", "youtube", "linkedin"], angle: "Real attempts and change over time in chess, guitar, Spanish, storytelling, reading and voice. Show real failure, evidence and progress; never fabricated milestones." },
+    { key: "life-without-work", name: "My Life Without Work", channels: ["instagram", "youtube"], angle: "Joy, people, places, food, hobbies, ordinary afternoons, style and surprising discoveries without turning them into hustle lessons." },
+    { key: "dogs-and-me", name: "Dogs & Me", channels: ["instagram", "youtube"], angle: "Authentic encounters or existing dog footage only; no invented pet ownership, footage or incidents." },
+    { key: "founder-unfiltered", name: "Founder, Unfiltered", channels: ["linkedin", "x", "youtube", "instagram"], angle: "One concrete real decision or trade-off from 8lete, Frayto or building HSAKAA, with privacy and confidential-company boundaries." },
+    { key: "things-i-changed-my-mind-about", name: "I Changed My Mind", channels: ["linkedin", "x", "instagram", "youtube"], angle: "An evidence-backed old belief, triggering event and new belief; avoid manufactured contrarian opinions." },
+  ],
+  bench: [
+    { key: "small-adventures", name: "Small Adventures", channels: ["instagram", "youtube"], angle: "Real outings, nearby discoveries and unusual experiences, with genuine footage and natural humor." },
+    { key: "one-week-experiments", name: "One-Week Experiments", channels: ["instagram", "youtube", "linkedin"], angle: "A real personal or founder experiment with what changed after one week; no invented results." },
+    { key: "questions-i-cant-shake", name: "Questions I Can't Shake", channels: ["linkedin", "x", "instagram"], angle: "Thoughtful real questions from building and everyday life, not contrarian bait or lecture threads." },
+  ],
+  weeklyMinimums: { instagram: { total: 4, reel: 3, carousel: 1 }, youtube: { total: 4, video: 1, short: 3 }, linkedin: { total: 5 }, x: { total: 4 } },
+  guidance: [
+    "Each primary platform POST must be assigned to exactly one active series, with seriesKey carried through to generated content metadata and analytics.",
+    "Plan for a public figure: natural, lively, optimistic, curious, ambitious, fun, intelligent. Warm wit, not stand-up, preachy motivation, performative hustle or fake outrage.",
+    "Use trend signals only if time-stamped, attributed and genuinely relevant to an active series; no fabricated trending sounds or engagement claims; trends never override evidence and privacy.",
+    "Track previously published and already planned stories across channels. One underlying event cannot be presented as new content; make a genuinely new update, not just a changed hook.",
+    "Do not activate a seventh series until an existing series is paused or retired. Review series after at least 4 published posts and 14 days; compare per-platform retention, saves/shares and follower conversion with platform baselines, with missing metrics shown as unknown.",
+  ],
+} as const;

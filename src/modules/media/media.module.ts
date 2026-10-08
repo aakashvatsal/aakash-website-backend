@@ -1,4 +1,9 @@
 import { Module } from '@nestjs/common';
+import { MediaSeriesController } from './media-series.controller';
+import { MediaSeriesService } from './media-series.service';
+import { MediaSeriesScheduler } from './media-series.scheduler';
+import { HsakaaOwnerSessionGuard } from '../../hsakaa/guards/hsakaa-owner-session.guard';
+import { MediaSeries, MediaSeriesSchema } from './schemas/media-series.schema';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ConfigModule } from '@nestjs/config';
 
@@ -201,6 +206,7 @@ import {
       { name: MediaAsset.name, schema: MediaAssetSchema },
       { name: MediaCalendarSlot.name, schema: MediaCalendarSlotSchema },
       { name: MediaContentItem.name, schema: MediaContentItemSchema },
+      { name: MediaSeries.name, schema: MediaSeriesSchema },
       { name: MediaContentMemory.name, schema: MediaContentMemorySchema },
       { name: MediaGenerationRun.name, schema: MediaGenerationRunSchema },
       { name: MediaPost.name, schema: MediaPostSchema },
@@ -221,12 +227,16 @@ import {
     ]),
   ],
   controllers: [
+    MediaSeriesController,
     MediaCoreController,
     MediaEngagementController,
     MediaEngagementWebhookController,
     MediaController,
   ],
   providers: [
+    HsakaaOwnerSessionGuard,
+    MediaSeriesService,
+    MediaSeriesScheduler,
     MediaCoreService,
     MediaWorldContextService,
     MediaPresenceService,
@@ -263,6 +273,7 @@ import {
     MediaAnalyticsService,
   ],
   exports: [
+    MediaSeriesService,
     MediaCoreService,
     MediaWorldContextService,
     MediaPresenceService,

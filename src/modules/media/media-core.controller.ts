@@ -838,6 +838,10 @@ export class MediaCoreController {
     return this.planningService.archive(days ? Number(days) : 90);
   }
 
+  @Post("planning/improve-editorial") improveEditorialQuality() {
+    return this.planningService.improveEditorialQuality();
+  }
+
   @Post("planning/generate-async") startPlanningGeneration(
     @Body() dto: GenerateMediaPlanningCycleDto,
   ) {

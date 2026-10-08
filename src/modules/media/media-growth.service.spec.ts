@@ -208,9 +208,8 @@ describe('MediaGrowthService', () => {
     const overview = await service.lifecycleOverview(100);
 
     expect(overview.due.map((item) => item.period)).toEqual([
-      MetricSnapshotPeriod.TWENTY_FOUR_HOURS,
-      MetricSnapshotPeriod.SEVENTY_TWO_HOURS,
-      MetricSnapshotPeriod.SEVEN_DAYS,
+      MetricSnapshotPeriod.FORTY_EIGHT_HOURS,
+      MetricSnapshotPeriod.NINETY_SIX_HOURS,
     ]);
     expect(overview.due.map((item) => item.period)).not.toContain(
       MetricSnapshotPeriod.ONE_HOUR,

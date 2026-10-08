@@ -173,6 +173,8 @@ export class AiService {
     schema: Record<string, unknown>;
     instructions: string;
     input: string;
+    /** Override only for this generation; leave HSAKAA chat/global model unchanged. */
+    model?: string;
     verbosity?: 'low' | 'medium' | 'high';
     reasoningEffort?: ReasoningEffort;
     maxOutputTokens?: number;
@@ -187,7 +189,7 @@ export class AiService {
     );
 
     const response = await this.openai.responses.create({
-      model: this.model,
+      model: params.model || this.model,
       instructions: params.instructions,
       input: params.input,
       text: {

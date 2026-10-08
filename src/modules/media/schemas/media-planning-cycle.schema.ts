@@ -201,6 +201,27 @@ export class MediaPlanningExecution {
   @Prop({ required: true, trim: true }) formatIntent: string;
   @Prop({ trim: true }) opportunityKey?: string;
   @Prop({ trim: true }) storyArcKey?: string;
+  @Prop({ trim: true }) seriesKey?: string;
+  @Prop({ trim: true }) seriesName?: string;
+  @Prop({ trim: true }) editorialFingerprint?: string;
+  @Prop({ min: 0, max: 10, default: 0 }) editorialScore?: number;
+  @Prop({ type: [String], default: [] }) editorialIssues?: string[];
+  @Prop({ trim: true }) editorialVersion?: string;
+  // Independent editorial critic: separate from the author's structural preflight.
+  @Prop({ min: 0, max: 10 }) qualityScore?: number;
+  @Prop({ type: String, enum: ['pass', 'revise', 'evidence_needed'] }) qualityVerdict?: 'pass' | 'revise' | 'evidence_needed';
+  @Prop({ type: Object, default: {} }) qualityDimensions?: Record<string, number>;
+  @Prop({ type: [String], default: [] }) qualityIssues?: string[];
+  @Prop({ min: 0, default: 0 }) qualityRevisionCount?: number;
+
+  @Prop({ type: [String], default: [] }) storyBeats?: string[];
+  @Prop({ trim: true }) storyPayoff?: string;
+
+  @Prop({ type: String, enum: ['verified', 'not_verified'], default: 'not_verified' }) trendStatus?: 'verified' | 'not_verified';
+  @Prop({ trim: true }) trendTitle?: string;
+  @Prop({ trim: true }) trendSource?: string;
+  @Prop({ trim: true }) trendUrl?: string;
+  @Prop({ trim: true }) trendPublishedAt?: string;
   @Prop({ required: true, trim: true }) reason: string;
   @Prop({ required: true, trim: true }) whyThisFormat: string;
   @Prop({ required: true, trim: true }) whyThisTime: string;

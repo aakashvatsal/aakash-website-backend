@@ -36,6 +36,8 @@ import {
   MediaPostStatus,
 } from "./schemas/media-post.schema";
 
+import { MediaSeriesService } from "./media-series.service";
+
 type LegacyMediaPostRecord = MediaPost & { _id: Types.ObjectId };
 
 @Injectable()
@@ -51,6 +53,7 @@ export class MediaCoreService {
     private readonly assetModel: Model<MediaAssetDocument>,
     @InjectModel(MediaPost.name)
     private readonly legacyModel: Model<MediaPostDocument>,
+    private readonly seriesService: MediaSeriesService,
   ) {}
 
   async overview() {
@@ -163,7 +166,8 @@ export class MediaCoreService {
       .limit(100)
       .lean();
   }
-  createContent(dto: CreateMediaContentItemDto) {
+  async createContent(dto: CreateMediaContentItemDto) {
+    const seriesKey = await this.seriesService.resolveSeries(dto.title, `${dto.thesis || ""} ${dto.story || ""} ${dto.canonicalBody || ""}`, dto.metadata?.seriesKey);
     return this.contentModel.create({
       ...dto,
       companyId: dto.companyId ? new Types.ObjectId(dto.companyId) : undefined,
@@ -172,7 +176,7 @@ export class MediaCoreService {
       generationRunId: dto.generationRunId
         ? new Types.ObjectId(dto.generationRunId)
         : undefined,
-      metadata: dto.metadata ?? {},
+      metadata: { ...(dto.metadata ?? {}), ...(seriesKey ? { seriesKey } : {}) },
     });
   }
   async createManualEntry(dto: CreateManualMediaEntryDto) {
@@ -187,6 +191,7 @@ export class MediaCoreService {
     }
 
     const publishedAt = new Date(dto.publishedAt);
+    const seriesKey = await this.seriesService.resolveSeries(dto.title, `${dto.thesis || ""} ${dto.story || ""} ${dto.canonicalBody || ""}`);
     const contentItem = await this.contentModel.create({
       title: dto.title.trim(),
       thesis: dto.thesis?.trim() || undefined,
@@ -206,6 +211,7 @@ export class MediaCoreService {
       metadata: {
         manualEntry: true,
         analyticsFirst: true,
+        ...(seriesKey ? { seriesKey } : {}),
       },
     });
 
@@ -232,6 +238,7 @@ export class MediaCoreService {
       metadata: {
         manualEntry: true,
         analyticsFirst: true,
+        ...(seriesKey ? { seriesKey } : {}),
       },
     });
 

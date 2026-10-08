@@ -631,8 +631,8 @@ export class MediaLearningService {
             : undefined,
         automaticSpend: false,
       },
-      changes: analysis.changeRecommendations.slice(0, 5),
-      repurposeIdeas: analysis.repurposeIdeas.slice(0, 4),
+      changes: (analysis.changeRecommendations ?? []).slice(0, 5),
+      repurposeIdeas: (analysis.repurposeIdeas ?? []).slice(0, 4),
       nextExperiment: analysis.nextExperiment,
     };
   }

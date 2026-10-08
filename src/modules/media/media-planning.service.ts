@@ -13,6 +13,12 @@ import { MediaGrowthService } from "./media-growth.service";
 import { MediaLearningService } from "./media-learning.service";
 import { MediaLaunchService } from "./media-launch.service";
 import { MediaPresenceService } from "./media-presence.service";
+import { MediaSeriesService } from "./media-series.service";
+import { evaluateMediaCreatorQuota, MEDIA_CREATOR_WEEKLY_MINIMUMS } from "./media-creator-quota";
+import { authoredCreatorFallback, completeCreatorCopy } from "./media-creator-asset-fallback";
+import { reviewCreatorEditorial } from "./media-creator-editorial";
+import { auditCreatorWeek, creatorPublicBody, reviewCreatorQuality } from "./media-editorial-critic";
+import { DEFAULT_CREATOR_SERIES, CreatorSeries, editorialTextKey, matchVerifiedCreatorTrend, selectCreatorSeries } from "./media-creator-tags";
 import { MediaSocialPresenceService } from "./media-social-presence.service";
 import { MediaStrategyAdaptationService } from "./media-strategy-adaptation.service";
 import {
@@ -266,6 +272,9 @@ export type MediaPlanningProgressUpdate = {
     calls: number;
     failedCalls: number;
     retriedCalls: number;
+    estimatedCostUsd?: number;
+    budgetLimited?: boolean;
+    estimatedInputTokens?: number;
   };
   partialPlan?: Partial<GeneratedPlan> | null;
 };
@@ -292,6 +301,7 @@ export class MediaPlanningService {
     private readonly launchService: MediaLaunchService,
     private readonly contentIntelligenceService: MediaContentIntelligenceService,
     private readonly socialPresenceService: MediaSocialPresenceService,
+    private readonly seriesService: MediaSeriesService,
   ) {}
 
   async overview() {
@@ -314,6 +324,9 @@ export class MediaPlanningService {
       this.calendarService.overview(),
       this.socialPresenceService.overview(),
     ]);
+    // Last seven *India calendar days* (including today), not an arbitrary 168h slice.
+    // The separate upcoming queue is not mistaken for published content.
+    const publishingHistory = await this.creatorPublicationHistory();
     const strategy = presence.strategy ?? null;
     const cadence = this.planningCadence(strategy);
     const growthObjective = this.growthObjective(socialPresence);
@@ -361,6 +374,12 @@ export class MediaPlanningService {
       generatedAt: new Date().toISOString(),
       latest: displayLatest,
       stalePlanDetected: Boolean(latest && !latestMatchesStrategy),
+      creatorQuota: {
+        rollingPlan: this.requiredCreatorQuota(liveDays),
+        rollingReadiness: this.creatorQuotaReadiness(liveDays),
+        previousSevenDaysPublished: publishingHistory.previousSevenDaysPublished,
+        upcomingSevenDaysScheduled: publishingHistory.upcomingSevenDaysScheduled,
+      },
       presenceReady: Boolean(presence.strategy && presence.voice),
       calendarCoverage: calendar.coverage,
       rolling: {
@@ -449,6 +468,54 @@ export class MediaPlanningService {
     };
   }
 
+  /** All seven days are evaluated, including dates which already have content. */
+  private requiredCreatorQuota(days: Array<{ executions?: Array<{ action: string; platform: MediaPlatform; format?: MediaPostType }> }>) {
+    return evaluateMediaCreatorQuota(days.flatMap(day => day.executions ?? []));
+  }
+
+  /** Query real publication records before regeneration: include manual completions. */
+  private async creatorPublicationHistory() {
+    const today = this.rollingStartDate();
+    const pastStart = this.addDays(today, -6);
+    const futureEnd = this.addDays(today, 6);
+    const cutoff = new Date(Date.now() - 9 * 86400000);
+    const records = await this.publicationModel.find({
+      isActive: true,
+      $or: [
+        { publishedAt: { $gte: cutoff } },
+        { manualPublishCompletedAt: { $gte: cutoff } },
+        { scheduledAt: { $gte: cutoff } },
+      ],
+    }).select('platform format title deliveryStatus publishedAt manualPublishCompletedAt scheduledAt')
+      .sort({ createdAt: -1 }).limit(1500).lean();
+    const published = records.filter(record => {
+      if (record.deliveryStatus !== MediaDeliveryStatus.PUBLISHED) return false;
+      const at = record.publishedAt ?? record.manualPublishCompletedAt;
+      if (!at) return false;
+      const date = this.localDate(at);
+      return date >= pastStart && date <= today;
+    });
+    const upcoming = records.filter(record => {
+      if (![MediaDeliveryStatus.SCHEDULED, MediaDeliveryStatus.PUBLISHING].includes(record.deliveryStatus)) return false;
+      if (!record.scheduledAt) return false;
+      const date = this.localDate(record.scheduledAt);
+      return date >= today && date <= futureEnd;
+    });
+    const summarize = (items: typeof records, startDate: string, endDate: string) => ({
+      startDate, endDate,
+      count: items.length,
+      ...evaluateMediaCreatorQuota(items),
+      recentTitles: items.slice(0, 60).map(row => ({
+        title: row.title, platform: row.platform, format: row.format,
+      })),
+    });
+    return {
+      previousSevenDaysPublished: summarize(published, pastStart, today),
+      upcomingSevenDaysScheduled: summarize(upcoming, today, futureEnd),
+      note: 'Published records and scheduled records are separate; generated plans are not proof of publication. Each record is counted once.',
+    };
+  }
+
   private planningCadence(
     strategy:
       | {
@@ -467,24 +534,24 @@ export class MediaPlanningService {
       { min: number; preferred: number; max: number; label: string }
     > = {
       [MediaPlatform.LINKEDIN]: {
-        min: 2,
-        preferred: 3,
-        max: 4,
+        min: 5,
+        preferred: 5,
+        max: 7,
         label: "LinkedIn",
       },
       [MediaPlatform.INSTAGRAM]: {
-        min: 2,
-        preferred: 3,
-        max: 4,
+        min: 4,
+        preferred: 4,
+        max: 7,
         label: "Instagram",
       },
       [MediaPlatform.YOUTUBE]: {
-        min: 1,
-        preferred: 2,
-        max: 2,
+        min: 4,
+        preferred: 4,
+        max: 7,
         label: "YouTube",
       },
-      [MediaPlatform.X]: { min: 2, preferred: 4, max: 7, label: "X" },
+      [MediaPlatform.X]: { min: 4, preferred: 4, max: 7, label: "X" },
       [MediaPlatform.WHATSAPP]: {
         min: 0,
         preferred: 1,
@@ -504,11 +571,23 @@ export class MediaPlanningService {
             : role.platform.charAt(0).toUpperCase() + role.platform.slice(1),
       };
     }
+    // Creator season: a strategy document may increase but never undercut floors.
+    for (const [platform, floor] of [
+      [MediaPlatform.INSTAGRAM, 4],
+      [MediaPlatform.YOUTUBE, 4],
+      [MediaPlatform.LINKEDIN, 5],
+      [MediaPlatform.X, 4],
+    ] as const) {
+      const target = defaults[platform];
+      target.min = Math.max(target.min, floor);
+      target.preferred = Math.max(target.preferred, target.min);
+      target.max = Math.max(target.max, target.preferred);
+    }
     const youtube = defaults[MediaPlatform.YOUTUBE];
     return {
-      longFormVideos: Math.max(1, Math.min(2, youtube.max || 2)),
-      shortFormAndCarouselsMin: 5,
-      shortFormAndCarouselsMax: 6,
+      longFormVideos: 1,
+      shortFormAndCarouselsMin: 7,
+      shortFormAndCarouselsMax: 14,
       instagramStories: 7,
       youtubeCommunityMin: 3,
       youtubeCommunityMax: 5,
@@ -756,8 +835,45 @@ export class MediaPlanningService {
     const ensureMissingDates = ensureMode
       ? expectedDates.filter((date) => !ensureExistingDates.has(date))
       : expectedDates;
-    if (ensureMode && ensureBase && ensureMissingDates.length === 0) {
-      return ensureBase;
+    if (ensureMode && ensureBase) {
+      const existingDays = (ensureBase.days ?? []).filter(day => expectedDates.includes(day.date));
+      const existingQuota = this.creatorQuotaReadiness(existingDays);
+      const editorialCurrent = existingDays.every(day => day.executions.every(post => {
+        if (post.action === 'skip') return true;
+        if (!post.seriesKey || post.seriesKey === 'unassigned') return false;
+        if (post.qualityVerdict !== 'pass') return false;
+        return reviewCreatorEditorial(post).score >= 8 &&
+          !/I do not think the answer is to pretend everything is simple|The practical difference is not always a bigger push|That is not a victory speech/i.test(post.videoPack?.fullScript || post.publishCopy);
+      }));
+      if (ensureMissingDates.length === 0 && existingQuota.authored.complete && editorialCurrent) return ensureBase;
+      // Missing-days-only must NOT invoke the full expensive AI weekly engine.
+      // Reuse all existing posts and add only absent days/formats as marked drafts.
+      const history = await this.creatorHistoricalEditorialTitles(startDate);
+      const repaired = this.recoverCreatorCalendar(startDate, endDate,
+        ensureBase.learningStage, {
+          startDate, endDate, timezone: TZ,
+          learningStage: ensureBase.learningStage,
+          summary: ensureBase.summary,
+          opportunities: ensureBase.opportunities ?? [],
+          storyArcs: ensureBase.storyArcs ?? [],
+          days: existingDays,
+        }, history, await this.creatorActivePortfolio());
+      await this.tagCreatorEditorial(repaired);
+      return this.planModel.findOneAndUpdate(
+        { key: `${ensureBase.key}:quota:${startDate}` },
+        { $set: {
+          key: `${ensureBase.key}:quota:${startDate}`,
+          ...repaired, startDate, endDate, timezone: TZ,
+          strategyFingerprint: ensureBase.strategyFingerprint,
+          contextFingerprint: ensureBase.contextFingerprint,
+          aiModel: ensureBase.aiModel,
+          aiResponseId: ensureBase.aiResponseId,
+          generatedAt: new Date(),
+          weekContext: ensureBase.weekContext,
+          isActive: true,
+        } },
+        { upsert: true, new: true, setDefaultsOnInsert: true },
+      );
     }
     const generationTargetDates = ensureMode
       ? ensureMissingDates
@@ -816,8 +932,11 @@ export class MediaPlanningService {
         : dto.force
           ? `${baseKey}:${Date.now()}`
           : baseKey;
-    if (!ensureMode && existing && !dto.force && !dto.notes?.trim())
-      return existing;
+    if (!ensureMode && existing && !dto.force && !dto.notes?.trim()) {
+      if (this.creatorQuotaReadiness(existing.days ?? []).authored.complete &&
+          this.creatorQuotaReadiness(existing.days ?? []).independentlyPassed.complete) return existing;
+      return this.generate({ ...dto, mode: 'ensure' }, onProgress);
+    }
 
     const [
       growthLearnings,
@@ -837,6 +956,8 @@ export class MediaPlanningService {
       ...historicalFingerprints,
       ...archivedPlanningFingerprints,
     ] as PlanningMemory[];
+    const previouslyPlannedTitles = new Set<string>(antiRepetitionFingerprints
+      .map(row => editorialTextKey(String(row.title ?? ''))).filter(Boolean));
 
     try {
       await report("strategy", 5, 0, null);
@@ -863,6 +984,9 @@ export class MediaPlanningService {
         presence.voiceProfile,
       );
       const blueprintInput = {
+        activeSeries: await this.seriesService.activePortfolio(),
+        liveTrends: await this.seriesService.trendSignals(),
+        publicationHistory: await this.creatorPublicationHistory(),
         owner: "Aakash",
         startDate,
         endDate,
@@ -945,37 +1069,9 @@ export class MediaPlanningService {
           presence.worldContext.wholeLifeSignals ?? [],
         );
       } catch (error) {
-        if (!this.isBlueprintContentStarvationError(error)) throw error;
-        blueprintResponse = await this.generateBlueprint(
-          blueprintInput,
-          evidenceCatalog,
-          usage,
-          `REPAIR REQUIRED: the previous blueprint starved or malformed the calendar (${this.errorMessage(error)}). Re-plan from the supplied public-safe facts plus internal-safe reflection material. Do not solve evidence uncertainty by skipping the whole week.${ensureMode && ensureBase ? ` Existing dates are immutable; only missing dates ${generationTargetDates.join(", ")} will be materialized, so make those dates complement currentRollingWindow.` : ""}`,
-          cadence,
-        );
-        blueprintResponse.data = this.repairBlueprintPortfolio(
-          this.normalizeBlueprintTimes(blueprintResponse.data, validEvidence),
-          {
-            startDate,
-            endDate,
-            cadence,
-            worldContext: presence.worldContext,
-            presenceStrategy: presence.presenceStrategy,
-            validEvidence,
-            historicalFingerprints: antiRepetitionFingerprints,
-          },
-        );
-        this.assertBlueprint(
-          blueprintResponse.data,
-          startDate,
-          endDate,
-          publicEvidenceIds,
-          reflectionEvidenceIds,
-          identityEvidenceIds,
-          presence.presenceStrategy,
-          cadence,
-          presence.worldContext.wholeLifeSignals ?? [],
-        );
+        // No second expensive full-blueprint retry: the zero-AI creator
+        // recovery below is cheaper and keeps all deliverable slots visible.
+        throw error;
       }
 
       const partialBase: Partial<GeneratedPlan> = {
@@ -1215,7 +1311,7 @@ export class MediaPlanningService {
         storyArcs: blueprintResponse.data.storyArcs,
         days: generatedDays,
       };
-      const plan = ensureBase
+      let plan = ensureBase
         ? this.mergeMissingGeneratedDays(
             ensureBase,
             candidatePlan,
@@ -1226,18 +1322,53 @@ export class MediaPlanningService {
         : candidatePlan;
 
       if (!ensureBase) {
-        this.assertPlan(
-          plan,
-          startDate,
-          endDate,
-          publicEvidenceIds,
-          reflectionEvidenceIds,
-          identityEvidenceIds,
-          antiRepetitionFingerprints,
-        );
+        try {
+          this.assertPlan(
+            plan,
+            startDate,
+            endDate,
+            publicEvidenceIds,
+            reflectionEvidenceIds,
+            identityEvidenceIds,
+            antiRepetitionFingerprints,
+          );
+        } catch (preflight) {
+          // Preserve output without claiming it has passed publish-safety review.
+          // Invalid dates/structure are still rejected to zero-AI recovery.
+          this.assertRollingWindowDates(plan, startDate, endDate);
+          for (const day of plan.days) {
+            if (new Set(day.executions.map(item => item.platform)).size !== GROWTH_PLATFORMS.length) {
+              throw preflight;
+            }
+            for (const item of day.executions) if (item.action === 'post') {
+              item.executionReady = false;
+              item.requiresApproval = true;
+              item.readinessIssues = [...new Set([
+                ...(item.readinessIssues ?? []),
+                `Plan-wide safety/novelty validation requires review: ${this.errorMessage(preflight).slice(0, 180)}`,
+              ])];
+            }
+            if (day.instagramStory?.action === 'post') {
+              day.instagramStory.executionReady = false;
+              day.instagramStory.readinessIssues = ['Plan-wide review required'];
+            }
+            if (day.youtubeCommunity?.action === 'post') {
+              day.youtubeCommunity.executionReady = false;
+              day.youtubeCommunity.readinessIssues = ['Plan-wide review required'];
+            }
+          }
+        }
       } else {
         this.assertRollingWindowDates(plan, startDate, endDate);
       }
+      // Run deterministic quota repair after validating publish-ready AI assets.
+      // A missing paid asset becomes a labelled draft, not another costly week rerun.
+      plan = this.reconcileCreatorPlan(plan, previouslyPlannedTitles, await this.creatorActivePortfolio());
+      const requiredQuota = this.requiredCreatorQuota(plan.days);
+      if (!requiredQuota.complete || !this.creatorQuotaReadiness(plan.days).authored.complete) {
+        throw new Error(`Could not author all 17 required assets: ${JSON.stringify(this.creatorQuotaReadiness(plan.days).authored.deficits)}. No further AI retries attempted.`);
+      }
+      await this.tagCreatorEditorial(plan, usage);
       await report("saving_plan", 96, generationTotalDays, plan);
       const saved = await this.planModel.findOneAndUpdate(
         { key },
@@ -1262,9 +1393,42 @@ export class MediaPlanningService {
       await report("completed", 100, generationTotalDays, plan);
       return saved;
     } catch (error) {
-      throw new ServiceUnavailableException(
-        `HSAKAA could not generate the seven-day Media Presence plan. ${error instanceof Error ? error.message : "Unknown planning error."}`,
-      );
+      // The generation's API spend is already sunk. Do not retry an entire week.
+      // An outage/invalid AI pack still yields a useful DRAFT-only quota calendar.
+      // Database failures still surface as errors; no false success is returned.
+      try {
+        const recovered = this.recoverCreatorCalendar(
+          startDate, endDate, launchContext.phase,
+          ensureBase ? {
+            startDate, endDate, timezone: TZ,
+            learningStage: ensureBase.learningStage,
+            summary: ensureBase.summary,
+            opportunities: ensureBase.opportunities ?? [],
+            storyArcs: ensureBase.storyArcs ?? [],
+            days: ensureBase.days ?? [],
+          } : null,
+          previouslyPlannedTitles, await this.creatorActivePortfolio(),
+        );
+        await this.tagCreatorEditorial(recovered);
+        const saved = await this.planModel.findOneAndUpdate(
+          { key },
+          { $set: {
+            ...recovered, key, startDate, endDate, timezone: TZ,
+            strategyFingerprint: presence.presenceStrategy.sourceFingerprint,
+            contextFingerprint: presence.worldContext.fingerprint,
+            aiModel: 'quota_recovery_without_ai',
+            aiResponseId: '', generatedAt: new Date(), weekContext,
+            isActive: true,
+          } },
+          { new: true, upsert: true, setDefaultsOnInsert: true },
+        );
+        await report('draft_quota_recovered', 100, ROLLING_WINDOW_DAYS, recovered);
+        return saved;
+      } catch (saveError) {
+        throw new ServiceUnavailableException(
+          `HSAKAA could not save the seven-day creator plan. AI error: ${this.errorMessage(error)}. Save error: ${this.errorMessage(saveError)}`,
+        );
+      }
     }
   }
 
@@ -1335,23 +1499,7 @@ export class MediaPlanningService {
     );
     const available = new Set((base.days ?? []).map((day) => day.date));
     const missing = expectedDates.filter((date) => !available.has(date));
-    if (!missing.length) return base;
-
-    if (missing.length === 1) {
-      const targetDate = missing[0];
-      return this.generateSingleDayIntoRollingPlan(
-        base,
-        targetDate,
-        {
-          ...dto,
-          mode: "roll",
-          targetDate,
-          outingStatus: inheritedContext.outingStatus,
-          outingDetails: inheritedContext.outingDetails,
-        },
-        onProgress,
-      );
-    }
+    if (!missing.length && this.requiredCreatorQuota(base.days ?? []).complete) return base;
 
     return this.generate(
       {
@@ -1421,6 +1569,8 @@ export class MediaPlanningService {
       ...historicalFingerprints,
       ...archivedPlanningFingerprints,
     ] as PlanningMemory[];
+    const previouslyPlannedTitles = new Set<string>(antiRepetitionFingerprints
+      .map(row => editorialTextKey(String(row.title ?? ''))).filter(Boolean));
     const weekContext = this.resolveWeekContext(
       dto,
       startDate,
@@ -1452,6 +1602,9 @@ export class MediaPlanningService {
     try {
       await report("single_day_strategy", 10, 0, null);
       const blueprintInput = {
+        activeSeries: await this.seriesService.activePortfolio(),
+        liveTrends: await this.seriesService.trendSignals(),
+        publicationHistory: await this.creatorPublicationHistory(),
         owner: "Aakash",
         startDate: targetDate,
         endDate: targetDate,
@@ -1767,25 +1920,20 @@ export class MediaPlanningService {
         engagement: day.engagement,
       };
 
-      const mergedPlan = this.mergeRollingGeneratedPlan(
+      const mergedPlan = this.reconcileCreatorPlan(this.mergeRollingGeneratedPlan(
         base,
         skeletonMerged,
         generatedDay,
         startDate,
         endDate,
         targetDate,
-      );
-      this.assertPlan(
-        mergedPlan,
-        startDate,
-        endDate,
-        publicEvidenceIds,
-        reflectionEvidenceIds,
-        identityEvidenceIds,
-        antiRepetitionFingerprints,
-        { historicalNoveltyDates: new Set([targetDate]) },
-      );
+      ), previouslyPlannedTitles, await this.creatorActivePortfolio());
+      // Previously reserved draft slots are allowed on preserved dates.
+      // New assets already went through per-execution preflight and grounding.
+      // Do not reject a single-day refresh because another day has a draft.
+      this.assertRollingWindowDates(mergedPlan, startDate, endDate);
 
+      await this.tagCreatorEditorial(mergedPlan);
       await report("saving_single_day", 92, 1, mergedPlan);
       const key = `${startDate}:${presence.presenceStrategy.version}:${presence.voiceProfile.version}:${weeklyAdaptation?.key ?? "no-weekly-review"}:${launchContext.phase}:v3.16.4:${dto.mode ?? "day"}:${targetDate}:${Date.now()}`;
       const saved = await this.planModel.findOneAndUpdate(
@@ -1842,6 +1990,9 @@ export class MediaPlanningService {
       calls: 0,
       failedCalls: 0,
       retriedCalls: 0,
+      estimatedInputTokens: 0,
+      estimatedCostUsd: 0,
+      budgetLimited: false,
     };
   }
 
@@ -1850,6 +2001,9 @@ export class MediaPlanningService {
     next: AiGenerationUsage | undefined,
   ) {
     if (!next) return;
+    const [inputPrice, outputPrice] = this.mediaModelTokenPrices();
+    target.estimatedCostUsd += (((next.inputTokens ?? 0) - (next.cachedInputTokens ?? 0)) * inputPrice +
+      (next.outputTokens ?? 0) * outputPrice) / 1_000_000;
     target.inputTokens += next.inputTokens ?? 0;
     target.outputTokens += next.outputTokens ?? 0;
     target.totalTokens += next.totalTokens ?? 0;
@@ -1871,6 +2025,101 @@ export class MediaPlanningService {
     target.totalTokens += outputTokens;
   }
 
+  /** Hard per-run budget: a retry must never spend money without a ceiling. */
+  private mediaModelTokenPrices(): [number, number] {
+    // Standard API input/output USD per 1M tokens. Conservative for unlisted models.
+    const model = process.env.HSAKAA_MEDIA_MODEL || 'gpt-5.4-mini';
+    if (model.startsWith('gpt-5.6-luna')) return [0.20, 1.20];
+    if (model.startsWith('gpt-5.4-mini')) return [0.75, 4.50];
+    if (model.startsWith('gpt-5.6-terra')) return [2.00, 12.00];
+    return [4.00, 20.00];
+  }
+
+  private mediaGenerationLimit(name: string, fallback: number): number {
+    const value = Number(process.env[name]);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+  }
+
+  /** On overflow retain the evidence, NOT just voice-profile prose. Earlier
+   * emergency compaction silently dropped worldContext, causing generic output
+   * despite connected companies, books, hobbies and real-life signals. */
+  private compactMediaRequestInput(input: string, maxChars: number): string {
+    if (input.length <= maxChars) return input;
+    try {
+      const object = JSON.parse(input) as Record<string, any>;
+      if (!object || typeof object !== 'object' || Array.isArray(object)) return input.slice(0, maxChars);
+      const sample = (value: any, count: number, width: number): any => {
+        if (typeof value === 'string') return value.slice(0, width);
+        if (Array.isArray(value)) return value.slice(0, count).map(item => sample(item, count, width));
+        if (!value || typeof value !== 'object') return value;
+        return Object.fromEntries(Object.entries(value)
+          .filter(([key]) => !/^(?:raw|private|people|memory|previousCandidate|storytellingPolicy|largeContext|systemPrompt)$/i.test(key))
+          .map(([key, value]) => [key, sample(value, count, width)]));
+      };
+      // World context + public evidence + recent history are the actual story
+      // supply. Keep them before optional verbose strategy/profile fields.
+      for (const [count, width] of [[12, 240], [8, 160], [5, 100], [3, 72], [2, 45]] as const) {
+        const world = object.worldContext && typeof object.worldContext === 'object'
+          ? object.worldContext as Record<string, unknown> : {};
+        const context = {
+          publicSafe: sample(world.publicSafe, count, width),
+          identitySafe: sample(world.identitySafe, Math.min(count, 6), width),
+          wholeLifeSignals: sample(world.wholeLifeSignals, count, width),
+          companies: sample(world.companies, Math.min(count, 6), width),
+          hobbies: sample(world.hobbies, count, width),
+          hsakaa: sample(world.hsakaa, Math.min(count, 6), width),
+          personalOsSections: sample(world.personalOsSections, Math.min(count, 6), width),
+          coverage: sample(world.coverage, Math.min(count, 6), width),
+        };
+        const reduced: Record<string, unknown> = {
+          owner: object.owner, date: object.date, startDate: object.startDate,
+          endDate: object.endDate, timezone: object.timezone,
+          dayPlan: sample(object.dayPlan, 7, width),
+          expectedPosts: sample(object.expectedPosts, 8, width),
+          worldContext: context,
+          publicEvidence: sample(object.publicEvidence, count, width),
+          identityEvidence: sample(object.identityEvidence, Math.min(count, 6), width),
+          opportunities: sample(object.opportunities, count, width),
+          activeSeries: sample(object.activeSeries, 6, width),
+          publicationHistory: sample(object.publicationHistory, Math.min(count, 8), width),
+          alreadyGeneratedThisWeek: sample(object.alreadyGeneratedThisWeek, Math.min(count, 8), width),
+          strategyCore: sample(object.strategyCore, Math.min(count, 5), width),
+          weeklyOutingContext: sample(object.weeklyOutingContext, 3, width),
+          voiceProfile: sample(object.voiceProfile, 5, width),
+          notes: sample(object.notes, 3, width),
+          generationMode: object.generationMode,
+          requestedMissingDates: object.requestedMissingDates,
+          allowedPlatforms: object.allowedPlatforms,
+        };
+        const packed = JSON.stringify(reduced);
+        if (packed.length <= maxChars) return packed;
+      }
+      // Last resort: preserve at least some source evidence and the exact job.
+      // Do not silently tell the model that no context exists when it does.
+      const world = object.worldContext ?? {};
+      const minimal = {
+        owner: object.owner, date: object.date,
+        startDate: object.startDate, endDate: object.endDate,
+        timezone: object.timezone,
+        worldContext: {
+          publicSafe: sample(world.publicSafe, 2, 60),
+          wholeLifeSignals: sample(world.wholeLifeSignals, 2, 60),
+          companies: sample(world.companies, 2, 60),
+          hobbies: sample(world.hobbies, 2, 60),
+        },
+        publicEvidence: sample(object.publicEvidence, 3, 60),
+        expectedPosts: sample(object.expectedPosts, 4, 60),
+        activeSeries: sample(object.activeSeries, 6, 32),
+      };
+      const packed = JSON.stringify(minimal);
+      return packed.length <= maxChars ? packed : JSON.stringify({
+        owner: object.owner, startDate: object.startDate, endDate: object.endDate,
+        contextTruncated: true, publicEvidence: sample(object.publicEvidence ?? world.publicSafe, 1, 60),
+        wholeLifeSignals: sample(world.wholeLifeSignals, 1, 60),
+      });
+    } catch { return input.slice(0, maxChars); }
+  }
+
   private async generateTrackedStructuredResponse<T>(
     request: {
       name: string;
@@ -1881,20 +2130,63 @@ export class MediaPlanningService {
       reasoningEffort?:
         "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
       maxOutputTokens?: number;
+      model?: string;
     },
     usage: ReturnType<MediaPlanningService["emptyPlanningUsage"]>,
     isRetry = false,
   ) {
+    const maxCalls = this.mediaGenerationLimit('HSAKAA_MEDIA_MAX_AI_CALLS', 11);
+    const maxTokens = this.mediaGenerationLimit('HSAKAA_MEDIA_MAX_TOTAL_TOKENS', 52000);
+    const maxUsd = Number(process.env.HSAKAA_MEDIA_MAX_USD ?? '0.45');
+    if (usage.calls >= maxCalls || usage.totalTokens >= maxTokens ||
+        (Number.isFinite(maxUsd) && maxUsd > 0 && usage.estimatedCostUsd >= maxUsd)) {
+      usage.budgetLimited = true;
+      throw new Error('HSAKAA media AI budget reached; preserve completed content and use review-required draft slots.');
+    }
+    const compactInput = this.compactMediaRequestInput(
+      request.input,
+      this.mediaGenerationLimit('HSAKAA_MEDIA_MAX_INPUT_CHARS', 28000),
+    );
+    const estimatedInputTokens = Math.ceil((compactInput.length + request.instructions.length) / 3);
+    const outputCap = Math.min(request.maxOutputTokens ?? 4500,
+      this.mediaGenerationLimit('HSAKAA_MEDIA_MAX_OUTPUT_PER_CALL', 5600));
+    const [inputPrice, outputPrice] = this.mediaModelTokenPrices();
+    const projectedUsd = usage.estimatedCostUsd +
+      (estimatedInputTokens * inputPrice + outputCap * outputPrice) / 1_000_000;
+    if (usage.totalTokens + estimatedInputTokens + outputCap > maxTokens ||
+        (Number.isFinite(maxUsd) && maxUsd > 0 && projectedUsd > maxUsd)) {
+      usage.budgetLimited = true;
+      throw new Error('HSAKAA media token/dollar budget reached; preserve existing work.');
+    }
     usage.calls += 1;
+    usage.estimatedInputTokens += estimatedInputTokens;
     if (isRetry) usage.retriedCalls += 1;
     try {
-      const response =
-        await this.aiService.generateStructuredResponse<T>(request);
+      const response = await this.aiService.generateStructuredResponse<T>({
+        ...request,
+        model: process.env.HSAKAA_MEDIA_MODEL || 'gpt-5.4-mini',
+        input: compactInput,
+        verbosity: 'low',
+        reasoningEffort: 'low',
+        maxOutputTokens: Math.min(request.maxOutputTokens ?? 4500,
+          this.mediaGenerationLimit('HSAKAA_MEDIA_MAX_OUTPUT_PER_CALL', 5600)),
+      });
       this.addUsage(usage, response.usage);
       return response;
     } catch (error) {
       usage.failedCalls += 1;
+      // A failed or incomplete Responses API call may still be billable.
+      // Reserve the full request/output envelope rather than treating it as free
+      // and accidentally launching more requests after an unknown-cost error.
+      const priorOutput = usage.outputTokens;
       this.captureFailureUsage(usage, error);
+      const knownOutput = usage.outputTokens - priorOutput;
+      const unobservedOutput = Math.max(0, outputCap - knownOutput);
+      usage.inputTokens += estimatedInputTokens;
+      usage.outputTokens += unobservedOutput;
+      usage.totalTokens += estimatedInputTokens + unobservedOutput;
+      usage.estimatedCostUsd +=
+        (estimatedInputTokens * inputPrice + outputCap * outputPrice) / 1_000_000;
       throw error;
     }
   }
@@ -2447,7 +2739,7 @@ export class MediaPlanningService {
 
       for (
         let repairAttempt = 0;
-        failure && repairAttempt < 2;
+        failure && repairAttempt < 1;
         repairAttempt += 1
       ) {
         const repaired = await this.tryGenerateSinglePost(
@@ -2899,6 +3191,8 @@ export class MediaPlanningService {
   ) {
     const baseInstructions = [
       this.blueprintInstructions(),
+      "ACTIVE SERIES SOURCE OF TRUTH: use blueprintInput.activeSeries, not the template series if statuses changed. All posts must belong to one of these active series; never add a seventh.",
+      "PUBLICATION HISTORY AUDIT: use blueprintInput.publicationHistory. Check real posts from the previous seven local dates, plus separately scheduled next-seven-day posts. Do not rewrite a published story as new, and do not regenerate a scheduled story. The mandatory format floors apply to the final seven-day plan regardless of how many calendar days are already populated. Published and scheduled are not interchangeable.",
       repairInstruction ?? "",
       dayCount === 1
         ? "SINGLE-DAY MODE: create one fresh day that complements the supplied current rolling window. Do not try to satisfy the entire weekly cadence in this one day. Avoid every archived/current topic cluster, thesis, hook, example and wording unless an explicit intentional continuation is supplied."
@@ -3028,23 +3322,8 @@ export class MediaPlanningService {
         usage,
       );
     } catch (error) {
-      if (!this.isOutputTokenLimitError(error)) throw error;
-      const { usage, ...params } = request;
-      return this.generateTrackedStructuredResponse<T>(
-        {
-          ...params,
-          name: `${request.name}_token_fallback`,
-          instructions: [
-            request.instructions,
-            "TOKEN FALLBACK: the prior structured response hit its output ceiling. Be maximally concise while preserving every required schema field. Do not add explanations outside the schema.",
-          ].join("\n"),
-          verbosity: "low",
-          reasoningEffort: "low",
-          maxOutputTokens: 12000,
-        },
-        usage,
-        true,
-      );
+      // Do not double bill on a second 12K-output retry after a failed pack.
+      throw error;
     }
   }
 
@@ -3127,6 +3406,8 @@ export class MediaPlanningService {
       "For REEL, SHORT or VIDEO provide videoPack.fullScript word-for-word, targetDurationSeconds, deliveryInstructions, cameraInstructions, punchIns, broll, onScreenText, musicDirection and coverDirection. A YouTube long-form video must contain the full script, never an outline. Distinguish source activity duration from published video runtime: if Aakash practises for 30 minutes but the edit is 210 seconds, title/copy may say “30-minute practice session” but must not imply a 30-minute video.",
       "For Instagram, prioritise human visual storytelling and familiarity; for LinkedIn, earn professional insight through lived builder/operator evidence; for X, sound like concise thinking-in-public; for YouTube, prioritise retention and story progression; for WhatsApp, keep the treatment intimate and low-volume.",
       "PUBLIC COPY MUST SOUND HUMAN: factual guardrails should guide the generation silently. Do not turn captions/scripts into evidence audits. Avoid repeated phrases like “this is evidence, not progress”, “one attempt does not prove improvement”, “the capability is not implemented” or multiple disclaimer paragraphs. If a caveat is required, say it once in natural language and return to the story.",
+      "EDITORIAL 8+/10 PRE-FLIGHT: each asset needs a specific 4-14 word opening hook (no greeting), immediate concrete scene/subject, an obstacle/change, a decision or visual reversal, a satisfying payoff and a reason to watch the next episode. Story beats must NOT be generic copy/paste structures across posts. Aim to deserve 8+ by human review; never invent evidence or predict actual retention. 20-45s short-form scripts need a new visual, action or thought about every 5-8 seconds. The script field is 100% words the creator will say; stage direction belongs ONLY in shotList/cameraInstructions, never inside spoken script. If source context is absent, tell a specific labeled illustrative example rather than manufacturing a first-person event.",
+      "PLATFORM STORYTELLING: Reels start with an awkward, funny, visually specific or high-stakes moment then a twist; Shorts lead with demonstration/action and a clear payoff; YouTube long forms are one coherent narrative with chapters, stakes, scene changes and callbacks (not 700 words of generic advice); LinkedIn uses one real situation, decision, consequence and operator insight; X gives one sharp thought or observation without mandatory question. Me vs Me is two distinguishable characters with dialogue and a comic human beat; Learning at 30 shows an actual practice moment when evidence exists, not an essay about learning.",
       "HOOK/PACKAGING TEST: the title, cover/thumbnail text and first spoken/visual beat must make sense to a stranger. For niche company content, lead with the broader tension/problem and bring 8lete/Frayto/HSAKAA in as the real example rather than expecting the viewer to care about internal architecture first.",
       "RETENTION EDITING: remove setup that can be shown visually, start inside action where possible, and introduce a new visual beat/reveal/reaction/question often enough to prevent a static lecture. Short-form should feel compressed; long-form should have scene/chapter progression and a payoff worth the time.",
       "DOG CAMEOS: Pixel, Cosmo and Happy may be used in the shot plan only when they naturally belong in the real scene. A dog can provide a warm cold-open, interruption, reaction beat, walk/home texture or B-roll, but never invent behaviour and never use a dog as unrelated clickbait.",
@@ -3708,6 +3989,87 @@ export class MediaPlanningService {
       historicalFingerprints,
       mutableDates,
     );
+    // Last mutation: hard creator-format quotas survive every other repair.
+    // Only reuses real, public-safe opportunities and mutable calendar dates.
+    repaired = this.repairMandatoryCreatorMix(repaired, cadence, mutableDates);
+    return repaired;
+  }
+
+  /**
+   * Fill missing *format-specific* commitments, not just total platform volume.
+   * Reuse an existing grounded opportunity and a SKIP surface; never invent a
+   * story, bypass evidence, or overwrite immutable previously planned dates.
+   */
+  private repairMandatoryCreatorMix(
+    blueprint: PlanningBlueprint,
+    cadence: PlanningCadence,
+    mutableDates?: Set<string>,
+  ): PlanningBlueprint {
+    const repaired = this.cloneBlueprintForPortfolioRepair(blueprint);
+    const mutable = (date: string) => !mutableDates || mutableDates.has(date);
+    const count = (platform: MediaPlatform, format?: MediaPostType) => repaired.days.reduce(
+      (total, day) => total + day.executions.filter(item => item.action === 'post'
+        && item.platform === platform && (!format || item.format === format)).length, 0);
+    const usable = repaired.opportunities.filter(op => op.usable && op.privacy === 'public_safe'
+      && (op.evidenceIds ?? []).length);
+    const uses = new Map<string, number>();
+    for (const day of repaired.days) for (const item of day.executions) {
+      if (item.action === 'post' && item.opportunityKey)
+        uses.set(item.opportunityKey, (uses.get(item.opportunityKey) ?? 0) + 1);
+    }
+    const chooseOpportunity = (platform: MediaPlatform, format: MediaPostType) =>
+      [...usable].sort((a, b) => {
+        const rank = (op: typeof usable[number]) =>
+          ((op.platforms ?? []).includes(platform) ? 80 : 0) +
+          ((op.formats ?? []).includes(format) ? 20 : 0) +
+          (op.novelty ?? 0) / 10 - (uses.get(op.key) ?? 0) * 24;
+        return rank(b) - rank(a);
+      }).find(op => (op.platforms ?? []).includes(platform));
+
+    // Protect the companion format: carousel <> reel and long video <> short.
+    const requirements: Array<[MediaPlatform, MediaPostType | undefined, number, MediaPostType | undefined, number]> = [
+      [MediaPlatform.INSTAGRAM, MediaPostType.CAROUSEL, 1, MediaPostType.REEL, 3],
+      [MediaPlatform.INSTAGRAM, MediaPostType.REEL, 3, MediaPostType.CAROUSEL, 1],
+      [MediaPlatform.YOUTUBE, MediaPostType.VIDEO, 1, MediaPostType.SHORT, 3],
+      [MediaPlatform.YOUTUBE, MediaPostType.SHORT, 3, MediaPostType.VIDEO, 1],
+      [MediaPlatform.LINKEDIN, undefined, 5, undefined, 0],
+      [MediaPlatform.X, undefined, 4, undefined, 0],
+    ];
+    for (const [platform, requiredFormat, minimum, protectedFormat, protectedMinimum] of requirements) {
+      // Conversion does not create an additional post or repeat a story.
+      if (requiredFormat) {
+        for (const day of repaired.days) {
+          if (count(platform, requiredFormat) >= minimum) break;
+          if (!mutable(day.date)) continue;
+          const existing = day.executions.find(item =>
+            item.action === 'post' && item.platform === platform &&
+            item.format !== requiredFormat &&
+            (!protectedFormat || item.format !== protectedFormat ||
+              count(platform, protectedFormat) > protectedMinimum));
+          if (!existing) continue;
+          existing.format = requiredFormat;
+          existing.reason = 'Required creator format mix restored without changing the factual opportunity.';
+        }
+      }
+      // Use previously unused calendar slots if necessary; never overwrite a post.
+      for (const day of repaired.days) {
+        if (count(platform, requiredFormat) >= minimum) break;
+        if (!mutable(day.date)) continue;
+        if (count(platform) >= (cadence.platforms[platform]?.max ?? 7)) break;
+        const slot = day.executions.find(item => item.platform === platform && item.action === 'skip');
+        if (!slot) continue;
+        const format = requiredFormat ?? (platform === MediaPlatform.LINKEDIN || platform === MediaPlatform.X ? MediaPostType.TEXT : MediaPostType.IMAGE);
+        const opportunity = chooseOpportunity(platform, format);
+        if (!opportunity) break;
+        slot.action = 'post';
+        slot.time = this.defaultPostingTime(platform);
+        slot.format = format;
+        slot.opportunityKey = opportunity.key;
+        slot.storyArcKey = '';
+        slot.reason = 'Mandatory weekly creator format restored from an existing public-safe evidence-backed opportunity.';
+        uses.set(opportunity.key, (uses.get(opportunity.key) ?? 0) + 1);
+      }
+    }
     return repaired;
   }
 
@@ -5738,12 +6100,6 @@ export class MediaPlanningService {
       );
 
     let shortCount = countShortForm(blueprint.days);
-    if (
-      shortCount >= cadence.shortFormAndCarouselsMin &&
-      shortCount <= cadence.shortFormAndCarouselsMax
-    ) {
-      return blueprint;
-    }
 
     const days = blueprint.days.map((day) => ({
       ...day,
@@ -5984,6 +6340,33 @@ export class MediaPlanningService {
       }
     }
 
+    // Minimum format quotas are independent from the total short-form quota.
+    // Rebalance existing safe, grounded POST decisions before returning.
+    const rebalanceFormats = (
+      platform: MediaPlatform, requiredFormat: MediaPostType, required: number,
+      protectedFormat?: MediaPostType, protectedMinimum = 0,
+    ) => {
+      const entries = repaired.days.flatMap(day => day.executions
+        .filter(item => item.action === 'post' && item.platform === platform)
+        .map(item => ({ day, item })));
+      let count = entries.filter(({ item }) => item.format === requiredFormat).length;
+      for (const { day, item } of entries) {
+        if (count >= required) break;
+        if (!mutable(day.date) || item.format === requiredFormat) continue;
+        if (protectedFormat && item.format === protectedFormat &&
+          entries.filter(row => row.item.format === protectedFormat).length <= protectedMinimum) continue;
+        if (shortFormats.has(requiredFormat) && !shortFormats.has(item.format) &&
+          shortCount >= cadence.shortFormAndCarouselsMax) continue;
+        if (!shortFormats.has(requiredFormat) && shortFormats.has(item.format)) shortCount--;
+        if (shortFormats.has(requiredFormat) && !shortFormats.has(item.format)) shortCount++;
+        item.format = requiredFormat;
+        item.reason = 'Rebalanced to meet the mandatory channel-specific format cadence with the existing grounded opportunity.';
+        count++;
+      }
+    };
+    rebalanceFormats(MediaPlatform.INSTAGRAM, MediaPostType.CAROUSEL, 1);
+    rebalanceFormats(MediaPlatform.INSTAGRAM, MediaPostType.REEL, 3, MediaPostType.CAROUSEL, 1);
+    rebalanceFormats(MediaPlatform.YOUTUBE, MediaPostType.SHORT, 3, MediaPostType.VIDEO, 1);
     return repaired;
   }
 
@@ -6512,6 +6895,9 @@ export class MediaPlanningService {
     }
 
     let weeklyPostCount = 0;
+    let instagramReels = 0;
+    let instagramCarousels = 0;
+    let youtubeShorts = 0;
     let longFormVideos = 0;
     let wholePersonLongFormVideos = 0;
     let shortFormAndCarousels = 0;
@@ -6549,6 +6935,9 @@ export class MediaPlanningService {
         if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(item.time)) {
           throw new Error(`Invalid posting time ${item.time} on ${day.date}.`);
         }
+        if (item.platform === MediaPlatform.INSTAGRAM && item.format === MediaPostType.REEL) instagramReels += 1;
+        if (item.platform === MediaPlatform.INSTAGRAM && item.format === MediaPostType.CAROUSEL) instagramCarousels += 1;
+        if (item.platform === MediaPlatform.YOUTUBE && item.format === MediaPostType.SHORT) youtubeShorts += 1;
         weeklyPostCount += 1;
         weeklyPlatformPosts.set(
           item.platform,
@@ -6705,6 +7094,9 @@ export class MediaPlanningService {
         `weekly POST volume ${weeklyPostCount}/${minimumPosts}`,
       );
     }
+    if (instagramReels < 3 || instagramCarousels < 1 || youtubeShorts < 3) {
+      strategicIssues.push(`Required weekly formats: Instagram reels ${instagramReels}/3, Instagram carousel ${instagramCarousels}/1, YouTube shorts ${youtubeShorts}/3`);
+    }
     if (longFormVideos !== cadence.longFormVideos) {
       strategicIssues.push(
         `long-form ${longFormVideos}/${cadence.longFormVideos}`,
@@ -6837,6 +7229,402 @@ export class MediaPlanningService {
       error instanceof Error &&
       /max_output_tokens|output token/i.test(error.message)
     );
+  }
+
+  /** Past titles are reloaded from MongoDB, not held in process memory. Older
+   * dates stay blocked when the seven-day planning window advances. */
+  private async creatorHistoricalEditorialTitles(startDate: string): Promise<Set<string>> {
+    // Include inactive archives and earlier generations of the SAME rolling
+    // window; these still count for editorial repetition even when not active.
+    const archives = await this.planModel.find({
+      startDate: { $lte: startDate },
+    }, 'startDate generatedAt days.date days.executions.action days.executions.title')
+      .sort({ generatedAt: -1 }).limit(300).lean();
+    const result = new Set<string>();
+    for (const plan of archives) for (const day of plan.days ?? []) {
+      if (day.date > this.addDays(startDate, ROLLING_WINDOW_DAYS - 1)) continue;
+      for (const post of day.executions ?? []) {
+        if (post.action === 'post' && post.title) result.add(editorialTextKey(post.title));
+      }
+    }
+    return result;
+  }
+
+  /** Owner-requested low-cost improvement pass. No full week generation, no
+   * deletion of existing packages and no automatic publication. */
+  async improveEditorialQuality() {
+    const original = await this.planModel.findOne({ isActive: true })
+      .sort({ generatedAt: -1 }).lean();
+    if (!original) throw new BadRequestException('Generate a seven-day plan before requesting editorial improvements.');
+    const plan: GeneratedPlan = {
+      startDate: original.startDate, endDate: original.endDate,
+      timezone: original.timezone, learningStage: original.learningStage,
+      summary: original.summary, opportunities: original.opportunities || [],
+      storyArcs: original.storyArcs || [],
+      days: (original.days || []).map(day => ({ ...day,
+        executions:(day.executions || []).map(item => ({ ...item })) })),
+    };
+    // Never replace already published content; the improvement operation only
+    // touches the saved writing-plan execution drafts.
+    const before = plan.days.flatMap(d => d.executions).filter(e => e.action === 'post');
+    const revisionCounts = before.map(e => e.qualityRevisionCount ?? 0);
+    const previousPasses = before.filter(e => e.qualityVerdict === 'pass').length;
+    const usage = this.emptyPlanningUsage();
+    await this.tagCreatorEditorial(plan, usage);
+    const after = plan.days.flatMap(d => d.executions).filter(e => e.action === 'post');
+    const improved = after.filter((e, index) => (e.qualityRevisionCount ?? 0) > (revisionCounts[index] ?? 0)).length;
+    const approved = after.filter(e => e.qualityVerdict === 'pass').length;
+    // Store as a new version. Older plans remain archived for repetition memory.
+    const key = `${original.key}:quality:${Date.now()}`;
+    const saved = await this.planModel.findOneAndUpdate({ key }, {
+      $set: { ...plan, key, strategyFingerprint:original.strategyFingerprint,
+        contextFingerprint:original.contextFingerprint, aiModel:original.aiModel,
+        aiResponseId:original.aiResponseId, generatedAt:new Date(),
+        weekContext:original.weekContext, isActive:true },
+    }, { upsert:true, new:true, setDefaultsOnInsert:true });
+    // Do not deactivate the last good plan until the replacement is stored.
+    await this.planModel.updateMany({ key:{ $ne:key }, isActive:true }, { $set:{ isActive:false } });
+    return { plan: saved, authored: after.length, editorialPass:approved,
+      stillNeedsReview:after.length-approved, improved,
+      previousEditorialPass:previousPasses,
+      aiCalls:usage.calls, totalTokens:usage.totalTokens,
+      estimatedCostUsd:usage.estimatedCostUsd, budgetLimited:usage.budgetLimited };
+  }
+
+  /** Assign only a compatible ACTIVE series. Trend status is verified with a
+   * timestamped URL, or explicitly NOT verified. Never manufacture virality. */
+  private async tagCreatorEditorial(plan: GeneratedPlan, usage?: ReturnType<MediaPlanningService["emptyPlanningUsage"]>): Promise<void> {
+    let portfolio: CreatorSeries[] = DEFAULT_CREATOR_SERIES;
+    let trends: unknown = null;
+    if (this.seriesService) {
+      try {
+        const [active, fetched] = await Promise.all([
+          this.seriesService.activePortfolio(), this.seriesService.trendSignals(),
+        ]);
+        if (Array.isArray(active)) portfolio = active.map(x => ({ key: x.key, name: x.name, channels: x.channels }));
+        trends = fetched;
+      } catch {
+        // An unavailable trend endpoint cannot turn an evergreen item into a trend.
+        // Retain the default known portfolio for local review, not for autopublish.
+      }
+    }
+    for (const day of plan.days) for (const post of day.executions) {
+      if (post.action !== 'post') continue;
+      const series = selectCreatorSeries(post.title, post.platform, portfolio,
+        post.seriesKey, post.publishCopy || post.videoPack?.fullScript || '');
+      if (series) {
+        post.seriesKey = series.key;
+        post.seriesName = series.name;
+      } else {
+        post.seriesKey = 'unassigned';
+        post.seriesName = 'Needs series review';
+        post.executionReady = false;
+        post.requiresApproval = true;
+        post.readinessIssues = [...new Set([...(post.readinessIssues ?? []),
+          'A matching active series was not found. Reassign or replace before publication.'])];
+      }
+      // AI response schemas predate storyBeats. Derive truthful beats from the
+      // actual final script, not invented new facts or generic labels.
+      if (!post.storyBeats?.length) {
+        const copy = [MediaPostType.REEL, MediaPostType.SHORT, MediaPostType.VIDEO].includes(post.format)
+          ? (post.videoPack?.fullScript || post.script || '')
+          : post.format === MediaPostType.CAROUSEL
+            ? (post.carouselSlides ?? []).map(slide => slide.bodyCopy).join('\n\n')
+            : (post.publishCopy || '');
+        const sections = copy.split(/\n\s*\n|(?<=[.!?])\s+(?=[A-Z])/).map(x => x.trim()).filter(x => x.length >= 12);
+        const selected = sections.length <= 6 ? sections : [sections[0], sections[1], sections[Math.floor(sections.length / 2)], sections[sections.length - 2], sections[sections.length - 1]];
+        post.storyBeats = selected.map(section => section.slice(0, 180));
+        post.storyPayoff = (selected.at(-1) || '').slice(0, 280);
+      }
+      post.editorialFingerprint = editorialTextKey(`${post.title} ${post.hook}`);
+      const editorial = reviewCreatorEditorial(post);
+      post.editorialScore = editorial.score;
+      post.editorialIssues = editorial.issues;
+      if (editorial.score < 8) {
+        post.executionReady = false;
+        post.requiresApproval = true;
+        post.readinessIssues = [...new Set([...(post.readinessIssues ?? []),
+          `Editorial preflight ${editorial.score}/10: improve hook, storytelling, scene or payoff before approving.`])];
+      }
+
+      const signal = matchVerifiedCreatorTrend(post.title,
+        `${post.publishCopy} ${post.videoPack?.fullScript ?? ''}`, trends);
+      post.trendStatus = signal ? 'verified' : 'not_verified';
+      post.trendTitle = signal?.title ?? '';
+      post.trendSource = signal?.source ?? '';
+      post.trendUrl = signal?.url ?? '';
+      post.trendPublishedAt = signal?.publishedAt ?? '';
+    }
+    // Read the FINAL public text after tagging, never the writer's self-rating.
+    this.independentEditorialGate(plan);
+    if (usage && process.env.HSAKAA_MEDIA_EDITORIAL_AI_REVISE !== 'false') {
+      await this.reviseEditorialWeaknesses(plan, usage);
+      this.independentEditorialGate(plan);
+    }
+  }
+
+  private independentEditorialGate(plan: GeneratedPlan): void {
+    for (const { item, result } of auditCreatorWeek(plan.days.flatMap(day => day.executions))) {
+      item.qualityScore = result.score;
+      item.qualityVerdict = result.verdict;
+      item.qualityDimensions = result.dimensions;
+      item.qualityIssues = result.issues;
+      if (result.verdict !== 'pass') {
+        item.executionReady = false;
+        item.requiresApproval = true;
+        item.readinessIssues = [...new Set([...(item.readinessIssues ?? []),
+          `Independent editorial critic ${result.score}/10 (${result.verdict}): review ${result.issues.slice(0, 2).join('; ')}`])];
+      }
+    }
+  }
+
+  /** One optional, budget-accounted AI request repairs ONLY weak evidence-backed
+   * scripts; original work is retained if validation or the budget fails.
+   * No model-generated claim is automatically approved for publication.
+   */
+  private async reviseEditorialWeaknesses(
+    plan: GeneratedPlan,
+    usage: ReturnType<MediaPlanningService['emptyPlanningUsage']>,
+  ): Promise<void> {
+    const max = Math.max(0, Math.min(4, Number(process.env.HSAKAA_MEDIA_EDITORIAL_MAX_REVISIONS ?? 3) || 0));
+    if (!max || usage.budgetLimited) return;
+    const candidates = auditCreatorWeek(plan.days.flatMap(day => day.executions))
+      .filter(({ item, result }) => result.verdict === 'revise' &&
+        (item.evidenceIds ?? []).length > 0 &&
+        [MediaPostType.REEL, MediaPostType.SHORT, MediaPostType.VIDEO, MediaPostType.TEXT].includes(item.format))
+      .sort((a, b) => a.result.score - b.result.score).slice(0, max);
+    if (!candidates.length) return;
+    const originals = candidates.map(({item, result}, i) => ({
+      id: String(i), platform:item.platform, format:item.format, series:item.seriesName,
+      title:item.title, hook:item.hook, body:creatorPublicBody(item).slice(0, 4000),
+      evidenceIds:item.evidenceIds, issues:result.issues,
+      evidence: (plan.opportunities ?? []).filter(o =>
+        o.evidenceIds?.some(id => item.evidenceIds.includes(id))).slice(0, 2)
+        .map(o => ({title:o.title, thesis:o.thesis, sourceSummary:o.sourceSummary, evidenceIds:o.evidenceIds})),
+    }));
+    try {
+      const response = await this.generateTrackedStructuredResponse<{
+        revisions: Array<{ id: string; hook: string; body: string; payoff: string; beats: string[] }>;
+      }>({
+        name: 'hsakaa_independent_editorial_targeted_revisions_v1',
+        instructions: [
+          'Act as a demanding editor, independent from the author. Repair ONLY the specific deficiencies flagged by the critic.',
+          'Output finished audience-facing prose ONLY. No filming directives or placeholders inside dialogue.',
+          'Hooks must be the FIRST exact words of scripts for videos; under 16 words, specific and curiosity-rich.',
+          'Every script requires a comprehensible event or scene, stakes, a turn and an earned ending. Avoid repeated motivational slogans and questions as the only payoff.',
+          'For short videos write 55-115 actual spoken words; for LinkedIn 80-220; for X 15-45; for long video 700-1100.',
+          'Do NOT invent or claim the creator experienced anything not supported by included evidence. Use hypothetical framing when uncertain, but do not fabricate verifiable facts, trends, outcomes or metrics.',
+          'Maintain series identity and topic, but differentiate from other posts. Supply 4-7 meaningfully distinct story beats.',
+          'Return revisions only for supplied IDs. If evidence is insufficient, omit that item rather than fabricate personal history.',
+        ].join(' '),
+        input: JSON.stringify({posts: originals}),
+        schema: {
+          type:'object', additionalProperties:false,
+          properties:{revisions:{type:'array', items:{type:'object', additionalProperties:false,
+            properties:{id:{type:'string'},hook:{type:'string'},body:{type:'string'},payoff:{type:'string'},beats:{type:'array',items:{type:'string'}}},
+            required:['id','hook','body','payoff','beats']}}},
+          required:['revisions'],
+        }, maxOutputTokens: Math.min(3800, 1400 + max * 800),
+      }, usage);
+      for (const revision of response.data.revisions || []) {
+        const index = Number(revision.id);
+        const target = Number.isInteger(index) ? candidates[index] : undefined;
+        if (!target || !revision.body?.trim() || !revision.hook?.trim()) continue;
+        const original = target.item;
+        const video = [MediaPostType.REEL, MediaPostType.SHORT, MediaPostType.VIDEO].includes(original.format);
+        // Reject models that do not actually speak the promised opening line.
+        if (video && !revision.body.trim().toLowerCase().startsWith(revision.hook.trim().toLowerCase())) continue;
+        const candidate: MediaPlanningExecution = {
+          ...original, hook:revision.hook.trim(), storyPayoff:revision.payoff?.trim() || '',
+          storyBeats:(revision.beats || []).filter(Boolean).slice(0, 8),
+          ...(video ? {script:revision.body.trim(), videoPack:{...original.videoPack, fullScript:revision.body.trim()}} :
+            {publishCopy:revision.body.trim(), copyPasteText:revision.body.trim()}),
+        };
+        const other = plan.days.flatMap(day => day.executions)
+          .filter(item => item !== original && item.action === 'post').map(creatorPublicBody);
+        const revisedReview = reviewCreatorQuality(candidate, other);
+        if (revisedReview.score <= target.result.score || revisedReview.verdict !== 'pass') continue;
+        Object.assign(original, {
+          hook:candidate.hook, storyPayoff:candidate.storyPayoff, storyBeats:candidate.storyBeats,
+          ...(video ? {script:candidate.script, videoPack:candidate.videoPack} :
+            {publishCopy:candidate.publishCopy, copyPasteText:candidate.copyPasteText}),
+          qualityRevisionCount:(original.qualityRevisionCount ?? 0) + 1,
+          requiresApproval:true, // Even a passing creative revision needs human safety approval.
+        });
+      }
+    } catch {
+      // Exhausted/failed editorial AI may not make the paid plan fail to save.
+      // The strict critic already marked those assets as review-required.
+    }
+  }
+
+  /**
+   * No-model recovery: every required slot must contain its FULL writing pack.
+   * Existing complete assets are immutable. Approval and filming remain separate.
+   */
+  private async creatorActivePortfolio(): Promise<CreatorSeries[]> {
+    if (!this.seriesService) return DEFAULT_CREATOR_SERIES;
+    const active = await this.seriesService.activePortfolio();
+    return active.map(s => ({ key: s.key, name: s.name, channels: s.channels }));
+  }
+
+  private reconcileCreatorPlan(plan: GeneratedPlan, historicalTitles = new Set<string>(),
+    activeSeries: readonly CreatorSeries[] = DEFAULT_CREATOR_SERIES): GeneratedPlan {
+    const days = plan.days.map(day => ({ ...day, executions: day.executions.map(post => {
+      // Old zero-cost templates are the source of the repeated motivational
+      // paragraphs in v3.14. Replace only these mechanically authored drafts.
+      const boilerplate = /I do not think the answer is to pretend everything is simple|The practical difference is not always a bigger push|That is not a victory speech/i;
+      if (post.action === 'post' && post.reason?.includes('Deterministic offline editorial completion') &&
+          post.editorialVersion !== 'narrative-v1' &&
+          (boilerplate.test(`${post.videoPack?.fullScript ?? ''} ${post.publishCopy ?? ''}`) ||
+            reviewCreatorEditorial(post).score < 8)) {
+        return { ...post, action: 'skip' as const, reason: 'Retired repetitive offline template; reauthoring a distinct series-based package', executionReady: false };
+      }
+      return post;
+    }) }));
+    const sourceOpportunities = (plan.opportunities ?? []).filter(item =>
+      item.usable && item.privacy === 'public_safe' && item.evidenceIds?.length);
+    const uses = new Map<string, number>();
+    const usedTitles = new Set<string>(historicalTitles);
+    for (const day of days) for (const item of day.executions) {
+      if (item.action === 'post' && completeCreatorCopy(item)) usedTitles.add(editorialTextKey(item.title));
+      if (item.action === 'post' && item.opportunityKey)
+        uses.set(item.opportunityKey, (uses.get(item.opportunityKey) ?? 0) + 1);
+    }
+    const requirements: Array<[MediaPlatform, MediaPostType, number]> = [
+      [MediaPlatform.INSTAGRAM, MediaPostType.REEL, MEDIA_CREATOR_WEEKLY_MINIMUMS.instagramReels],
+      [MediaPlatform.INSTAGRAM, MediaPostType.CAROUSEL, MEDIA_CREATOR_WEEKLY_MINIMUMS.instagramCarousels],
+      [MediaPlatform.YOUTUBE, MediaPostType.VIDEO, MEDIA_CREATOR_WEEKLY_MINIMUMS.youtubeLong],
+      [MediaPlatform.YOUTUBE, MediaPostType.SHORT, MEDIA_CREATOR_WEEKLY_MINIMUMS.youtubeShorts],
+      [MediaPlatform.LINKEDIN, MediaPostType.TEXT, MEDIA_CREATOR_WEEKLY_MINIMUMS.linkedin],
+      [MediaPlatform.X, MediaPostType.TEXT, MEDIA_CREATOR_WEEKLY_MINIMUMS.x],
+    ];
+    const count = (platform: MediaPlatform, format: MediaPostType) =>
+      days.reduce((n, day) => n + day.executions.filter(item =>
+        item.action === 'post' && item.platform === platform &&
+        (platform === MediaPlatform.LINKEDIN || platform === MediaPlatform.X || item.format === format) &&
+        completeCreatorCopy(item)).length, 0);
+    const requiredCountFor = (platform: MediaPlatform, format: MediaPostType) =>
+      requirements.find(([p, f]) => p === platform && f === format)?.[2] ?? 0;
+
+    for (const [platform, format, minimum] of requirements) {
+      while (count(platform, format) < minimum) {
+        const choices = days.flatMap((day, index) => day.executions.map((item, slotIndex) => {
+          if (item.platform !== platform) return null;
+          if (item.action === 'post' && completeCreatorCopy(item)) {
+            // Complete scripts are never silently replaced, even to fix a quota.
+            return null;
+          }
+          const priority = item.action === 'post' && item.format === format ? 0 :
+            item.action === 'skip' ? 1 : 2;
+          const dayPosts = day.executions.filter(post => post.action === 'post').length;
+          return { day, index, slotIndex, priority, dayPosts };
+        }).filter((value): value is NonNullable<typeof value> => value !== null))
+          .sort((a, b) => a.priority - b.priority || a.dayPosts - b.dayPosts || a.index - b.index);
+        // A full seven-day platform calendar may legitimately need an extra
+        // carousel / Short. Append a second publication on the least crowded
+        // day instead of deleting a real, complete asset.
+        const overflow = choices.length === 0;
+        const index = overflow ? days.map((day, i) => ({ i, count: day.executions.filter(item =>
+          item.action === 'post' && item.platform === platform).length }))
+          .sort((a, b) => a.count - b.count || a.i - b.i)[0].i : choices[0].index;
+        const day = days[index];
+        const slotIndex = overflow ? -1 : choices[0].slotIndex;
+        const opportunity = [...sourceOpportunities].sort((left, right) =>
+          ((left.platforms ?? []).includes(platform) ? -30 : 0) + (uses.get(left.key) ?? 0) * 30 -
+          (((right.platforms ?? []).includes(platform) ? -30 : 0) + (uses.get(right.key) ?? 0) * 30))[0];
+        const oldSlot = overflow ? null : day.executions[slotIndex];
+        const draft = this.skipExecution({
+          platform, action: 'post', format,
+          time: this.defaultPostingTime(platform), opportunityKey: '', storyArcKey: '',
+          reason: 'Creator quota completion', ...(oldSlot ?? {}),
+        });
+        const fullAsset = authoredCreatorFallback(
+          { ...draft, time: this.defaultPostingTime(platform) }, day.date,
+          index + requirements.findIndex(([p, f]) => p === platform && f === format) * 13,
+          format, platform, opportunity, usedTitles, activeSeries,
+        );
+        if (!completeCreatorCopy(fullAsset)) {
+          throw new Error(`Offline author could not complete ${platform}/${format} on ${day.date}.`);
+        }
+        if (overflow) {
+          // There can be two distinct same-platform assets in one day. Their
+          // formats and IDs remain separate in the persisted executions array.
+          fullAsset.time = platform === MediaPlatform.INSTAGRAM ? '20:30' :
+            platform === MediaPlatform.YOUTUBE ? '19:30' : fullAsset.time;
+          day.executions.push(fullAsset);
+        } else day.executions[slotIndex] = fullAsset;
+        if (opportunity) uses.set(opportunity.key, (uses.get(opportunity.key) ?? 0) + 1);
+      }
+    }
+    const result: GeneratedPlan = { ...plan, days };
+    if (!this.creatorQuotaReadiness(result.days).authored.complete) {
+      throw new Error('The seven-day plan has fewer than 17 fully authored creator assets.');
+    }
+    return result;
+  }
+
+  private creatorQuotaReadiness(days: GeneratedPlan['days']) {
+    const posts = days.flatMap(day => day.executions).filter(item => item.action === 'post');
+    const authored = posts.filter(completeCreatorCopy);
+    return {
+      planned: evaluateMediaCreatorQuota(posts),
+      authored: evaluateMediaCreatorQuota(authored),
+      ready: evaluateMediaCreatorQuota(authored.filter(item => item.executionReady && !item.readinessIssues?.length)),
+      editorialHighQuality: evaluateMediaCreatorQuota(authored.filter(item => reviewCreatorEditorial(item).score >= 8)),
+      editorialBelowEight: authored.filter(item => reviewCreatorEditorial(item).score < 8).length,
+      independentlyPassed: evaluateMediaCreatorQuota(authored.filter(item => item.qualityVerdict === 'pass')),
+      independentlyBelowEight: authored.filter(item => item.qualityVerdict !== 'pass').length,
+      unfinishedWritingPacks: posts.filter(item => !completeCreatorCopy(item)).length,
+      draftsRequiringReview: posts.filter(item => !item.executionReady || item.readinessIssues?.length).length,
+    };
+  }
+
+  private emptyCreatorDay(date: string, index: number): GeneratedPlan['days'][number] {
+    const subjects = [
+      'Me vs Me', 'Learning at 30', 'A founder notebook', 'Life without work',
+      'Dogs & Me', 'Something I changed my mind about', 'The weekly reflection',
+    ];
+    return {
+      date, theme: subjects[index % subjects.length],
+      workload: 'Reserve an authentic creator slot; publish only after review.',
+      executions: GROWTH_PLATFORMS.map(platform => this.skipExecution({
+        platform, action: 'skip', time: '',
+        format: platform === MediaPlatform.INSTAGRAM ? MediaPostType.REEL :
+          platform === MediaPlatform.YOUTUBE ? MediaPostType.SHORT : MediaPostType.TEXT,
+        opportunityKey: '', storyArcKey: '',
+        reason: 'No AI output available; offline author will complete all required writing packs.',
+      })),
+      instagramStory: this.skipDailyStory({
+        action: 'skip', time: '', sourceType: 'human_moment',
+        sourceEvidenceIds: [], reason: 'No verified Story source for this date.', captureBrief: '',
+      }),
+      youtubeCommunity: this.skipYoutubeCommunity(),
+      engagement: [],
+    };
+  }
+
+  /** Zero-token full-writing recovery when AI is unavailable; never auto-publishes. */
+  private recoverCreatorCalendar(
+    startDate: string,
+    endDate: string,
+    learningStage: string,
+    previous?: GeneratedPlan | null,
+    historicalTitles = new Set<string>(),
+    activeSeries: readonly CreatorSeries[] = DEFAULT_CREATOR_SERIES,
+  ): GeneratedPlan {
+    const dates = Array.from({ length: ROLLING_WINDOW_DAYS },
+      (_, index) => this.addDays(startDate, index));
+    const priorDays = new Map((previous?.days ?? []).map(day => [day.date, day]));
+    const draft: GeneratedPlan = {
+      startDate, endDate, timezone: TZ,
+      learningStage,
+      summary: 'All 17 required written production packages are authored. Filming, design, fact checks and publication still require approval.',
+      opportunities: previous?.opportunities ?? [],
+      storyArcs: previous?.storyArcs ?? [],
+      days: dates.map((date, index) => priorDays.get(date) ?? this.emptyCreatorDay(date, index)),
+    };
+    return this.reconcileCreatorPlan(draft, historicalTitles, activeSeries);
   }
 
   private mergeDayExecutions(
