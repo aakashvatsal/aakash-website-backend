@@ -1,9 +1,11 @@
+
 name: Deploy Backend
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: production-backend
@@ -11,99 +13,187 @@ concurrency:
 
 jobs:
   deploy:
-    name: Deploy to EC2
+    name: Build and Deploy to EC2
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
-      - name: Deploy backend
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install build dependencies
+        run: npm ci
+
+      - name: Build NestJS on GitHub Actions
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run build
+        timeout-minutes: 20
+
+      - name: Verify and package build
+        run: |
+          set -euo pipefail
+          test -s dist/main.js
+          tar -czf backend-release.tar.gz \
+            dist package.json package-lock.json
+          ls -lh backend-release.tar.gz
+
+      - name: Deploy compiled release to EC2
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
           EC2_APP_PATH: ${{ secrets.EC2_APP_PATH }}
         run: |
-          set -e
+          set -euo pipefail
+
+          : "${EC2_HOST:?Missing EC2_HOST}"
+          : "${EC2_USER:?Missing EC2_USER}"
+          : "${EC2_SSH_KEY:?Missing EC2_SSH_KEY}"
+          : "${EC2_APP_PATH:?Missing EC2_APP_PATH}"
+
+          RELEASE_ID="${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ARCHIVE="/home/${EC2_USER}/backend-${RELEASE_ID}.tar.gz"
 
           mkdir -p ~/.ssh
           chmod 700 ~/.ssh
-
-          echo "$EC2_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-          ssh \
-            -i ~/.ssh/deploy_key \
+          echo "Uploading compiled backend"
+
+          scp -i ~/.ssh/deploy_key \
             -o StrictHostKeyChecking=yes \
-            "$EC2_USER@$EC2_HOST" << EOF
+            backend-release.tar.gz \
+            "${EC2_USER}@${EC2_HOST}:${ARCHIVE}"
 
-            set -e
+          APP_ARG=$(printf '%q' "$EC2_APP_PATH")
+          ID_ARG=$(printf '%q' "$RELEASE_ID")
+          ARCHIVE_ARG=$(printf '%q' "$ARCHIVE")
 
-            cd "$EC2_APP_PATH"
+          ssh -i ~/.ssh/deploy_key \
+            -o StrictHostKeyChecking=yes \
+            "${EC2_USER}@${EC2_HOST}" \
+            "APP_DIR=$APP_ARG RELEASE_ID=$ID_ARG ARCHIVE=$ARCHIVE_ARG bash -se" <<'REMOTE'
+          set -Eeuo pipefail
 
-            echo "========================================"
-            echo "Pulling latest code"
-            echo "========================================"
+          echo "=== Preparing release ==="
 
-            git fetch origin main
-            git reset --hard origin/main
+          RELEASE_DIR="$APP_DIR/releases/$RELEASE_ID"
+          mkdir -p "$RELEASE_DIR"
 
-            echo "Current commit:"
-            git rev-parse --short HEAD
+          tar -xzf "$ARCHIVE" -C "$RELEASE_DIR"
 
-            echo "========================================"
-            echo "Installing dependencies"
-            echo "========================================"
+          test -s "$RELEASE_DIR/dist/main.js"
 
-            npm ci
+          echo "=== Installing production dependencies ==="
 
-            echo "========================================"
-            echo "Building NestJS application"
-            echo "========================================"
+          cd "$RELEASE_DIR"
 
-            npm run build
+          timeout 12m npm ci \
+            --omit=dev \
+            --no-audit \
+            --no-fund
 
-            echo "========================================"
-            echo "Restarting backend with PM2"
-            echo "========================================"
+          echo "=== Preparing application switch ==="
 
-            pm2 restart aakash-backend
+          PREVIOUS=""
 
-            echo "========================================"
-            echo "Saving PM2 state"
-            echo "========================================"
+          if [ -L "$APP_DIR/dist" ]; then
+            if [ -s "$APP_DIR/dist/main.js" ]; then
+              PREVIOUS=$(readlink "$APP_DIR/dist")
+            fi
+          elif [ -d "$APP_DIR/dist" ]; then
+            mv "$APP_DIR/dist" \
+              "$APP_DIR/dist.incomplete.$RELEASE_ID"
+          fi
 
-            pm2 save
+          rollback() {
+            echo "Deployment health check failed"
 
-            echo "========================================"
-            echo "Waiting for backend to start"
-            echo "========================================"
+            if [ -n "$PREVIOUS" ]; then
+              echo "Restoring previous release"
 
-            sleep 5
+              ln -s "$PREVIOUS" \
+                "$APP_DIR/.dist-rollback-$RELEASE_ID"
 
-            echo "========================================"
-            echo "Checking PM2 status"
-            echo "========================================"
+              mv -Tf \
+                "$APP_DIR/.dist-rollback-$RELEASE_ID" \
+                "$APP_DIR/dist"
 
-            pm2 status
+              pm2 restart aakash-backend || true
+            else
+              echo "No valid previous release"
+              pm2 stop aakash-backend || true
+            fi
+          }
 
-            echo "========================================"
-            echo "Running production health check"
-            echo "========================================"
+          ln -s "$RELEASE_DIR/dist" \
+            "$APP_DIR/.dist-next-$RELEASE_ID"
 
-            curl \
-              --fail \
-              --silent \
-              --show-error \
-              --retry 5 \
-              --retry-delay 3 \
-              --retry-connrefused \
-              https://api.aakashvatsal.com/api/v1/companies \
-              > /dev/null
+          mv -Tf \
+            "$APP_DIR/.dist-next-$RELEASE_ID" \
+            "$APP_DIR/dist"
 
-            echo "========================================"
-            echo "Health check passed"
-            echo "Deployment completed successfully"
-            echo "========================================"
+          echo "=== Starting backend ==="
 
-          EOF
+          cd "$APP_DIR"
+
+          if pm2 describe aakash-backend >/dev/null 2>&1; then
+            pm2 restart aakash-backend --update-env || true
+          else
+            pm2 start "$APP_DIR/dist/main.js" \
+              --name aakash-backend \
+              --cwd "$APP_DIR"
+          fi
+
+          echo "=== Checking backend health ==="
+
+          HEALTHY=0
+
+          for i in $(seq 1 20); do
+            if curl --fail --silent \
+              --max-time 5 \
+              http://127.0.0.1:4000/api/v1/system/health \
+              > /dev/null; then
+              HEALTHY=1
+              break
+            fi
+
+            sleep 3
+          done
+
+          if [ "$HEALTHY" -ne 1 ]; then
+            pm2 logs aakash-backend \
+              --lines 50 --nostream || true
+            rollback
+            exit 1
+          fi
+
+          sleep 5
+
+          if ! curl --fail --silent \
+            --max-time 10 \
+            http://127.0.0.1:4000/api/v1/system/health \
+            > /dev/null; then
+            rollback
+            exit 1
+          fi
+
+          echo "=== Deployment successful ==="
+
+          pm2 save
+          pm2 status
+
+          rm -f "$ARCHIVE"
+          echo "Release: $RELEASE_ID"
+
+          REMOTE
