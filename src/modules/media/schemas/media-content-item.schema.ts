@@ -112,3 +112,6 @@ MediaContentItemSchema.index({
   evidence: 'text',
   contentPillars: 'text',
 });
+
+// Idempotent Studio → Production handoff, including concurrent/retried requests.
+MediaContentItemSchema.index({ 'metadata.studioKey': 1 }, { unique: true, partialFilterExpression: { 'metadata.studioKey': { $type: 'string' } } });

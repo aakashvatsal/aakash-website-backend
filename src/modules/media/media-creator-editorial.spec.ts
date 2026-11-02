@@ -5,18 +5,14 @@ import { MediaPostType } from './schemas/media-post.schema';
 describe('conservative creator editorial preflight', () => {
   const service = Object.create(MediaPlanningService.prototype) as MediaPlanningService;
   const recover = (service as unknown as { recoverCreatorCalendar: (start: string, end: string, stage: string) => any }).recoverCreatorCalendar.bind(service);
-  it('produces distinct hooks, scene-based written packs and explicit editorial review scores', () => {
+  it('keeps the 17 reserved research slots visibly un-authored', () => {
     const week = recover('2026-10-08', '2026-10-14', 'starting');
     const posts = week.days.flatMap((d: any) => d.executions).filter((p: any) => p.action === 'post');
     expect(posts).toHaveLength(17);
-    expect(new Set(posts.map((p: any) => p.hook)).size).toBe(17);
-    expect(posts.every((p: any) => p.storyBeats?.length >= 5 && p.storyPayoff && p.editorialVersion === 'narrative-v1')).toBe(true);
-    expect(posts.every((p: any) => p.productionNotes.includes('Illustrative scene:'))).toBe(true);
-    for (const p of posts.filter((p: any) => [MediaPostType.REEL,MediaPostType.SHORT,MediaPostType.VIDEO].includes(p.format))) {
-      expect(p.videoPack.fullScript).not.toMatch(/pick one real practice moment|put the two competing versions|deliver every line as written|my practical suggestion/i);
-    }
-    const results = posts.map((p: any) => ({title:p.title,format:p.format,score:reviewCreatorEditorial(p).score, issues:reviewCreatorEditorial(p).issues}));
-    expect(results.every((r: any) => r.score >= 8)).toBe(true);
+    expect(posts.every((p: any) => p.editorialVersion === 'offline-research-v2')).toBe(true);
+    expect(posts.every((p: any) => p.videoPack.fullScript === '' && p.publishCopy === '' && !p.executionReady)).toBe(true);
+    expect(posts.every((p: any) => p.productionNotes.length > 20)).toBe(true);
+    expect(posts.every((p: any) => reviewCreatorEditorial(p).score < 8)).toBe(true);
   });
   it('keeps world evidence when input is too large, rather than sending only a voice profile', () => {
     const compact = (service as unknown as { compactMediaRequestInput: (s: string, n: number) => string }).compactMediaRequestInput.bind(service);

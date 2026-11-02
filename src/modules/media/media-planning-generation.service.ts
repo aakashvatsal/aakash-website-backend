@@ -48,7 +48,7 @@ export class MediaPlanningGenerationService {
     const run = await this.generationRunModel.create({
       purpose: MediaGenerationPurpose.PLANNING,
       status: MediaGenerationRunStatus.GENERATING,
-      promptVersion: 'media-planning-v3.15-rolling-growth-whole-os',
+      promptVersion: 'media-planning-v5.0-storycraft-hook-lab',
       brief:
         dto.notes?.trim() ||
         (mode === 'day'
@@ -166,12 +166,21 @@ export class MediaPlanningGenerationService {
               );
       const planId =
         plan && '_id' in plan && plan._id ? String(plan._id) : null;
+      const posts = (plan?.days ?? []).flatMap(day => day.executions ?? [])
+        .filter(item => item.action === 'post');
+      const unwrittenSlots = posts.filter(item =>
+        item.editorialVersion === 'offline-research-v2').length;
+      const editorialPasses = posts.filter(item =>
+        item.qualityVerdict === 'pass').length;
       await this.generationRunModel.updateOne(
         { _id: jobId },
         {
           $set: {
             status: MediaGenerationRunStatus.GENERATED,
-            'metadata.stage': 'completed',
+            'metadata.stage': unwrittenSlots ? 'completed_with_unwritten_slots' : 'completed',
+            'metadata.unwrittenSlots': unwrittenSlots,
+            'metadata.editorialPassedAssets': editorialPasses,
+            'metadata.plannedSlots': posts.length,
             'metadata.progress': 100,
             'metadata.completedDays': totalDays,
             'metadata.totalDays': totalDays,
@@ -248,6 +257,9 @@ export class MediaPlanningGenerationService {
         typeof metadata.startedAt === 'string' ? metadata.startedAt : null,
       completedAt:
         typeof metadata.completedAt === 'string' ? metadata.completedAt : null,
+      unwrittenSlots: typeof metadata.unwrittenSlots === 'number' ? metadata.unwrittenSlots : 0,
+      editorialPassedAssets: typeof metadata.editorialPassedAssets === 'number' ? metadata.editorialPassedAssets : 0,
+      plannedSlots: typeof metadata.plannedSlots === 'number' ? metadata.plannedSlots : 0,
       completedDays:
         typeof metadata.completedDays === 'number' ? metadata.completedDays : 0,
       totalDays:

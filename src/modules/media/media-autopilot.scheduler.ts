@@ -12,6 +12,7 @@ export class MediaAutopilotScheduler {
 
   @Cron('0 5 6 * * *', { timeZone: 'Asia/Kolkata' })
   async runDailyAutopilot() {
+    if (process.env.HSAKAA_MEDIA_LEGACY_AUTOPILOT !== "true") return;
     try {
       const settings = await this.autopilotService.getSettings();
       if (!settings.enabled || !settings.dailyEnabled) return;
@@ -30,6 +31,7 @@ export class MediaAutopilotScheduler {
 
   @Cron('0 35 6 * * 0', { timeZone: 'Asia/Kolkata' })
   async runWeeklyStrategyReview() {
+    if (process.env.HSAKAA_MEDIA_LEGACY_AUTOPILOT !== "true") return;
     try {
       const settings = await this.autopilotService.getSettings();
       if (!settings.enabled || !settings.weeklyEnabled) return;

@@ -214,7 +214,7 @@ export class MediaProductionService {
       purpose: MediaGenerationPurpose.PRODUCTION,
       status: MediaGenerationRunStatus.GENERATING,
       aiModel: this.aiService.getModel(),
-      promptVersion: 'media-production-6d-v1',
+      promptVersion: 'media-production-6d-storycraft-v2',
       brief: `Prepare production for ${publication.platform}/${publication.format}: ${contentItem.title}`,
       requestedPlatforms: [publication.platform],
       acceptedContentItemIds: [contentItem._id],
@@ -240,7 +240,7 @@ export class MediaProductionService {
         generatedAt: new Date(),
         aiModel: generated.model,
         responseId: generated.responseId,
-        promptVersion: 'media-production-6d-v1',
+        promptVersion: 'media-production-6d-storycraft-v2',
       };
       publication.productionVersion = (publication.productionVersion ?? 0) + 1;
       publication.productionRunId = run._id;
@@ -522,6 +522,10 @@ export class MediaProductionService {
         'Make instructions specific enough that Aakash can record/design the piece without asking what shot, framing, B-roll, thumbnail or asset is needed.',
         'Only require assets that materially help the chosen format. Text-only formats can have an empty assetRequirements array.',
         'For video/reel/short formats provide a polished final script, teleprompter-friendly version, shot list, B-roll, camera/audio/lighting guidance and edit direction.',
+        'STORYTELLING: do not write a generic tutorial or motivational voiceover. Place Aakash in a truthful scene, establish the stakes, reveal a real obstacle or contradiction, then earn the payoff. Alternate documentary, activity-first, POV, dialogue, humour and builder formats where appropriate.',
+        'HOOK INTEGRITY: the approved publication hook must be the exact first spoken line for videos; the first shot must communicate the visual premise before explanatory setup. Do not promise a reveal that the approved evidence cannot deliver.',
+        'RETENTION: for short video specify a meaningful change in action, frame, emotion or information every 5-8 seconds using existing shot and edit fields. Show the actual object, attempt, failed step, reaction or before/after when supported; do not invent B-roll of events that never happened.',
+        'DESIGN QUALITY: thumbnail/cover should have one obvious focal point, high contrast and minimal readable text, not dense paragraphs or fake expressions; for carousels the first slide must stop a scroll, every middle slide must progress the narrative and the final slide must deliver value. All AI art must be explicitly illustrative, not fake documentary evidence.',
         'For carousel formats provide slide-by-slide copy and visual direction. For image formats provide composition and image/design direction. For YouTube long-form include a strong thumbnail concept.',
         'Asset requirement keys must be stable lowercase snake_case identifiers and unique within this publication.',
         'Prefer real/owned production where appropriate; use AI-generated or designed assets only when they materially improve the concept.',

@@ -1,6 +1,14 @@
 /** A series pitch is not a published experience. Evaluate/show production identity
  * without pretending metrics or an AI call have verified commercial success. */
-export type SeriesPitch = { name: string; angle: string; channels: string[]; audience?: string };
+/** Sources are discovery hints, never permission to publish private details. */
+export const SERIES_SOURCE_TOPICS = [
+  'hobbies', 'books', 'companies', 'projects', 'tasks', 'journal',
+  'brain-dump', 'daily-life', 'travel', 'pets', 'health-routines', 'world-cultures',
+] as const;
+export type SeriesPitch = {
+  name: string; angle: string; channels: string[]; audience?: string;
+  sourceTopics?: string[]; topicKeywords?: string[]; creativeDirection?: string;
+};
 export type SeriesCreativeKit = {
   premise: string; targetAudience: string; voice: string; visualIdentity: string;
   episodeStructure: string[]; hookPatterns: string[]; episodeIdeas: string[];
@@ -11,7 +19,7 @@ export type SeriesDesignReview = {
   strengths: string[]; risks: string[]; improvements: string[];
   creativeKit: SeriesCreativeKit; aiAssisted: boolean; warning?: string;
 };
-export const CREATOR_CHANNELS = ['instagram', 'youtube', 'linkedin', 'x'] as const;
+export const CREATOR_CHANNELS = ['instagram', 'youtube', 'linkedin', 'x', 'whatsapp'] as const;
 const short = (input: unknown, max: number) => typeof input === 'string' ? input.trim().slice(0,max) : '';
 export function normalizePitch(raw: SeriesPitch): SeriesPitch {
   const name = short(raw?.name, 70);
@@ -21,7 +29,15 @@ export function normalizePitch(raw: SeriesPitch): SeriesPitch {
   if (name.length < 4 || !/^[\p{L}\p{N}][\p{L}\p{N}\p{P}\p{Zs}]*$/u.test(name)) throw new Error('Series name must be 4–70 readable characters');
   if (angle.length < 25) throw new Error('Describe the recurring angle in at least 25 characters');
   if (!channels.length) throw new Error('Choose at least one supported channel');
-  return { name, angle, channels, audience };
+  const sourceTopics = Array.isArray(raw?.sourceTopics) ? [...new Set(raw.sourceTopics
+    .filter((value): value is string => typeof value === 'string' &&
+      (SERIES_SOURCE_TOPICS as readonly string[]).includes(value)))].slice(0, 10) : [];
+  const topicKeywords = Array.isArray(raw?.topicKeywords) ? [...new Set(raw.topicKeywords
+    .filter((value): value is string => typeof value === 'string')
+    .map(value => value.trim().toLowerCase().slice(0, 48))
+    .filter(value => value.length >= 2 && /^[\p{L}\p{N}][\p{L}\p{N}\s-]*$/u.test(value)))].slice(0, 20) : [];
+  const creativeDirection = short(raw?.creativeDirection, 750);
+  return { name, angle, channels, audience, sourceTopics, topicKeywords, creativeDirection };
 }
 export function localSeriesDesign(raw: SeriesPitch, peers: Array<{ name: string; angle?: string }> = []): SeriesDesignReview {
   const pitch = normalizePitch(raw);
@@ -30,7 +46,7 @@ export function localSeriesDesign(raw: SeriesPitch, peers: Array<{ name: string;
   const duplicate = peers.some(x => x.name.toLowerCase() === pitch.name.toLowerCase() ||
     (x.angle && x.angle.length > 25 && x.angle.toLowerCase() === pitch.angle.toLowerCase()));
   const score = Math.max(2, Math.min(9, 5 + signals.filter(x => x.test(lower)).length +
-    (pitch.angle.length > 85 ? 1 : 0) - (duplicate ? 4 : 0) - (pitch.channels.length === 4 && pitch.angle.length < 100 ? 1 : 0)));
+    (pitch.angle.length > 85 ? 1 : 0) - (duplicate ? 4 : 0) - (pitch.channels.length >= 4 && pitch.angle.length < 100 ? 1 : 0)));
   const verdict = score >= 8 ? 'strong' : score >= 5 ? 'refine' : 'weak';
   const story = pitch.angle.replace(/[.!?]+$/, '');
   return { score, verdict,
@@ -50,7 +66,7 @@ export function localSeriesDesign(raw: SeriesPitch, peers: Array<{ name: string;
       hookPatterns: [`The part of ${pitch.name} nobody shows is…`, 'I thought this would be simple. Then…', 'Two versions of this decision, one surprising consequence…'],
       episodeIdeas: [`First attempt: ${story}`, `The awkward middle: ${story}`, `One thing I changed after testing: ${story}`],
       productionGuidance: 'Record only public-safe real scenes. A hypothetical scene must be explicitly labeled. Vertical for Reels/Shorts; clear dialogue separate from camera directions.',
-      suggestedCadence: pitch.channels.includes('instagram') ? 'One episode per week initially; review after eight episodes' : 'One strong episode weekly; reuse only genuinely distinct platform-native derivatives',
+      suggestedCadence: pitch.channels.includes('instagram') ? 'One episode per week initially; review after eight episodes' : 'One strong episode weekly; adapt to selected platforms, including manual WhatsApp Status',
     }, aiAssisted: false,
   };
 }

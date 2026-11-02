@@ -22,12 +22,12 @@ export class MediaSeriesService {
 
   /** Explicit on-demand AI review; never call the model during normal generation.
    * A failed/expensive AI response falls back to a free deterministic design. */
-  async designSeries(raw: SeriesPitch): Promise<SeriesDesignReview> {
+  async designSeries(raw: SeriesPitch, excludingKey?: string): Promise<SeriesDesignReview> {
     let pitch: SeriesPitch;
     try { pitch = normalizePitch(raw); }
     catch (e) { throw new BadRequestException(e instanceof Error ? e.message : 'Invalid series pitch'); }
     await this.seed();
-    const peers = await this.series.find().select('name angle').lean();
+    const peers = await this.series.find({ status: { $ne: 'deleted' }, ...(excludingKey ? { key: { $ne: excludingKey } } : {}) }).select('name angle').lean();
     const baseline = localSeriesDesign(pitch, peers);
     if (peers.some(p => p.name.toLowerCase() === pitch.name.toLowerCase()))
       return { ...baseline, score: 2, verdict: 'weak', warning: 'Series name already exists; choose a different name' };
@@ -57,10 +57,32 @@ export class MediaSeriesService {
     } catch (e) { return { ...baseline, warning: 'AI critique unavailable; deterministic editorial assessment used instead. No repeated AI retries.' }; }
   }
 
+  /** Owner-triggered AI critique of an existing series, not automatic approval or rotation. */
+  async analyzeExisting(key: string) {
+    await this.seed();
+    const series = await this.series.findOne({ key, status: { $ne: 'deleted' } }).lean();
+    if (!series) throw new NotFoundException('Series not found');
+    const pitch: SeriesPitch = {
+      name: series.name, angle: series.angle || '',
+      channels: series.channels, audience: series.audience,
+      sourceTopics: series.sourceTopics, topicKeywords: series.topicKeywords,
+      creativeDirection: series.creativeDirection,
+    };
+    const [concept, recommendations] = await Promise.all([
+      this.designSeries(pitch, key),
+      this.recommendations(90).catch(() => [] as Awaited<ReturnType<MediaSeriesService["recommendations"]>>),
+    ]);
+    return {
+      key, concept,
+      actualPerformance: recommendations.find(r => r.key === key) ?? null,
+      note: 'Concept analysis is an editorial estimate; performance is based only on available measured publications. You decide whether to keep the series.',
+    };
+  }
+
   /** One on-demand suggestion, no periodic background AI spend. */
   async suggestSeries(direction = ''): Promise<{ pitch: SeriesPitch; review: SeriesDesignReview }> {
     await this.seed();
-    const rows = await this.series.find().select('name angle channels').lean();
+    const rows = await this.series.find({ status: { $ne: 'deleted' } }).select('name angle channels').lean();
     const existing = new Set(rows.map(r => r.name.toLowerCase()));
     const bench = MEDIA_SERIES_CREATOR_POLICY.bench.find(x => !existing.has(x.name.toLowerCase()));
     const fallback: SeriesPitch = bench ? {name: bench.name, angle: bench.angle, channels: [...bench.channels]} : {
@@ -74,7 +96,7 @@ export class MediaSeriesService {
       const generated = await this.aiService.generateStructuredResponse<SeriesPitch & {hookPatterns:string[]; episodeIdeas:string[]; visualIdentity:string}>({
         name: 'media_series_suggestion_v1', model: process.env.HSAKAA_MEDIA_MODEL || 'gpt-5.4-mini',
         maxOutputTokens: 900, reasoningEffort: 'none', verbosity: 'low',
-        instructions: 'Suggest ONE new original, repeatable creator series for Aakash who builds software companies and enjoys books, dogs, guitar, Spanish, chess, self-improvement, travel and everyday humor. It must be distinguishable from current series, preserve a max 6 active series, never invent real achievements, include plausible episode hooks and creative style. Do not claim it will go viral. Return valid JSON.',
+        instructions: 'Suggest ONE new original, repeatable creator series for Aakash who builds software companies and enjoys books, dogs, guitar, Spanish, chess, self-improvement, travel and everyday humor. It must be distinguishable from current series, support an owner-curated 5 to 8 active series, never invent real achievements, include plausible episode hooks and creative style. Do not claim it will go viral. Return valid JSON.',
         input: JSON.stringify({ direction: prompt, existingSeries: rows.slice(0,30).map(x=>({name:x.name,angle:x.angle})) }),
         schema: { type:'object', additionalProperties:false, required:['name','angle','channels','audience','hookPatterns','episodeIdeas','visualIdentity'], properties:{
           name:{type:'string'},angle:{type:'string'},channels:{type:'array',items:{type:'string'}},audience:{type:'string'},
@@ -102,7 +124,7 @@ export class MediaSeriesService {
     if (!key) throw new BadRequestException('Name must contain Latin characters for a URL key');
     const existing = await this.series.findOne({ $or: [{key},{name: pitch.name}] }).lean();
     if (existing) throw new BadRequestException('A series with this name/key already exists');
-    // Saving a series NEVER silently activates a seventh series. Evaluate and
+    // Saving a series NEVER silently activates it. Evaluate and
     // design are suggestions, not a permission to fabricate a published episode.
     const design = localSeriesDesign(pitch);
     // The authenticated owner explicitly approves a returned series kit. Validate
@@ -129,7 +151,7 @@ export class MediaSeriesService {
   }
 
   async seed() {
-    // Preserve administrative decisions and never seed above the six-series cap.
+    // Preserve administrative decisions and never seed above the eight-series cap.
     for (const item of MEDIA_SERIES_CREATOR_POLICY.active) {
       const existing = await this.series.findOne({ key: item.key }).select('_id').lean();
       if (existing) continue;
@@ -140,7 +162,7 @@ export class MediaSeriesService {
       } }, { upsert: true });
     }
     // Non-active bench is never activated just because an API endpoint ran.
-    // This keeps the active portfolio capped at the six explicit launch series.
+    // This keeps the active portfolio capped at the initial default series.
     for (const item of MEDIA_SERIES_CREATOR_POLICY.bench) {
       await this.series.updateOne({ key: item.key }, { $setOnInsert: {
         ...item, status: 'paused',
@@ -150,15 +172,16 @@ export class MediaSeriesService {
 
   async activePortfolio() {
     await this.seed();
-    return this.series.find({ status: 'active' }).select('key name channels angle creativeKit').lean();
+    return this.series.find({ status: 'active' })
+      .select('key name channels angle audience creativeKit sourceTopics topicKeywords creativeDirection').lean();
   }
 
   async setStatus(key: string, status: string, rationale?: string) {
     if (!['active', 'paused', 'retired'].includes(status)) throw new BadRequestException('Invalid series status');
     const existing = await this.series.findOne({ key });
-    if (!existing) throw new NotFoundException('Series not found');
+    if (!existing || existing.status === 'deleted') throw new NotFoundException('Series not found');
     if (status === 'active' && existing.status !== 'active' &&
-        await this.series.countDocuments({ status: 'active' }) >= 6) {
+        await this.series.countDocuments({ status: 'active' })  >= MEDIA_SERIES_CREATOR_POLICY.maxActive) {
       throw new BadRequestException('Pause or retire an active series before activating another');
     }
     existing.status = status as MediaSeries['status'];
@@ -167,6 +190,45 @@ export class MediaSeriesService {
     if (status === 'retired') existing.retiredAt = new Date();
     await existing.save();
     return existing.toObject();
+  }
+
+  /** Edit in place: the stable key preserves published analytics, no automatic reposting. */
+  async updateSeries(key: string, raw: SeriesPitch) {
+    const current = await this.series.findOne({ key, status: { $ne: 'deleted' } });
+    if (!current) throw new NotFoundException('Series not found');
+    let next: SeriesPitch;
+    try { next = normalizePitch(raw); }
+    catch (error) { throw new BadRequestException(error instanceof Error ? error.message : 'Invalid series'); }
+    const collision = await this.series.findOne({ name: next.name, key: { $ne: key }, status: { $ne: 'deleted' } }).lean();
+    if (collision) throw new BadRequestException('A series with this name already exists');
+    const premiseChanged = current.name !== next.name || current.angle !== next.angle || current.audience !== next.audience;
+    // Rebuild deterministic base when the premise changes; AI review is optional and never paid for on every edit.
+    const baseline = premiseChanged ? localSeriesDesign(next) : null;
+    current.name = next.name;
+    current.angle = next.angle;
+    current.audience = next.audience;
+    current.channels = next.channels;
+    current.sourceTopics = next.sourceTopics;
+    current.topicKeywords = next.topicKeywords;
+    current.creativeDirection = next.creativeDirection;
+    if (baseline) {
+      current.creativeKit = baseline.creativeKit;
+      current.designReview = { score: baseline.score, verdict: baseline.verdict, aiAssisted: false };
+    }
+    current.rationale = 'Owner edited; changes apply to newly generated content';
+    await current.save();
+    return current.toObject();
+  }
+
+  /** Soft-delete: hide from management/planning, preserve keys and historical metrics. */
+  async removeSeries(key: string) {
+    const current = await this.series.findOne({ key, status: { $ne: 'deleted' } });
+    if (!current) throw new NotFoundException('Series not found');
+    current.status = 'deleted';
+    current.deletedAt = new Date();
+    current.rationale = 'Removed by owner; historical publications preserved';
+    await current.save();
+    return { key, removed: true, historicalPostsPreserved: true };
   }
 
   async assign(contentId: string, seriesKey: string) {
@@ -333,7 +395,7 @@ export class MediaSeriesService {
     const boundedDays = Math.min(365, Math.max(14, Math.trunc(Number(days) || 90)));
     const since = new Date(Date.now() - boundedDays * 86400000);
     const [series, contentItems, publications] = await Promise.all([
-      this.series.find().sort({ status: 1, name: 1 }).lean(),
+      this.series.find({ status: { $ne: 'deleted' } }).sort({ status: 1, name: 1 }).lean(),
       this.content.find({ 'metadata.seriesKey': { $exists: true } }).select('_id metadata title').lean(),
       this.publications.find({ deliveryStatus: MediaDeliveryStatus.PUBLISHED, $or: [{ publishedAt: { $gte: since } }, { manualPublishCompletedAt: { $gte: since } }] }).select('_id contentItemId platform format publishedAt').lean(),
     ]);
@@ -375,11 +437,12 @@ export class MediaSeriesService {
       const published = posts.length;
       const ageDays = s.activatedAt ? (Date.now() - new Date(s.activatedAt).getTime()) / 86400000 : 0;
       const status = published < 4 || measured < 4 || ageDays < 14 ? 'insufficient_data' : 'review_ready';
-      return { key: s.key, name: s.name, status: s.status, angle: s.angle, audience: s.audience, creativeKit: s.creativeKit, channels: s.channels,
+      return { key: s.key, name: s.name, status: s.status, angle: s.angle, audience: s.audience, creativeKit: s.creativeKit,
+        sourceTopics: s.sourceTopics ?? [], topicKeywords: s.topicKeywords ?? [], creativeDirection: s.creativeDirection ?? '', channels: s.channels,
         published, measured, reviewStatus: status, byPlatform, rationale: s.rationale || null };
     });
     return { periodDays: boundedDays, activeCount: groups.filter(g => g.status === 'active').length,
-      activeLimit: 6, weeklyMinimums: MEDIA_SERIES_CREATOR_POLICY.weeklyMinimums,
+      activeLimit: MEDIA_SERIES_CREATOR_POLICY.maxActive, weeklyMinimums: MEDIA_SERIES_CREATOR_POLICY.weeklyMinimums,
       groups, untaggedPublished: publications.length - eligible.length,
       note: 'Metrics are the latest available snapshot per publication. Missing snapshots are not interpreted as zero engagement. Compare channels separately before retiring a series.' };
   }

@@ -1,4 +1,32 @@
-export const MEDIA_STORYTELLING_VERSION = "v4.5-series-public-figure";
+export const MEDIA_STORYTELLING_VERSION = "v5.0-storycraft-hook-lab";
+
+/** Creative contract. These are guidance and review criteria, not guarantees of reach. */
+export const MEDIA_STORYCRAFT_CONTRACT = {
+  storyShapes: [
+    "cold open inside a real moment -> unanswered question -> complication -> earned reveal",
+    "specific expectation -> observable attempt -> surprising result -> what changed",
+    "two conflicting instincts -> dialogue/action -> consequence -> sharp comic or thoughtful payoff",
+    "strongly held belief -> real counterexample -> reconsideration -> honest new position",
+    "tiny relatable frustration -> escalating attempts -> unexpected human ending",
+    "documentary checkpoint -> obstacle -> decision -> what the next episode must answer",
+  ],
+  hookLenses: [
+    "start in the middle of a visible decision or mistake",
+    "present an evidence-backed contradiction without revealing the answer",
+    "lead with an unusual object, action or comparison visible in frame",
+    "open with a concise high-stakes question whose answer is actually delivered",
+    "use two-character conflict or natural awkward humour only when true to the series",
+    "lead with a concrete before/after expectation, never a fabricated result",
+  ],
+  firstSeconds:
+    "Write the FIRST SPOKEN LINE to match the chosen hook exactly, and describe the first actual frame. No hello, introduction, logo, context preamble, or long explanatory cover.",
+  progression:
+    "Each scene must add new information, action, emotion or contradiction. Cut repeated setup. Deliver the promised payoff on camera or in the text, not only in metadata.",
+  hookLab:
+    "For every feed asset supply two genuinely DIFFERENT alternate opening hooks (not paraphrases), plus the chosen hook and its opening visual. The chosen hook MUST match the first spoken words for video, and must be answerable by the actual story. Alternatives are creative suggestions, not automatic publish substitutions.",
+  truth:
+    "Personal scenes, dialogue, wins, failures, quotes, numbers, customer incidents and changes of mind require supporting public-safe evidence. Hypotheticals must be unambiguously labeled and never impersonate lived experiences. Never leak private Health data.",
+} as const;
 
 
 export const MEDIA_PUBLIC_PERSONA_CONTRACT = {
@@ -333,6 +361,10 @@ export function mediaStorytellingPromptPolicy() {
     "REFRESH MEANS NEW CHAPTER: when a day/week is refreshed, do not regenerate the same subject with a different hook. If the underlying event, evidence, tension and payoff are substantially the same, treat it as already used and choose another grounded story or skip.",
     "HOBBIES ARE TEXTURE, NOT IDENTITY: guitar, voice, chess, reading, Spanish, fitness and other recurring pursuits should make Aakash feel alive and multidimensional. Do not make one hobby the account. Minor repeated practice belongs in Stories; feed posts need a material new chapter.",
     "STORY FRAMEWORK ROTATION: vary structures across open-loop, expectation→attempt→failure→reaction→next attempt, transformation, in-medias-res, contradiction, observation, tiny human moment and documentary progression. Do not default every asset to Hook→Problem→Lesson→CTA.",
+    `STORYCRAFT SHAPES: rotate these when evidence supports them: ${MEDIA_STORYCRAFT_CONTRACT.storyShapes.join(" | ")}. Avoid using one structure across the whole week.`,
+    `HOOK LAB: ${MEDIA_STORYCRAFT_CONTRACT.hookLab} Rotate lenses: ${MEDIA_STORYCRAFT_CONTRACT.hookLenses.join(" | ")}.`,
+    `FIRST SECONDS + PACING: ${MEDIA_STORYCRAFT_CONTRACT.firstSeconds} ${MEDIA_STORYCRAFT_CONTRACT.progression}`,
+    `TRUTHFUL STORYTELLING: ${MEDIA_STORYCRAFT_CONTRACT.truth}`,
     "ONE TRUTH, NATIVE TREATMENTS: derivatives may share one grounded event but each platform must have a distinct audience job, opening, pacing, depth and payoff. Never merely resize or lightly rewrite the same post across platforms.",
     "ENGLISH ONLY: all publishable scripts, spoken dialogue, captions, overlays, carousel copy, titles, descriptions, X posts, WhatsApp copy and calls-to-action must be English. A non-English word may appear only when the subject itself requires it, for example a Spanish-learning example. Do not generate Hindi or Hinglish unless the per-asset input explicitly overrides this rule.",
     "SHOOTING DIVERSITY: video must not default to Aakash seated at a desk. Rotate walking talk, activity-first, follow-me, POV, voice-over documentary, static environmental, moving B-roll narration, off-camera conversation, before/after and screen-plus-human. Across a rolling seven days, no more than two feed videos should use seated desk talking-head as the primary setup.",
@@ -357,9 +389,9 @@ export function mediaStorytellingPromptPolicy() {
 }
 
 
-/** Active creative portfolio. HSAKAA must not silently introduce a seventh series. */
+/** Active creative portfolio. HSAKAA must not silently activate beyond the owner-configured eight-series ceiling. */
 export const MEDIA_SERIES_CREATOR_POLICY = {
-  maxActive: 6,
+  maxActive: 8,
   active: [
     { key: "me-vs-me", name: "Me vs Me", channels: ["instagram", "youtube"], angle: "Internal dialogue between impulsive and thoughtful Aakash; wit first, useful realization second, not sketches or comedian persona." },
     { key: "learning-at-30", name: "Learning at 30", channels: ["instagram", "youtube", "linkedin"], angle: "Real attempts and change over time in chess, guitar, Spanish, storytelling, reading and voice. Show real failure, evidence and progress; never fabricated milestones." },
@@ -372,6 +404,7 @@ export const MEDIA_SERIES_CREATOR_POLICY = {
     { key: "small-adventures", name: "Small Adventures", channels: ["instagram", "youtube"], angle: "Real outings, nearby discoveries and unusual experiences, with genuine footage and natural humor." },
     { key: "one-week-experiments", name: "One-Week Experiments", channels: ["instagram", "youtube", "linkedin"], angle: "A real personal or founder experiment with what changed after one week; no invented results." },
     { key: "questions-i-cant-shake", name: "Questions I Can't Shake", channels: ["linkedin", "x", "instagram"], angle: "Thoughtful real questions from building and everyday life, not contrarian bait or lecture threads." },
+    { key: "world-a-to-z", name: "World A to Z", channels: ["instagram", "youtube"], angle: "One country per week in alphabetical order: human-centred history, traditions, philosophy, contemporary reality and future; tell 6 distinct short stories and a carousel using verified references, respectful framing, clearly marked illustrative AI art and a carefully verified local-language sign-off. Never manufacture interviews, images or local voices. Activate only after pausing another series." },
   ],
   weeklyMinimums: { instagram: { total: 4, reel: 3, carousel: 1 }, youtube: { total: 4, video: 1, short: 3 }, linkedin: { total: 5 }, x: { total: 4 } },
   guidance: [

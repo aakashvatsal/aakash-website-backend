@@ -214,6 +214,12 @@ export class MediaPlanningExecution {
   @Prop({ type: [String], default: [] }) qualityIssues?: string[];
   @Prop({ min: 0, default: 0 }) qualityRevisionCount?: number;
 
+  // Hook Lab and storyboard: metadata for production, NEVER a substitute for real script.
+  @Prop({ type: [String], default: [] }) hookAlternatives?: string[];
+  @Prop({ trim: true, default: '' }) openingVisual?: string;
+  @Prop({ trim: true, default: '' }) storyTension?: string;
+  @Prop({ trim: true, default: '' }) storyTurn?: string;
+  @Prop({ trim: true, default: '' }) viewerPayoff?: string;
   @Prop({ type: [String], default: [] }) storyBeats?: string[];
   @Prop({ trim: true }) storyPayoff?: string;
 

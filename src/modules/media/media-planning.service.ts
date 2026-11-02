@@ -1365,8 +1365,8 @@ export class MediaPlanningService {
       // A missing paid asset becomes a labelled draft, not another costly week rerun.
       plan = this.reconcileCreatorPlan(plan, previouslyPlannedTitles, await this.creatorActivePortfolio());
       const requiredQuota = this.requiredCreatorQuota(plan.days);
-      if (!requiredQuota.complete || !this.creatorQuotaReadiness(plan.days).authored.complete) {
-        throw new Error(`Could not author all 17 required assets: ${JSON.stringify(this.creatorQuotaReadiness(plan.days).authored.deficits)}. No further AI retries attempted.`);
+      if (!requiredQuota.complete || !this.creatorQuotaReadiness(plan.days).planned.complete) {
+        throw new Error(`Could not reserve all required creator slots: ${JSON.stringify(this.creatorQuotaReadiness(plan.days).planned.deficits)}.`);
       }
       await this.tagCreatorEditorial(plan, usage);
       await report("saving_plan", 96, generationTotalDays, plan);
@@ -1484,8 +1484,19 @@ export class MediaPlanningService {
       presence.presenceStrategy.version,
     );
     if (!base) {
-      throw new BadRequestException(
-        "A fresh rolling plan is required. Create the seven-day rolling window first.",
+      // A rolling window can expire between visits (or after a strategy-version
+      // change). Generate Missing must bootstrap the new window instead of
+      // failing before generation with an unhelpful "fresh plan" error.
+      // "ensure" retains the existing per-run AI budget and quota checks.
+      return this.generate(
+        {
+          ...dto,
+          mode: "ensure",
+          force: false,
+          startDate,
+          targetDate: undefined,
+        },
+        onProgress,
       );
     }
     const inheritedContext = this.resolveWeekContext(
@@ -2911,6 +2922,8 @@ export class MediaPlanningService {
       candidate.title,
       publishCopy.split(/\n|[.!?]\s/)[0],
     );
+    const hookAlternatives = [...new Set(strings(candidate.hookAlternatives)
+      .map(value => value.trim()).filter(value => value && value.toLowerCase() !== hook.toLowerCase()))].slice(0, 2);
 
     return {
       ...candidate,
@@ -2925,6 +2938,12 @@ export class MediaPlanningService {
       storyArcKey: skeleton.storyArcKey ?? "",
       reason: skeleton.reason || candidate.reason,
       hook,
+      hookAlternatives,
+      editorialVersion: 'storycraft-v5',
+      openingVisual: firstAvailable(candidate.openingVisual, candidate.videoPack?.openingFrame),
+      storyTension: candidate.storyTension?.trim() || '',
+      storyTurn: candidate.storyTurn?.trim() || '',
+      viewerPayoff: candidate.viewerPayoff?.trim() || '',
       caption: firstAvailable(candidate.caption, publishCopy),
       script: candidate.script ?? "",
       description: firstAvailable(candidate.description, publishCopy),
@@ -3191,7 +3210,8 @@ export class MediaPlanningService {
   ) {
     const baseInstructions = [
       this.blueprintInstructions(),
-      "ACTIVE SERIES SOURCE OF TRUTH: use blueprintInput.activeSeries, not the template series if statuses changed. All posts must belong to one of these active series; never add a seventh.",
+      "ACTIVE SERIES SOURCE OF TRUTH: use blueprintInput.activeSeries, not template series or previous plans. All posts must belong to one of these active series on a supported channel. Paused/retired/removed series must NEVER appear in a new plan. No seventh series. If no active compatible series exists, mark the slot as needing series review rather than inventing a tag.",
+      "SERIES CREATIVE BRIEF: each active series provides name, angle, audience, creativeKit, creativeDirection, sourceTopics and topicKeywords. Write FRESH episodes that distinctly match its promise, target audience, hook patterns, recurring story design and owner creativeDirection. For a series with sourceTopics, actively inspect eligible matching worldContext and real opportunities (especially hobbies, books, projects, companies, daily life). Source category is a DISCOVERY HINT only: private journals, Health, tasks, company secrets and personal memories are NOT automatically public. Use only public-safe source-grounded evidence. Never force a generic hobby update to fill a slot if nothing happened; use an honest labeled hypothetical or flag insufficient evidence for review. Give each episode a concrete first-frame hook, change and payoff.",
       "PUBLICATION HISTORY AUDIT: use blueprintInput.publicationHistory. Check real posts from the previous seven local dates, plus separately scheduled next-seven-day posts. Do not rewrite a published story as new, and do not regenerate a scheduled story. The mandatory format floors apply to the final seven-day plan regardless of how many calendar days are already populated. Published and scheduled are not interchangeable.",
       repairInstruction ?? "",
       dayCount === 1
@@ -3352,8 +3372,8 @@ export class MediaPlanningService {
       "When refreshing a plan, the burden of novelty is higher: do not paraphrase the old plan. Choose a different grounded event, tension, identity dimension or platform job.",
       "For every opportunity set identityPillar for backward-compatible high-level identity AND strategyNarrativeKey copied exactly from presenceStrategy.narratives[].key. Also set a stable topicClusterKey: all derivatives of the same underlying idea/event must share one cluster key even across platforms. Set growthIntent to authority, discovery, conversion, affinity or conversation based on the primary growth job of the idea.",
       "Do not translate every personal signal into a professional framework. A chess moment may simply be about chess; a guitar/voice/fitness/reading moment may simply show the journey, struggle, taste or curiosity. Human_unfiltered content should usually contain no business analogy. Building_aakash should centre Aakash improving himself. Learning_experiments should centre the journey/progress/question before any generalized lesson.",
-      "WHOLE-PERSONAL-OS CONTEXT: inspect every supplied Personal OS source across Tasks, Brain Dump, Journal, Library, Highlights, Decisions, Health, Hobbies, Media history, Companies and HSAKAA. PEOPLE and MEMORY are intentionally excluded from Media and must never be inferred, reconstructed or requested through another source. By owner policy, every other supplied Personal OS source is PUBLIC_SAFE Media context.",
-      "ROUTINES + HEALTH: Health is PUBLIC_SAFE Media context by owner policy. Source-grounded workouts, sleep/recovery/fitness metrics, diet/supplement context, progress and routines may be used when supplied. Never invent a diagnosis, result, improvement or completed activity; distinguish a planned routine from a completed one.",
+      "WHOLE-PERSONAL-OS CONTEXT: inspect supplied privacy-filtered Personal OS context across Tasks, Brain Dump, Journal, Library, Highlights, Decisions, Health, Hobbies, Media history, Companies and HSAKAA. Context is an idea source, not publication consent. PEOPLE and MEMORY remain excluded. Respect explicit public-safe evidence and the additional Health approval gate; internal reflections, documents and secrets are never automatically publishable.",
+      "ROUTINES + HEALTH: Health records are private creative context, NOT blanket PUBLIC_SAFE claims. Only source-grounded, ordinary movement/routine context allowed by storytellingPolicy.healthContentPolicy may enter public copy. Never use biometrics, sleep/recovery scores, prescriptions, injuries, diagnoses, measurements or medical information without explicit per-asset owner approval. Distinguish plans from completed activity.",
       "HOBBIES + SKILLS: worldContext.hobbies is the first-class source of truth for active HSAKAA Hobbies. Prefer actual active/maintenance tracks, current stage, real recorded practice pace and latest coaching focus. A keyword appearing elsewhere is not enough to make a hobby a weekly theme. Never invent practice. Before ranking opportunities, explicitly consider all five active six-month pursuits: reading, Spanish, guitar, voice improvement and chess. It is valid for a pursuit to produce no feed post when nothing interesting happened, but do not silently ignore a pursuit that has fresh evidence. A normal hobby event gets one primary content surface plus at most one lightweight secondary surface; do not flood YouTube + X + WhatsApp + Stories with the same moment.",
       "BOOKS + LEARNING: books/highlights can inspire thinking, but vary the expression: a question, disagreement, passage reaction, experiment, visual note or changed view. Do not make every reading signal a framework post and do not claim reading progress unless evidence supports it.",
       "Professional authority should come from lived builder/operator reasoning, real decisions, mistakes, trade-offs and company-building experience—not generic product-management education. Prefer “what I am seeing/trying/changing” over textbook frameworks.",
@@ -3395,7 +3415,7 @@ export class MediaPlanningService {
       "You are HSAKAA Media V3.14. Turn ONLY the supplied feed POST decisions for one day into complete execution-ready content. Do not add posts, remove posts, change platforms, change dates, change formats, change posting times or change opportunity references.",
       "Write for the long-term public-figure objective: Aakash should become recognisable for a distinct point of view, useful operator depth and a human personality. Prefer specificity and lived thinking over generic advice, influencer language or motivational filler.",
       "Return exactly one full execution object for every expectedPosts item and no SKIP objects. The service will merge intentional skips deterministically.",
-      "Every returned post must be completely publish-ready: executionReady=true, readinessIssues=[], one exact platform-native publishCopy, final hook, final CTA, and hashtags when useful. Never output duplicate post-text/caption variants, “write a post about”, “caption idea”, placeholders, TODOs or instructions for Aakash to finish the copy.",
+      "Only mark executionReady=true when the referenced evidence supports a specific real subject, actual tension and earned payoff. If the evidence is insufficient for a publishable story, mark executionReady=false with one actionable readiness issue; never replace a missing story with motivational filler, a fabricated experience or a hypothetical monologue dressed as autobiography. Avoid duplicate copy variants, placeholders and unfinished notes in actual publishable assets.",
       "supplied publicEvidence may support factual public claims exactly as supplied, except Health must still pass storytellingPolicy.healthContentPolicy. supplied reflectionEvidence is legacy INTERNAL_SAFE context and should normally be empty. supplied identityEvidence may support stable configured identity facts. evidenceIds must come from the referenced opportunity and must never be invented.",
       "NAMED COMPANY / HSAKAA EXECUTION: preserve the owned builder identity in final copy instead of abstracting it into generic product advice. PUBLIC_SAFE company/HSAKAA evidence may support the exact focus, priority, product, market, principle, target-customer, status, stage or checkpoint supplied. Never invent a feature, launch, customer name, metric, result, status or capability absent from evidence.",
       "CONVERSION CONTENT: when growthIntent=conversion, the final copy must create a specific reason to come back—what is being tested, what remains unresolved, the next checkpoint, or what Aakash will compare later. Do not use generic “follow for more” language.",
@@ -3406,7 +3426,13 @@ export class MediaPlanningService {
       "For REEL, SHORT or VIDEO provide videoPack.fullScript word-for-word, targetDurationSeconds, deliveryInstructions, cameraInstructions, punchIns, broll, onScreenText, musicDirection and coverDirection. A YouTube long-form video must contain the full script, never an outline. Distinguish source activity duration from published video runtime: if Aakash practises for 30 minutes but the edit is 210 seconds, title/copy may say “30-minute practice session” but must not imply a 30-minute video.",
       "For Instagram, prioritise human visual storytelling and familiarity; for LinkedIn, earn professional insight through lived builder/operator evidence; for X, sound like concise thinking-in-public; for YouTube, prioritise retention and story progression; for WhatsApp, keep the treatment intimate and low-volume.",
       "PUBLIC COPY MUST SOUND HUMAN: factual guardrails should guide the generation silently. Do not turn captions/scripts into evidence audits. Avoid repeated phrases like “this is evidence, not progress”, “one attempt does not prove improvement”, “the capability is not implemented” or multiple disclaimer paragraphs. If a caveat is required, say it once in natural language and return to the story.",
+      "SOURCE-TO-STORY TEST: Before drafting, locate in supplied evidence a named book, an actual disagreement, a documented practice mistake, a real choice or a particular source-grounded event. Ground the story in that ONE thing. If absent, do not write a fake 40-second reel to fill the quota. For books, identify the actual title and supported argument, the creator's real reaction and an observed change. For hobbies, show a real action or checkpoint. For companies, show a verified public-safe tradeoff, not an invented customer experience.",
+      "NATURAL SPOKEN WORDS ONLY: Read every word of fullScript as if speaking with one friend. Never put writing instructions in spoken copy: stay with the concrete moment, show the hesitation, this is what I would test next, the useful next step is, turn disagreement into an observable question. Do not pad duration with empty slogans. A short reel only earns its length when something actually changes.",
+      "FIRST FRAME TEST: If there is no concrete visual reveal, action, unusual argument or surprising contrast understandable to strangers, the asset is not ready. Never use sounds straightforward, it was not, or a vague a reader/a founder/a person hook as the opening.",
+      "CREATIVE QUALITY IS NOT A QUOTA: Seventeen is a planning target, not permission to invent scripts. A blocked research slot is preferable to fake finished content.",
       "EDITORIAL 8+/10 PRE-FLIGHT: each asset needs a specific 4-14 word opening hook (no greeting), immediate concrete scene/subject, an obstacle/change, a decision or visual reversal, a satisfying payoff and a reason to watch the next episode. Story beats must NOT be generic copy/paste structures across posts. Aim to deserve 8+ by human review; never invent evidence or predict actual retention. 20-45s short-form scripts need a new visual, action or thought about every 5-8 seconds. The script field is 100% words the creator will say; stage direction belongs ONLY in shotList/cameraInstructions, never inside spoken script. If source context is absent, tell a specific labeled illustrative example rather than manufacturing a first-person event.",
+      "HOOK LAB DELIVERABLE: provide hookAlternatives with EXACTLY TWO materially different, concrete opening lines (4-16 words each) that use different story angles; do not paraphrase the chosen hook or promise an unsupported twist. Write openingVisual as a shootable first 1-2 second shot, storyTension as the supported conflict, storyTurn as what actually changes, and viewerPayoff as the concrete audience reward delivered in final copy. Keep these metadata fields OUT of spoken dialogue. hook MUST be the exact first line of videoPack.fullScript for video. For image/carousel/text the first visible line must deliver on the same hook.",
+      "VISUAL STORYBOARD: choose ONE native story shape per asset, then make each shot a new piece of evidence, attempt, reaction or reveal. No shot list built solely from generic desk B-roll. Carousel slide 1 is the hook, middle slides change the audience's understanding, and the last slide earns a conclusion rather than begging for comments. Cover text is short, legible and distinct from a paragraph title.",
       "PLATFORM STORYTELLING: Reels start with an awkward, funny, visually specific or high-stakes moment then a twist; Shorts lead with demonstration/action and a clear payoff; YouTube long forms are one coherent narrative with chapters, stakes, scene changes and callbacks (not 700 words of generic advice); LinkedIn uses one real situation, decision, consequence and operator insight; X gives one sharp thought or observation without mandatory question. Me vs Me is two distinguishable characters with dialogue and a comic human beat; Learning at 30 shows an actual practice moment when evidence exists, not an essay about learning.",
       "HOOK/PACKAGING TEST: the title, cover/thumbnail text and first spoken/visual beat must make sense to a stranger. For niche company content, lead with the broader tension/problem and bring 8lete/Frayto/HSAKAA in as the real example rather than expecting the viewer to care about internal architecture first.",
       "RETENTION EDITING: remove setup that can be shown visually, start inside action where possible, and introduce a new visual beat/reveal/reaction/question often enough to prevent a static lecture. Short-form should feel compressed; long-form should have scene/chapter progression and a payoff worth the time.",
@@ -7301,11 +7327,14 @@ export class MediaPlanningService {
         const [active, fetched] = await Promise.all([
           this.seriesService.activePortfolio(), this.seriesService.trendSignals(),
         ]);
-        if (Array.isArray(active)) portfolio = active.map(x => ({ key: x.key, name: x.name, channels: x.channels }));
+        if (Array.isArray(active)) portfolio = active.map(x => ({ key: x.key, name: x.name, channels: x.channels,
+          angle: x.angle, sourceTopics: x.sourceTopics, topicKeywords: x.topicKeywords,
+          creativeDirection: x.creativeDirection }));
         trends = fetched;
       } catch {
-        // An unavailable trend endpoint cannot turn an evergreen item into a trend.
-        // Retain the default known portfolio for local review, not for autopublish.
+        // Do not silently treat seeded defaults as an authoritative active portfolio
+        // when the DB is unavailable. Unassigned drafts must require review.
+        portfolio = [];
       }
     }
     for (const day of plan.days) for (const post of day.executions) {
@@ -7369,12 +7398,16 @@ export class MediaPlanningService {
       item.qualityVerdict = result.verdict;
       item.qualityDimensions = result.dimensions;
       item.qualityIssues = result.issues;
+      // Drop stale critic notes when the author has genuinely repaired the asset.
+      // Other blockers (privacy, missing series, empty media, etc.) remain intact.
+      const current = (item.readinessIssues ?? []).filter(issue =>
+        !issue.startsWith('Independent editorial critic '));
       if (result.verdict !== 'pass') {
         item.executionReady = false;
         item.requiresApproval = true;
-        item.readinessIssues = [...new Set([...(item.readinessIssues ?? []),
-          `Independent editorial critic ${result.score}/10 (${result.verdict}): review ${result.issues.slice(0, 2).join('; ')}`])];
+        current.push(`Independent editorial critic ${result.score}/10 (${result.verdict}): review ${result.issues.slice(0, 2).join('; ')}`);
       }
+      item.readinessIssues = [...new Set(current)];
     }
   }
 
@@ -7404,25 +7437,27 @@ export class MediaPlanningService {
     }));
     try {
       const response = await this.generateTrackedStructuredResponse<{
-        revisions: Array<{ id: string; hook: string; body: string; payoff: string; beats: string[] }>;
+        revisions: Array<{ id: string; hook: string; hookAlternatives: string[]; openingVisual: string; storyTension: string; storyTurn: string; viewerPayoff: string; body: string; payoff: string; beats: string[] }>;
       }>({
         name: 'hsakaa_independent_editorial_targeted_revisions_v1',
         instructions: [
           'Act as a demanding editor, independent from the author. Repair ONLY the specific deficiencies flagged by the critic.',
           'Output finished audience-facing prose ONLY. No filming directives or placeholders inside dialogue.',
-          'Hooks must be the FIRST exact words of scripts for videos; under 16 words, specific and curiosity-rich.',
+          'Hooks must be the FIRST exact words of scripts for videos; under 16 words, specific and curiosity-rich. Avoid repeating the same hook archetype across posts.',
           'Every script requires a comprehensible event or scene, stakes, a turn and an earned ending. Avoid repeated motivational slogans and questions as the only payoff.',
+          'Repair the actual script, not just its metadata. Never replace a lived scene with a generic motivational monologue.',
           'For short videos write 55-115 actual spoken words; for LinkedIn 80-220; for X 15-45; for long video 700-1100.',
           'Do NOT invent or claim the creator experienced anything not supported by included evidence. Use hypothetical framing when uncertain, but do not fabricate verifiable facts, trends, outcomes or metrics.',
           'Maintain series identity and topic, but differentiate from other posts. Supply 4-7 meaningfully distinct story beats.',
+          'Return two genuinely different alternative hooks, openingVisual, storyTension, storyTurn and viewerPayoff that truthfully match revised final copy.',
           'Return revisions only for supplied IDs. If evidence is insufficient, omit that item rather than fabricate personal history.',
         ].join(' '),
         input: JSON.stringify({posts: originals}),
         schema: {
           type:'object', additionalProperties:false,
           properties:{revisions:{type:'array', items:{type:'object', additionalProperties:false,
-            properties:{id:{type:'string'},hook:{type:'string'},body:{type:'string'},payoff:{type:'string'},beats:{type:'array',items:{type:'string'}}},
-            required:['id','hook','body','payoff','beats']}}},
+            properties:{id:{type:'string'},hook:{type:'string'},hookAlternatives:{type:'array',items:{type:'string'}},openingVisual:{type:'string'},storyTension:{type:'string'},storyTurn:{type:'string'},viewerPayoff:{type:'string'},body:{type:'string'},payoff:{type:'string'},beats:{type:'array',items:{type:'string'}}},
+            required:['id','hook','hookAlternatives','openingVisual','storyTension','storyTurn','viewerPayoff','body','payoff','beats']}}},
           required:['revisions'],
         }, maxOutputTokens: Math.min(3800, 1400 + max * 800),
       }, usage);
@@ -7436,6 +7471,9 @@ export class MediaPlanningService {
         if (video && !revision.body.trim().toLowerCase().startsWith(revision.hook.trim().toLowerCase())) continue;
         const candidate: MediaPlanningExecution = {
           ...original, hook:revision.hook.trim(), storyPayoff:revision.payoff?.trim() || '',
+          hookAlternatives:(revision.hookAlternatives || []).map(s => s.trim()).filter(Boolean).slice(0, 2),
+          openingVisual:revision.openingVisual?.trim() || '', storyTension:revision.storyTension?.trim() || '',
+          storyTurn:revision.storyTurn?.trim() || '', viewerPayoff:revision.viewerPayoff?.trim() || '',
           storyBeats:(revision.beats || []).filter(Boolean).slice(0, 8),
           ...(video ? {script:revision.body.trim(), videoPack:{...original.videoPack, fullScript:revision.body.trim()}} :
             {publishCopy:revision.body.trim(), copyPasteText:revision.body.trim()}),
@@ -7444,11 +7482,24 @@ export class MediaPlanningService {
           .filter(item => item !== original && item.action === 'post').map(creatorPublicBody);
         const revisedReview = reviewCreatorQuality(candidate, other);
         if (revisedReview.score <= target.result.score || revisedReview.verdict !== 'pass') continue;
+        const revisedStructure = reviewCreatorEditorial(candidate);
+        if (revisedStructure.score < 8) continue;
+        // Restoring readiness is allowed only when all blockers were editorial.
+        // Privacy, series, missing evidence, assets and other blockers survive.
+        const onlyEditorialBlockers = (original.readinessIssues ?? []).length > 0 &&
+          (original.readinessIssues ?? []).every(issue =>
+            issue.startsWith('Independent editorial critic ') ||
+            issue.startsWith('Editorial preflight '));
         Object.assign(original, {
           hook:candidate.hook, storyPayoff:candidate.storyPayoff, storyBeats:candidate.storyBeats,
+          hookAlternatives:candidate.hookAlternatives, openingVisual:candidate.openingVisual,
+          storyTension:candidate.storyTension, storyTurn:candidate.storyTurn, viewerPayoff:candidate.viewerPayoff,
+          ...(onlyEditorialBlockers ? { executionReady: true, readinessIssues: [] } : {}),
           ...(video ? {script:candidate.script, videoPack:candidate.videoPack} :
             {publishCopy:candidate.publishCopy, copyPasteText:candidate.copyPasteText}),
           qualityRevisionCount:(original.qualityRevisionCount ?? 0) + 1,
+          editorialScore:revisedStructure.score,
+          editorialIssues:revisedStructure.issues,
           requiresApproval:true, // Even a passing creative revision needs human safety approval.
         });
       }
@@ -7465,7 +7516,9 @@ export class MediaPlanningService {
   private async creatorActivePortfolio(): Promise<CreatorSeries[]> {
     if (!this.seriesService) return DEFAULT_CREATOR_SERIES;
     const active = await this.seriesService.activePortfolio();
-    return active.map(s => ({ key: s.key, name: s.name, channels: s.channels }));
+    return active.map(s => ({ key: s.key, name: s.name, channels: s.channels,
+      angle: s.angle, sourceTopics: s.sourceTopics, topicKeywords: s.topicKeywords,
+      creativeDirection: s.creativeDirection }));
   }
 
   private reconcileCreatorPlan(plan: GeneratedPlan, historicalTitles = new Set<string>(),
@@ -7474,10 +7527,7 @@ export class MediaPlanningService {
       // Old zero-cost templates are the source of the repeated motivational
       // paragraphs in v3.14. Replace only these mechanically authored drafts.
       const boilerplate = /I do not think the answer is to pretend everything is simple|The practical difference is not always a bigger push|That is not a victory speech/i;
-      if (post.action === 'post' && post.reason?.includes('Deterministic offline editorial completion') &&
-          post.editorialVersion !== 'narrative-v1' &&
-          (boilerplate.test(`${post.videoPack?.fullScript ?? ''} ${post.publishCopy ?? ''}`) ||
-            reviewCreatorEditorial(post).score < 8)) {
+      if (post.action === 'post' && post.reason?.includes('Deterministic offline editorial completion')) {
         return { ...post, action: 'skip' as const, reason: 'Retired repetitive offline template; reauthoring a distinct series-based package', executionReady: false };
       }
       return post;
@@ -7487,7 +7537,7 @@ export class MediaPlanningService {
     const uses = new Map<string, number>();
     const usedTitles = new Set<string>(historicalTitles);
     for (const day of days) for (const item of day.executions) {
-      if (item.action === 'post' && completeCreatorCopy(item)) usedTitles.add(editorialTextKey(item.title));
+      if (item.action === 'post' && item.title) usedTitles.add(editorialTextKey(item.title));
       if (item.action === 'post' && item.opportunityKey)
         uses.set(item.opportunityKey, (uses.get(item.opportunityKey) ?? 0) + 1);
     }
@@ -7503,7 +7553,7 @@ export class MediaPlanningService {
       days.reduce((n, day) => n + day.executions.filter(item =>
         item.action === 'post' && item.platform === platform &&
         (platform === MediaPlatform.LINKEDIN || platform === MediaPlatform.X || item.format === format) &&
-        completeCreatorCopy(item)).length, 0);
+        (completeCreatorCopy(item) || item.editorialVersion === 'offline-research-v2')).length, 0);
     const requiredCountFor = (platform: MediaPlatform, format: MediaPostType) =>
       requirements.find(([p, f]) => p === platform && f === format)?.[2] ?? 0;
 
@@ -7511,7 +7561,7 @@ export class MediaPlanningService {
       while (count(platform, format) < minimum) {
         const choices = days.flatMap((day, index) => day.executions.map((item, slotIndex) => {
           if (item.platform !== platform) return null;
-          if (item.action === 'post' && completeCreatorCopy(item)) {
+          if (item.action === 'post' && (completeCreatorCopy(item) || item.editorialVersion === 'offline-research-v2')) {
             // Complete scripts are never silently replaced, even to fix a quota.
             return null;
           }
@@ -7544,8 +7594,8 @@ export class MediaPlanningService {
           index + requirements.findIndex(([p, f]) => p === platform && f === format) * 13,
           format, platform, opportunity, usedTitles, activeSeries,
         );
-        if (!completeCreatorCopy(fullAsset)) {
-          throw new Error(`Offline author could not complete ${platform}/${format} on ${day.date}.`);
+        if (fullAsset.editorialVersion !== 'offline-research-v2' || fullAsset.executionReady) {
+          throw new Error(`Offline slot was incorrectly marked ready on ${day.date}.`);
         }
         if (overflow) {
           // There can be two distinct same-platform assets in one day. Their
@@ -7558,9 +7608,12 @@ export class MediaPlanningService {
       }
     }
     const result: GeneratedPlan = { ...plan, days };
-    if (!this.creatorQuotaReadiness(result.days).authored.complete) {
-      throw new Error('The seven-day plan has fewer than 17 fully authored creator assets.');
+    if (!this.creatorQuotaReadiness(result.days).planned.complete) {
+      throw new Error('The seven-day plan could not reserve the required creator slots.');
     }
+    const unwritten = result.days.flatMap(d => d.executions)
+      .filter(p => p.editorialVersion === 'offline-research-v2').length;
+    if (unwritten) result.summary = `${result.summary} ${unwritten} un-authored research slots require public-safe evidence and actual AI writing before production.`;
     return result;
   }
 
@@ -7593,7 +7646,7 @@ export class MediaPlanningService {
         format: platform === MediaPlatform.INSTAGRAM ? MediaPostType.REEL :
           platform === MediaPlatform.YOUTUBE ? MediaPostType.SHORT : MediaPostType.TEXT,
         opportunityKey: '', storyArcKey: '',
-        reason: 'No AI output available; offline author will complete all required writing packs.',
+        reason: 'No AI output available; reserve research slots, never fabricate complete scripts.',
       })),
       instagramStory: this.skipDailyStory({
         action: 'skip', time: '', sourceType: 'human_moment',
@@ -7619,7 +7672,7 @@ export class MediaPlanningService {
     const draft: GeneratedPlan = {
       startDate, endDate, timezone: TZ,
       learningStage,
-      summary: 'All 17 required written production packages are authored. Filming, design, fact checks and publication still require approval.',
+      summary: 'AI writer was unavailable: 17 planning slots are reserved but no scripts were fabricated. Gather public-safe story evidence, restore AI writing, then generate finished assets for review.',
       opportunities: previous?.opportunities ?? [],
       storyArcs: previous?.storyArcs ?? [],
       days: dates.map((date, index) => priorDays.get(date) ?? this.emptyCreatorDay(date, index)),
@@ -10206,6 +10259,11 @@ export class MediaPlanningService {
         whyThisTime: { type: "string" },
         title: { type: "string" },
         hook: { type: "string" },
+        hookAlternatives: { type: "array", items: { type: "string" } },
+        openingVisual: { type: "string" },
+        storyTension: { type: "string" },
+        storyTurn: { type: "string" },
+        viewerPayoff: { type: "string" },
         caption: { type: "string" },
         script: { type: "string" },
         description: { type: "string" },
@@ -10325,6 +10383,11 @@ export class MediaPlanningService {
         "whyThisTime",
         "title",
         "hook",
+        "hookAlternatives",
+        "openingVisual",
+        "storyTension",
+        "storyTurn",
+        "viewerPayoff",
         "caption",
         "script",
         "description",
@@ -10458,6 +10521,11 @@ export class MediaPlanningService {
         whyThisTime: { type: "string" },
         title: { type: "string" },
         hook: { type: "string" },
+        hookAlternatives: { type: "array", items: { type: "string" } },
+        openingVisual: { type: "string" },
+        storyTension: { type: "string" },
+        storyTurn: { type: "string" },
+        viewerPayoff: { type: "string" },
         caption: { type: "string" },
         script: { type: "string" },
         description: { type: "string" },
@@ -10494,6 +10562,11 @@ export class MediaPlanningService {
         "whyThisTime",
         "title",
         "hook",
+        "hookAlternatives",
+        "openingVisual",
+        "storyTension",
+        "storyTurn",
+        "viewerPayoff",
         "caption",
         "script",
         "description",

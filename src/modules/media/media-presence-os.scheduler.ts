@@ -14,6 +14,7 @@ export class MediaPresenceOsScheduler {
 
   @Cron('0 25 6 * * *', { timeZone: 'Asia/Kolkata' })
   async rollSevenDayPlan() {
+    if (process.env.HSAKAA_MEDIA_LEGACY_AUTOPILOT !== "true") return;
     try {
       await this.planningService.rollForward({ mode: 'roll' });
     } catch (error) {
@@ -27,6 +28,7 @@ export class MediaPresenceOsScheduler {
 
   @Cron('0 50 6 * * 0', { timeZone: 'Asia/Kolkata' })
   async adaptWeeklyPresence() {
+    if (process.env.HSAKAA_MEDIA_LEGACY_AUTOPILOT !== "true") return;
     try {
       await this.adaptationService.generate({ force: true });
     } catch (error) {

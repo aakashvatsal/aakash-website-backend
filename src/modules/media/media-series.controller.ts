@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { HsakaaOwnerSessionGuard } from '../../hsakaa/guards/hsakaa-owner-session.guard';
 import { MediaSeriesService } from './media-series.service';
 import type { SeriesPitch, SeriesDesignReview } from './media-series-design';
@@ -11,6 +11,13 @@ export class MediaSeriesController {
   @Post('suggest') suggest(@Body() body: { direction?: string } = {}) { return this.service.suggestSeries(body.direction); }
   @Post('design') design(@Body() pitch: SeriesPitch) { return this.service.designSeries(pitch); }
   @Post('create') create(@Body() pitch: SeriesPitch & { design?: SeriesDesignReview }) { return this.service.createSeries(pitch); }
+  @Post(':key/analyze') analyze(@Param('key') key: string) { return this.service.analyzeExisting(key); }
+  @Patch(':key') update(@Param('key') key: string, @Body() pitch: SeriesPitch) {
+    return this.service.updateSeries(key, pitch);
+  }
+  @Delete(':key') remove(@Param('key') key: string) {
+    return this.service.removeSeries(key);
+  }
   @Patch(':key/status') status(@Param('key') key: string, @Body() body: { status: string; rationale?: string }) {
     return this.service.setStatus(key, body.status, body.rationale);
   }

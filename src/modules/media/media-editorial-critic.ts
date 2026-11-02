@@ -31,6 +31,11 @@ const META =
   /\b(?:pick one real practice moment|put the two competing versions|my practical suggestion|in this (?:video|reel)|start with a hook|no fake progress report|the first instinct is|the practical difference is|that is not a victory speech|this is not a motivational speech|let the imperfect attempt speak|imagine facing this choice|repeat after me|cut to b.roll|camera at eye level)\b/i;
 const EMPTY =
   /\b(?:tbd|placeholder|insert your|write a post about|caption idea|here is something i am thinking about)\b/i;
+// Reject attractive-sounding but empty hook patterns. A hook is a promise that
+// has to be paid off in the FINAL script, not in model-written metadata.
+const HOLLOW_HOOK = /^(?:a reader testing|.*?sounds straightforward\\b|imagine this|here(?:'s| is) (?:why|the truth|what)|the secret|you won't believe|this changed everything|nobody talks about|what if i told you|the most important lesson|i learned something today|let me tell you)/i;
+const HOLLOW_CLAIM = /\b(?:game.?changer|unlock your potential|changed my life forever|everything you know is wrong|mind.?blowing|insane results|secret formula)\b/i;
+
 const GENERIC =
   /^(?:today (?:i want to|we will)|hey (?:guys|everyone)|here is a small thought experiment|let me start by|a quick reminder|i want to share)/i;
 const ANCHOR =
@@ -127,8 +132,20 @@ export function reviewCreatorQuality(
       },
       issues: ['Not a publishable asset'],
     };
-  const issues: string[] = [];
   const body = creatorPublicBody(item).trim();
+  // Fail closed for fabricated offline "production packs", including older saved
+  // drafts that might have a misleading 10/10 structural preflight score.
+  if (!body ||
+      item.editorialVersion === 'offline-research-v2' ||
+      /Deterministic offline editorial completion|Offline research only/i.test(item.reason || '')) {
+    return {
+      score: 0,
+      verdict: 'evidence_needed',
+      dimensions: { hook: 0, storytelling: 0, specificity: 0, originality: 0, platformFit: 0, entertainment: 0 },
+      issues: ['Not authored from verifiable story evidence; no complete production pack exists. Regenerate with AI after gathering a specific real source.'],
+    };
+  }
+  const issues: string[] = [];
   const hook = (item.hook || body.split(/[.!?\n]/)[0] || '').trim();
   const intro =
     body
@@ -169,6 +186,13 @@ export function reviewCreatorQuality(
   );
   const paragraphs = body.split(/\n\s*\n/).filter(Boolean);
 
+  const hookActuallyOpens = !video || normalized(body).startsWith(normalized(hook));
+  const alternativeHooks = (item.hookAlternatives ?? []).filter(Boolean);
+  const distinctAngles = alternativeHooks.length === 2 &&
+    alternativeHooks.every((alt) => words(alt).length >= 4 && words(alt).length <= 16 &&
+      normalized(alt) !== normalized(hook) && copySimilarity(alt, hook) < 0.55) &&
+    copySimilarity(alternativeHooks[0], alternativeHooks[1]) < 0.55;
+  const v5 = item.editorialVersion === 'storycraft-v5';
   const openingShort = hookWords >= 4 && hookWords <= (video ? 16 : 24);
   const immediate =
     intro.length > 0 &&
@@ -180,7 +204,7 @@ export function reviewCreatorQuality(
       (immediate ? 1.5 : 0) +
       (ANCHOR.test(hook) ? 1.6 : 0) +
       (TURN.test(hook) || /[?!:-]/.test(hook) ? 1.2 : 0) +
-      (!GENERIC.test(hook) && !META.test(hook) ? 0.7 : 0),
+      (!GENERIC.test(hook) && !META.test(hook) && !HOLLOW_HOOK.test(hook) ? 0.7 : 0),
   );
   if (
     video &&
@@ -188,6 +212,18 @@ export function reviewCreatorQuality(
     !normalized(intro).includes(normalized(hook))
   )
     hookScore = Math.min(hookScore, 7);
+  if (HOLLOW_HOOK.test(hook) || HOLLOW_CLAIM.test(hook)) {
+    hookScore = Math.min(hookScore, 5.9);
+    issues.push('Opening is generic clickbait, not a specific promise grounded in the story');
+  }
+  if (!hookActuallyOpens) {
+    hookScore = Math.min(hookScore, 5.9);
+    issues.push('Selected hook is not spoken verbatim at the start of the final video script');
+  }
+  if (v5 && (!item.openingVisual?.trim() || !distinctAngles)) {
+    hookScore = Math.min(hookScore, 7.2);
+    issues.push('Hook Studio needs a shootable opening visual and two meaningfully different alternative hooks');
+  }
   if (hookScore < 8)
     issues.push(
       'Replace the opening with a short, concrete first-line hook that is also spoken first',
@@ -214,6 +250,13 @@ export function reviewCreatorQuality(
   );
   if (longVideo && paragraphs.length < 7)
     storytelling = Math.min(storytelling, 6.5);
+  // For newly authored content, require a specific plan for stakes, change and
+  // earned outcome. The real copy still determines the rest of the score.
+  if (v5 && (!item.storyTension?.trim() || !item.storyTurn?.trim() ||
+      !item.viewerPayoff?.trim())) {
+    storytelling = Math.min(storytelling, 6.9);
+    issues.push('Supply a concrete tension, a real turn and the payoff delivered to the viewer');
+  }
   if (storytelling < 8)
     issues.push(
       'Build a scene with stakes, a genuine turn, and a specific resolution rather than general advice',
@@ -304,6 +347,8 @@ export function reviewCreatorQuality(
   );
   if (!hasEvidence) overall = Math.min(overall, 7.5);
   if (badMeta || duplicates) overall = Math.min(overall, 5.9);
+  if (HOLLOW_HOOK.test(hook) || HOLLOW_CLAIM.test(hook)) overall = Math.min(overall, 6.2);
+  if (!hookActuallyOpens) overall = Math.min(overall, 6.5);
   if (templateHits >= 2) overall = Math.min(overall, 6.4);
   if (hookScore < 7 || storytelling < 7) overall = Math.min(overall, 7.4);
   if (!item.seriesKey || item.seriesKey === 'unassigned') {

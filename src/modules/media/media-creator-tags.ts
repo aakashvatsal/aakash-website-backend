@@ -1,6 +1,10 @@
 import { MediaPlatform } from './schemas/media-post.schema';
 
-export type CreatorSeries = { key: string; name: string; channels: readonly string[] };
+export type CreatorSeries = {
+  key: string; name: string; channels: readonly string[];
+  angle?: string; sourceTopics?: readonly string[]; topicKeywords?: readonly string[];
+  creativeDirection?: string;
+};
 export type VerifiedCreatorTrend = { title: string; publishedAt: string; source: string; url: string };
 
 const LABELS: Record<string, string> = {
@@ -68,7 +72,17 @@ export function selectCreatorSeries(
     ['founder-unfiltered', /\b(8lete|frayto|hsakaa|customer|startup|company|product|founder|shipping|academy|freight)\b/],
   ];
   const matches = signals.map(([seriesKey, pattern]) => pattern.test(content) ? seriesKey : null).filter(Boolean);
-  return matches.length === 1 ? eligible.find(series => series.key === matches[0]) ?? null : null;
+  if (matches.length === 1) {
+    const direct = eligible.find(series => series.key === matches[0]);
+    if (direct) return direct;
+  }
+  // Owner-defined exact topic keywords allow newly created or edited series to
+  // participate without a hard-coded key. Ambiguous matches require review.
+  const hits = eligible.filter(series => (series.topicKeywords ?? []).some(keyword => {
+    const normalized = editorialTextKey(keyword);
+    return normalized.length >= 3 && ` ${content} `.includes(` ${normalized} `);
+  }));
+  return hits.length === 1 ? hits[0] : null;
 }
 
 /** Search interest is NOT itself a creator/platform trend. Only attach verifiable, fresh, directly related signals. */

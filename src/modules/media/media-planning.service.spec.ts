@@ -2168,8 +2168,9 @@ describe('MediaPlanningService V3.14 whole-OS growth planning', () => {
     expect(savedDays).toHaveLength(7);
     const quota = evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions));
     expect(quota.complete).toBe(true);
-    expect(evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions)
-      .filter((item) => item.action === 'post' && completeCreatorCopy(item))).complete).toBe(true);
+    const fallbackIdeas = savedDays.flatMap((day) => day.executions)
+      .filter((item: any) => item.editorialVersion === 'offline-research-v2');
+    expect(fallbackIdeas.every((item: any) => !completeCreatorCopy(item) && !item.executionReady)).toBe(true);
   });
 
   it('isolates an incomplete AI image pack instead of failing the week', async () => {
@@ -2195,8 +2196,9 @@ describe('MediaPlanningService V3.14 whole-OS growth planning', () => {
     expect(savedDays).toHaveLength(7);
     const quota = evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions));
     expect(quota.complete).toBe(true);
-    expect(evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions)
-      .filter((item) => item.action === 'post' && completeCreatorCopy(item))).complete).toBe(true);
+    const fallbackIdeas = savedDays.flatMap((day) => day.executions)
+      .filter((item: any) => item.editorialVersion === 'offline-research-v2');
+    expect(fallbackIdeas.every((item: any) => !completeCreatorCopy(item) && !item.executionReady)).toBe(true);
   });
 
   it('isolates an incomplete carousel instead of failing the week', async () => {
@@ -2253,8 +2255,9 @@ describe('MediaPlanningService V3.14 whole-OS growth planning', () => {
     expect(savedDays).toHaveLength(7);
     const quota = evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions));
     expect(quota.complete).toBe(true);
-    expect(evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions)
-      .filter((item) => item.action === 'post' && completeCreatorCopy(item))).complete).toBe(true);
+    const fallbackIdeas = savedDays.flatMap((day) => day.executions)
+      .filter((item: any) => item.editorialVersion === 'offline-research-v2');
+    expect(fallbackIdeas.every((item: any) => !completeCreatorCopy(item) && !item.executionReady)).toBe(true);
   });
 
   it('isolates internal Media strategy leakage instead of failing the week', async () => {
@@ -2275,8 +2278,9 @@ describe('MediaPlanningService V3.14 whole-OS growth planning', () => {
     expect(savedDays).toHaveLength(7);
     const quota = evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions));
     expect(quota.complete).toBe(true);
-    expect(evaluateMediaCreatorQuota(savedDays.flatMap((day) => day.executions)
-      .filter((item) => item.action === 'post' && completeCreatorCopy(item))).complete).toBe(true);
+    const fallbackIdeas = savedDays.flatMap((day) => day.executions)
+      .filter((item: any) => item.editorialVersion === 'offline-research-v2');
+    expect(fallbackIdeas.every((item: any) => !completeCreatorCopy(item) && !item.executionReady)).toBe(true);
   });
 
   it('splits the weekly blueprint and retries a bounded stage when it hits max_output_tokens', async () => {
@@ -2407,10 +2411,17 @@ describe('MediaPlanningService V3.14 whole-OS growth planning', () => {
     const saved = getLastPlanUpdate()!.$set!.days![0].executions.find(
       (item) => item.platform === platform,
     )!;
-    expect(saved.publishCopy.length).toBeGreaterThan(0);
-    expect(saved.copyPasteText).toBe(saved.publishCopy);
-    expect(saved.copyPasteCaption).toBe(saved.publishCopy);
-    expect(completeCreatorCopy(saved)).toBe(true);
+    if (saved.editorialVersion === 'offline-research-v2') {
+      // Failed writing must never be presented as a publishable text package.
+      expect(saved.publishCopy).toBe('');
+      expect(saved.executionReady).toBe(false);
+      expect(completeCreatorCopy(saved)).toBe(false);
+    } else {
+      expect(saved.publishCopy.length).toBeGreaterThan(0);
+      expect(saved.copyPasteText).toBe(saved.publishCopy);
+      expect(saved.copyPasteCaption).toBe(saved.publishCopy);
+      expect(completeCreatorCopy(saved)).toBe(true);
+    }
     const dayPackRequest = aiRequests.find((request) =>
       request.name.startsWith('hsakaa_media_presence_day_pack'),
     );
@@ -2546,6 +2557,42 @@ describe('MediaPlanningService V3.14 whole-OS growth planning', () => {
       }
     },
   );
+
+  it('bootstraps an expired rolling window when the user selects Generate Missing', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-10-18T07:27:00.000Z'));
+    try {
+      const { service, planModel } = makeService();
+      // No active plan intersects 18–24 October (e.g. last saved plan ended 14 October).
+      planModel.findOne.mockImplementation(() => ({
+        sort: jest.fn(() => ({ lean: jest.fn().mockResolvedValue(null) })),
+      }));
+      const generated = generatedPlan();
+      const ensure = jest.spyOn(service, 'generate').mockResolvedValue(generated as never);
+      const progress = jest.fn();
+
+      const result = await service.rollForward(
+        { mode: 'roll', notes: 'Preserve real source evidence', outingStatus: 'no' },
+        progress,
+      );
+
+      expect(result).toBe(generated);
+      expect(ensure).toHaveBeenCalledTimes(1);
+      expect(ensure).toHaveBeenCalledWith(
+        expect.objectContaining({
+          mode: 'ensure',
+          force: false,
+          startDate: '2026-10-18',
+          targetDate: undefined,
+          notes: 'Preserve real source evidence',
+          outingStatus: 'no',
+        }),
+        progress,
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 
   it('fills one missing date wherever the gap is inside the rolling window', async () => {
     jest.useFakeTimers();

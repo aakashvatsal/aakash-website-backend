@@ -22,11 +22,13 @@ describe('series creator and exhausted topic catalogue', () => {
   it('never throws merely because every old YouTube topic is archived', () => {
     const history = new Set<string>();
     // Exhaust the full library by reserving at least 100 variants.
-    const episodes = [];
+    const episodes: string[] = [];
     for (let i=0; i<105; i++) {
       const output = authoredCreatorFallback(skeleton() as never, '2026-10-15', i, MediaPostType.SHORT,
         MediaPlatform.YOUTUBE, undefined, history);
-      expect(completeCreatorCopy(output)).toBe(true);
+      expect(completeCreatorCopy(output)).toBe(false);
+      expect(output.videoPack.fullScript).toBe('');
+      expect(output.executionReady).toBe(false);
       expect(DEFAULT_CREATOR_SERIES.some(s => s.key === output.seriesKey)).toBe(true);
       expect(output.requiresApproval).toBe(true);
       episodes.push(output.title);

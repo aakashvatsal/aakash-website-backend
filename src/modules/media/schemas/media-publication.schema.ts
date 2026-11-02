@@ -506,3 +506,6 @@ MediaPublicationSchema.index({
   script: 'text',
   description: 'text',
 });
+
+// Idempotent Studio → Production handoff, including concurrent/retried requests.
+MediaPublicationSchema.index({ 'metadata.studioKey': 1 }, { unique: true, partialFilterExpression: { 'metadata.studioKey': { $type: 'string' } } });

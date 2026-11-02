@@ -45,6 +45,11 @@ import { MediaAutopilotScheduler } from './media-autopilot.scheduler';
 import { MediaWorldContextService } from './media-world-context.service';
 import { MediaPresenceService } from './media-presence.service';
 import { MediaPlanningService } from './media-planning.service';
+import { MediaStudioService } from './media-studio.service';
+import { MediaStudioReleaseService } from './media-studio-release.service';
+import { MediaStudioController } from './media-studio.controller';
+import { MediaStudioScheduler } from './media-studio.scheduler';
+import { MediaStudioDay, MediaStudioDaySchema } from './schemas/media-studio-day.schema';
 import { MediaPlanningGenerationService } from './media-planning-generation.service';
 import { MediaLearningService } from './media-learning.service';
 import { MediaLearningScheduler } from './media-learning.scheduler';
@@ -180,6 +185,7 @@ import {
       { name: MediaPresenceStrategy.name, schema: MediaPresenceStrategySchema },
       { name: MediaVoiceProfile.name, schema: MediaVoiceProfileSchema },
       { name: MediaPlanningCycle.name, schema: MediaPlanningCycleSchema },
+      { name: MediaStudioDay.name, schema: MediaStudioDaySchema },
       {
         name: MediaPerformanceInsight.name,
         schema: MediaPerformanceInsightSchema,
@@ -228,6 +234,7 @@ import {
   ],
   controllers: [
     MediaSeriesController,
+    MediaStudioController,
     MediaCoreController,
     MediaEngagementController,
     MediaEngagementWebhookController,
@@ -237,6 +244,9 @@ import {
     HsakaaOwnerSessionGuard,
     MediaSeriesService,
     MediaSeriesScheduler,
+    MediaStudioService,
+    MediaStudioReleaseService,
+    MediaStudioScheduler,
     MediaCoreService,
     MediaWorldContextService,
     MediaPresenceService,

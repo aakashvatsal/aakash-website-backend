@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { MediaSeriesService } from './media-series.service';
 
-/** An evidence gate inside reviewPortfolio prevents premature auto-rotation. */
+/** Weekly data review is advisory. Only an explicit owner action may rotate a series. */
 @Injectable()
 export class MediaSeriesScheduler {
   private readonly logger = new Logger(MediaSeriesScheduler.name);
@@ -12,10 +12,10 @@ export class MediaSeriesScheduler {
   @Cron('0 20 6 * * 1', { timeZone: 'Asia/Kolkata' })
   async weeklyReview() {
     try {
-      const result = await this.service.reviewPortfolio(true);
+      const result = await this.service.reviewPortfolio(false);
       this.logger.log(result.applied
         ? `Series portfolio: retired ${result.proposed?.retire}, activated ${result.proposed?.activate}`
-        : `Series portfolio unchanged: ${result.reason}`);
+        : `Series portfolio recommendation only: ${result.reason}`);
     } catch (error) {
       this.logger.error(error instanceof Error ? error.stack : String(error));
     }

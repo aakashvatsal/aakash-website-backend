@@ -6,10 +6,14 @@ export type MediaSeriesDocument = HydratedDocument<MediaSeries>;
 export class MediaSeries {
   @Prop({ required: true, unique: true, trim: true }) key: string;
   @Prop({ required: true, trim: true }) name: string;
-  @Prop({ type: String, enum: ['active', 'paused', 'retired'], default: 'paused', index: true }) status: 'active' | 'paused' | 'retired';
+  @Prop({ type: String, enum: ['active', 'paused', 'retired', 'deleted'], default: 'paused', index: true }) status: 'active' | 'paused' | 'retired' | 'deleted';
   @Prop({ type: [String], default: [] }) channels: string[];
   @Prop({ trim: true }) angle?: string;
   @Prop({ trim: true }) audience?: string;
+  @Prop({ type: [String], default: [] }) sourceTopics?: string[];
+  @Prop({ type: [String], default: [] }) topicKeywords?: string[];
+  @Prop({ trim: true, default: '' }) creativeDirection?: string;
+  @Prop({ type: Date }) deletedAt?: Date;
   @Prop({ type: Object, default: {} }) creativeKit?: Record<string, unknown>;
   @Prop({ type: Object, default: {} }) designReview?: Record<string, unknown>;
   @Prop({ type: String, enum: ['owner', 'seed', 'ai-suggested'], default: 'seed' }) createdFrom?: 'owner' | 'seed' | 'ai-suggested';
