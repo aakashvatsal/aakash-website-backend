@@ -10,7 +10,7 @@ import { MediaMetricSnapshot, MetricSnapshotPeriod } from './schemas/media-metri
 import { MediaAccountMetricSnapshot } from './schemas/media-account-metric-snapshot.schema';
 import { MediaAudienceInsight } from './schemas/media-audience-insight.schema';
 import { MediaPlatform } from './schemas/media-post.schema';
-import { StudioPost, StudioSlot, studioAddDays, studioBuildSlots, studioFingerprint, studioLocalDate, studioSimilar } from './media-studio-policy';
+import { StudioPost, StudioSlot, studioAddDays, studioBuildSlots, studioFingerprint, studioLocalDate, studioSimilar, studioPostForFormat } from './media-studio-policy';
 import { reviewStudioPost } from './media-studio-editorial';
 import { matchVerifiedCreatorTrend } from './media-creator-tags';
 
@@ -88,7 +88,8 @@ export class MediaStudioService {
       series:active,
       days:dates.map(date=>{
         const item = byDate.get(date);
-        const posts = ((item?.posts ?? []) as unknown as StudioPost[]).map(post=>{
+        const posts = ((item?.posts ?? []) as unknown as StudioPost[]).map(raw=>{
+          const post=studioPostForFormat(raw);
           if(!post.title || post.status==='writing_failed')return post;
           const historical=inWindow.filter(p=>p.id!==post.id && p.title && p.hook);
           const editorial=reviewStudioPost(post,historical);
@@ -175,14 +176,14 @@ export class MediaStudioService {
       'Start with a vivid true detail, unexpected fact, specific contradiction, comedic observation, or a real question with stakes.',
       'Prioritize meaningful entertainment over rhetorical hooks. Never promise outcomes you cannot substantiate.',
       'Choose pacing and creative language natural to each platform: Instagram visual/personality, YouTube story/retention, LinkedIn experience + insight, X sharp and concise, WhatsApp informal short story.',
-      'Write fully spoken, word-for-word scripts for all video formats. Reel/Short 75-140 spoken words where appropriate; YouTube long 700-1200 spoken words. No instructions inside script.',
-      'For text platform, copy is final publishable copy. For carousel, slides are complete slide-by-slide texts; for story, frames and overlay words must be clear.',
-      'Return shoot location, specific shot timeline, what to photograph or film and how, cover headline, caption, meaningful CTA, optional hashtags.',
+      'ONLY video formats (reel, short, long_video) use a spoken word-for-word script and timed shotList. Reel/Short 75-140 spoken words where appropriate; YouTube long 700-1200 spoken words. No filming instructions inside script.',
+      'For format=text, copy is the ONLY publishable body. Begin copy with the selected hook verbatim, then write the final platform-native post without production directions, script, video, voiceover, images, cover, caption, or shooting instructions. X text copy must fit within 280 characters including spaces and punctuation. LinkedIn text can be longer. For carousel, slides are complete slide-by-slide texts; for story, frames and overlay words must be clear.',
+      'Return filming location and timed shot timeline ONLY for actual video formats. For text formats, set script, shotLocation, cover and caption to empty strings, and shotList and slides to empty arrays; optional hashtags/pinnedComment may be included. For visual formats include relevant imagery or cover guidance, captions and optional hashtags.',
       'Avoid clickbait, no invented first-person memories, invented quotes, invented trips, invented metrics, invented accomplishments or pretend research.',
       'If evidence is insufficient for a personal story, select a clearly labeled prospective experiment or thoughtful commentary and flag evidenceId as empty.',
       'Select one actual supplied evidence id only when supported. Never fabricate source ids. Do not disclose private health or identifying personal details.',
       'Use selected series direction and platforms; do not override owner-defined channel choices.',
-      'For each story show an ACTUAL grounded scene/attempt, a changed circumstance, tension, and an earned payoff. Keep the hook as the very first spoken line.',
+      'For each story show an ACTUAL grounded scene/attempt, a changed circumstance, tension, and an earned payoff. Keep the selected hook as the very first line of spoken video OR the first line of publishable text.',
       'Separate spoken dialogue from shot instructions. Never use second-person production instructions as script dialogue.',
       'If no grounded scene exists, write an explicitly framed analytical opinion/experiment instead of pretending that something happened.',
       'Avoid reusing the same argument, emotional payoff or hook shape even when titles differ.',
@@ -225,6 +226,18 @@ export class MediaStudioService {
       fingerprint:'',status:'needs_review',reason:'',source:'ai',
       storyArc:trim(draft?.storyArc,1100),trend:{status:'evergreen'},
     };
+    // Structured AI output contains universal fields; irrelevant fields must not leak
+    // into saved text-only posts, even when the model disregards the format instruction.
+    if (slot.format === 'text') {
+      base.script = '';
+      base.shotLocation = '';
+      base.shotList = [];
+      base.slides = [];
+      base.cover = '';
+      base.caption = '';
+    } else if (!VIDEO.has(slot.format)) {
+      base.script = '';
+    }
     base.fingerprint=studioFingerprint(`${base.title} ${base.hook} ${base.script||base.copy}`);
     const reasons:string[]=[];
     if (!draft || !base.title) reasons.push('AI did not complete this slot');
@@ -240,6 +253,8 @@ export class MediaStudioService {
     } else if (slot.format==='carousel' && base.slides.length<4) reasons.push('Carousel requires at least four fully written slides');
     else if (visualOnly.has(slot.format) && !base.shotLocation && !base.slides.length) reasons.push('Missing visual/story production instructions');
     else if (slot.format==='text' && base.copy.length<65) reasons.push('Text not ready to publish');
+    if (slot.format==='text' && slot.platform==='x' && base.copy.length>280)
+      reasons.push(`X text exceeds the 280-character limit (${base.copy.length}/280)`);
     if (!base.caption && slot.platform!=='x' && slot.platform!=='linkedin') reasons.push('Missing final caption');
     if (base.evidenceId && !evidenceIds.has(base.evidenceId)) reasons.push('Unverified evidence reference');
     // A personal story must be verifiable; commentary without an evidence id
@@ -337,7 +352,7 @@ export class MediaStudioService {
               name:'hsakaa_media_studio_v7_asset',
               model:process.env.HSAKAA_MEDIA_STUDIO_MODEL || process.env.HSAKAA_MEDIA_MODEL || 'gpt-5.4-mini',
               maxOutputTokens:limit,reasoningEffort:'low',verbosity:'low',
-              instructions:this.instructions()+`\nWRITE EXACTLY ONE ${slot.platform} ${slot.format} ASSET. Return exactly one posts[] element with the requested slotId. Do not write other slots. The text must be usable verbatim. ${attempt?'Previous attempt was truncated; keep nonessential arrays concise while preserving the complete spoken script.':''}`,
+              instructions:this.instructions()+`\nWRITE EXACTLY ONE ${slot.platform} ${slot.format} ASSET. Return exactly one posts[] element with the requested slotId. Do not write other slots. The content must be usable verbatim. ${slot.format==='text'?'TEXT POST ONLY: copy must begin exactly with the selected hook; leave all script and shooting fields EMPTY. Never generate a reel or video outline.':''} ${attempt?'Previous attempt was truncated; keep nonessential arrays concise while preserving the required publishable body.':''}`,
               schema:this.schema(),
               input:JSON.stringify({date,slot:slotInstructions,approvedContext:this.focusedContext(ctx,slot,selected),
                 previousPosts:references,verifiedTrends:trends.available?trends.entries.slice(0,6):[],
@@ -404,7 +419,8 @@ export class MediaStudioService {
     this.generationJobs.add(date);
     try {
       const original=await this.days.findOne({date}).lean();
-      const old=((original?.posts??[]) as unknown as StudioPost[]).find(p=>p.id===id);
+      const previous=((original?.posts??[]) as unknown as StudioPost[]).find(p=>p.id===id);
+      const old=previous?studioPostForFormat(previous):undefined;
       if(!old)throw new NotFoundException('Writing package not found');
       if(!hasFinishedWriting(old))throw new BadRequestException('Complete missing writing with Retry Unfinished before editorial improvement.');
       const [ctx,history]=await Promise.all([this.context(),this.recentCopy(date)]);
@@ -453,22 +469,30 @@ export class MediaStudioService {
     const posts=record.posts as unknown as StudioPost[];
     const post=posts.find(p=>p.id===id);
     if(!post) throw new NotFoundException('Post not found');
+    if(post.format==='text' && typeof change.script==='string' && change.script.trim())
+      throw new BadRequestException('Text posts have no video script; update the publishable copy instead.');
     for(const field of ['title','hook','script','copy','caption'] as const) {
       if(typeof change[field]==='string') post[field]=trim(change[field],field==='script'?15000:4000);
+    }
+    // A legacy text entry may still have video fields in MongoDB. Strip them
+    // whenever writing is updated so they cannot leak back into production.
+    if(post.format==='text') {
+      post.script='';post.shotLocation='';post.shotList=[];post.slides=[];
+      post.cover='';post.caption='';
     }
     if(change.status){
       if(!['ready','needs_review','needs_input'].includes(change.status))
         throw new BadRequestException('Invalid editorial status');
       // Manual approval, not auto-publishing. The owner must still approve publication elsewhere.
       if(change.status==='ready'&&!hasFinishedWriting(post))
-        throw new BadRequestException('This writing pack is incomplete. Finish its script, caption, hook and production directions before marking ready.');
+        throw new BadRequestException(post.format==='text'?'Complete the publishable text and opening hook before marking ready.':'Finish the script, caption, hook and production directions before marking ready.');
       if(change.status==='ready') {
         const [history,ctx]=await Promise.all([this.recentCopy(date),this.context()]);
         if(post.evidenceId && !ctx.evidence.some(e=>e.id===post.evidenceId))
           throw new BadRequestException('Source evidence is not currently approved; cannot mark writing ready.');
         const editorial=reviewStudioPost(post,history);
         post.editorial=editorial;
-        if(!editorial.pass) throw new BadRequestException(`Editorial gate ${editorial.score}/10: ${editorial.issues.slice(0,3).join('; ')}. Improve the script first.`);
+        if(!editorial.pass) throw new BadRequestException(`Editorial gate ${editorial.score}/10: ${editorial.issues.slice(0,3).join('; ')}. Improve the ${post.format==='text'?'publishable text':'script'} first.`);
       }
       post.status=change.status as StudioPost['status'];
       post.reason=change.status==='ready'?'Owner marked writing ready; publishing still requires approval':post.reason;

@@ -47,6 +47,12 @@ describe('Media Studio independent editorial gate',()=>{
     expect(result.pass).toBe(false);
     expect(result.issues.join(' ')).toMatch(/Publishable text must begin/i);
   });
+  it('rejects an oversized X text post even if it has approved evidence',()=>{
+    const result=reviewStudioPost({...grounded,format:'text',platform:'x',script:'',
+      copy:`${hook} ${'I tested the app but found one more issue. '.repeat(12)}`});
+    expect(result.pass).toBe(false);
+    expect(result.issues.join(' ')).toMatch(/280-character limit/i);
+  });
   it('does not label source-free commentary as a verified personal narrative',()=>{
     const result=reviewStudioPost({...grounded,evidenceId:'',script:grounded.script.replace('I opened the flow','Someone could open the flow')});
     expect(result.pass).toBe(false);

@@ -55,6 +55,8 @@ export function reviewStudioPost(post:Pick<StudioPost,'title'|'hook'|'script'|'c
   if(video && productionSpeech.test(body)){s-=3.5;issues.push('Filming instructions appear inside spoken dialogue');}
   if(video && post.format==='long_video' && text.length<650){s-=2.6;issues.push('Long-form script is too short to develop a complete story');}
   if(video && post.format!=='long_video' && (text.length<65||text.length>170)){s-=1.9;issues.push('Short-form script length needs editing for retention');}
+  const xOverLimit=post.format==='text' && post.platform==='x' && body.length>280;
+  if(xOverLimit){issues.push(`X text exceeds the 280-character limit (${body.length}/280)`);}
   if(post.format==='carousel' && post.slides.length<6){s-=1.5;issues.push('Carousel needs a developed visual progression');}
   if(post.format==='carousel' && new Set(post.slides.map(x=>normalize(x.headline))).size<post.slides.length){s-=2;issues.push('Carousel repeats slide headlines');}
 
@@ -87,7 +89,7 @@ export function reviewStudioPost(post:Pick<StudioPost,'title'|'hook'|'script'|'c
   const dimensions={hook:round(h),story:round(s),originality:round(o),authenticity:round(a),entertainment:round(e),platform:round(p)};
   const score=round(h*.20+s*.25+o*.20+a*.15+e*.10+p*.10);
   const hardBlock=duplicates.length>0 || generic.test(body) || (spokenOrText && !hookIsFirst) ||
-    (video && productionSpeech.test(body)) || (!post.evidenceId && a<4);
+    (video && productionSpeech.test(body)) || xOverLimit || (!post.evidenceId && a<4);
   const pass=!hardBlock && score>=8.5 && dimensions.hook>=8 && dimensions.story>=8 &&
     dimensions.originality>=8 && dimensions.authenticity>=7.5;
   if(score<8.5)issues.push(`Independent editorial preflight ${score}/10, target 8.5/10`);

@@ -1,4 +1,4 @@
-import {studioAddDays,studioBuildSlots,studioCadence,studioFingerprint,studioLocalDate,studioSimilar} from './media-studio-policy';
+import {studioAddDays,studioBuildSlots,studioCadence,studioFingerprint,studioLocalDate,studioSimilar,studioPostForFormat} from './media-studio-policy';
 import {normalizePitch} from './media-series-design';
 
 describe('Media Studio V7 invariants',()=>{
@@ -42,6 +42,19 @@ describe('Media Studio V7 invariants',()=>{
       expect(count('linkedin','text')).toBe(5);
       expect(count('x','text')).toBe(4);
     }
+  });
+  it('does not expose video fields from historical X/LinkedIn text assets',()=>{
+    const legacy:any={format:'text',platform:'x',copy:'An actual text post',script:'Video voiceover',
+      shotLocation:'Bedroom',shotList:[{time:'0:00',shot:'phone'}],
+      slides:[{headline:'A title',copy:'Text',visual:'Shot'}],cover:'Thumbnail',caption:'Duplicate'};
+    expect(studioPostForFormat(legacy)).toMatchObject({copy:'An actual text post',
+      script:'',shotLocation:'',shotList:[],slides:[],cover:'',caption:''});
+    expect(legacy.script).toBe('Video voiceover'); // read projection never rewrites the DB
+  });
+  it('keeps video production metadata on genuine video posts',()=>{
+    const video:any={format:'reel',platform:'instagram',script:'Spoken content',
+      shotLocation:'Studio',shotList:[{time:'0:00',shot:'camera'}]};
+    expect(studioPostForFormat(video)).toBe(video);
   });
   it('flags closely repeated hooks while ignoring unrelated topics',()=>{
     expect(studioSimilar('the one chess mistake I keep making','the one chess mistake I keep making again')).toBeGreaterThan(.75);

@@ -6,7 +6,7 @@ import { MediaContentItem, MediaContentItemStatus, MediaContentOrigin } from './
 import { MediaPublication, MediaDeliveryStatus, MediaProductionStatus } from './schemas/media-publication.schema';
 import { MediaMetricSnapshot, MetricSnapshotPeriod } from './schemas/media-metric-snapshot.schema';
 import { MediaPlatform, MediaPostType, MediaPostStatus } from './schemas/media-post.schema';
-import { StudioPost, studioAddDays, studioLocalDate } from './media-studio-policy';
+import { StudioPost, studioAddDays, studioLocalDate, isStudioVideo, studioPostForFormat } from './media-studio-policy';
 import { reviewStudioPost } from './media-studio-editorial';
 
 /**
@@ -29,7 +29,8 @@ export class MediaStudioReleaseService {
     if(!/^\d{4}-\d{2}-\d{2}$/.test(date) || !id || id.length>250)
       throw new BadRequestException('Invalid Studio date or asset ID');
     const day=await this.days.findOne({date}).lean();
-    const post=((day?.posts??[]) as unknown as StudioPost[]).find(p=>p.id===id);
+    const stored=((day?.posts??[]) as unknown as StudioPost[]).find(p=>p.id===id);
+    const post=stored?studioPostForFormat(stored):undefined;
     if(!post) throw new NotFoundException('Studio writing package not found');
     const review=reviewStudioPost(post);
     if(post.status!=='ready' || !review.pass || !post.title || !post.hook)
@@ -38,7 +39,7 @@ export class MediaStudioReleaseService {
     // Upserts plus unique indexes make retries safe, including interrupted handoffs.
     // Do not mutate a publication after production has started: new writing must be
     // explicitly reviewed instead of silently overwriting filming/publishing work.
-    const body=post.script || post.copy || post.caption;
+    const body=isStudioVideo(post.format)?(post.script||post.copy||post.caption):(post.copy||post.caption);
     const content=await this.content.findOneAndUpdate(
       {'metadata.studioKey':studioKey},
       {$setOnInsert:{title:post.title,thesis:post.hook,canonicalBody:body,
@@ -58,8 +59,9 @@ export class MediaStudioReleaseService {
       {$setOnInsert:{contentItemId:content._id,platform:post.platform as MediaPlatform,format,
         status:MediaPostStatus.SCRIPT_READY,productionStatus:MediaProductionStatus.NOT_STARTED,
         deliveryStatus:MediaDeliveryStatus.NOT_SCHEDULED,autoPublish:false,isActive:true,
-        title:post.title,hook:post.hook,caption:post.caption||post.copy,
-        script:post.script||undefined,description:post.copy||undefined,
+        title:post.title,hook:post.hook,caption:post.format==='text'?post.copy:(post.caption||post.copy),
+        script:isStudioVideo(post.format)?(post.script||undefined):undefined,
+        description:post.copy||undefined,
         cta:post.pinnedComment||undefined,hashtags:post.hashtags??[],
         slides:post.slides?.map(s=>[s.headline,s.copy].filter(Boolean).join('\n'))??[],
         metadata:{studioKey,studioPostId:id,studioDate:date,seriesKey:post.seriesKey,

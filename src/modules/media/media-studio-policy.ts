@@ -16,6 +16,20 @@ export type StudioPost = StudioSlot & {
   editorial?: {score:number;pass:boolean;dimensions:Record<string,number>;issues:string[];version:string};
   trend?: {status:'evergreen'|'verified_signal';title?:string;source?:string;url?:string;publishedAt?:string};
 };
+/** The format, not the channel or which AI fields were filled, determines the asset type. */
+export const isStudioVideo = (format: StudioFormat): boolean =>
+  format === 'reel' || format === 'short' || format === 'long_video';
+
+/** Hide obsolete video-only fields from legacy text posts without modifying stored data. */
+export function studioPostForFormat(post: StudioPost): StudioPost {
+  if (post.format === 'text') return {
+    ...post, script: '', shotLocation: '', shotList: [], slides: [], cover: '', caption: '',
+  };
+  // Some legacy visual-only packages also included AI-generated spoken scripts.
+  if (!isStudioVideo(post.format) && post.script) return {...post, script: ''};
+  return post;
+}
+
 export const MEDIA_STUDIO_PLATFORMS: StudioPlatform[] = ['instagram','youtube','linkedin','x','whatsapp'];
 export function studioLocalDate(now = new Date()): string {
   // ISO local date without accidentally using the server's UTC calendar.

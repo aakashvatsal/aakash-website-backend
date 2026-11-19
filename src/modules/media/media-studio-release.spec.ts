@@ -9,6 +9,7 @@ describe('Media Studio production handoff and measured analytics',()=>{
     title:'A meaningful tested story',hook:'One surprising decision',script:'One surprising decision. This is the full, already-reviewed script.',
     caption:'Full caption',copy:'Final copy',storyArc:'Setup, tension and resolution',pinnedComment:'What is next?',
     shotLocation:'Desk',shotList:[],slides:[],hashtags:[],status:'ready',fingerprint:'real-fingerprint',editorial:{pass:true}};
+  const initialPost={...post};
   const docs=new Map<string,any>();
   const pubs=new Map<string,any>();
   const query:any={findOne:jest.fn(()=>({lean:async()=>({posts:[post]})})),find:jest.fn()};
@@ -25,7 +26,7 @@ describe('Media Studio production handoff and measured analytics',()=>{
   const metrics:any={find:jest.fn()};
   let service:MediaStudioReleaseService;
   beforeEach(()=>{
-    post.status='ready';post.fingerprint='real-fingerprint';
+    Object.assign(post,initialPost);
     docs.clear();pubs.clear();jest.clearAllMocks();
     service=new MediaStudioReleaseService(query,content,publications,metrics);
   });
@@ -39,6 +40,17 @@ describe('Media Studio production handoff and measured analytics',()=>{
     expect(saved.deliveryStatus).toBe(MediaDeliveryStatus.NOT_SCHEDULED);
     expect(saved.metadata.seriesKey).toBe('me-vs-me');
     expect(saved.script).toContain('surprising decision');
+  });
+  it('uses publish copy, not stale video scripts, for legacy text handoffs',async()=>{
+    post.platform='x';post.format='text';post.copy='This morning I changed how I check my numbers.';
+    post.script='Legacy video voiceover that must never be posted.';
+    const result=await service.handoff(date,id);
+    expect(result.publicationId).toBe('pub-1');
+    const saved=[...pubs.values()][0];
+    expect(saved.caption).toBe(post.copy);
+    expect(saved.description).toBe(post.copy);
+    expect(saved.script).toBeUndefined();
+    expect([...docs.values()][0].canonicalBody).toBe(post.copy);
   });
   it('refuses incomplete writing',async()=>{
     post.status='needs_review';
