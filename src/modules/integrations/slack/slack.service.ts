@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Optional,
   ForbiddenException,
   Injectable,
   Logger,
@@ -22,6 +23,7 @@ import { AiService } from '../../ai/ai.service';
 import { ChatService } from '../../chat/chat.service';
 import { MessageRole } from '../../chat/schemas/message.schema';
 import { SlackIntentService, SlackIntent } from './slack-intent.service';
+import { SlackFraytoOperationsService } from './slack-frayto-operations.service';
 import {
   SlackKnowledge,
   SlackKnowledgeDocument,
@@ -89,6 +91,7 @@ export class SlackService {
     private readonly ai: AiService,
     private readonly intent: SlackIntentService,
     private readonly chat: ChatService,
+    @Optional() private readonly operations?: SlackFraytoOperationsService,
   ) {}
 
   private getConfig(key: string): string {
@@ -158,9 +161,13 @@ export class SlackService {
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
       isOwner,
     });
+    const enableChannelMonitoring =
+      this.config.get<string>('SLACK_ENABLE_CHANNEL_MONITORING') === 'true';
     const params = new URLSearchParams({
       client_id: clientId,
-      scope: 'app_mentions:read,chat:write,im:history',
+      scope: enableChannelMonitoring
+        ? 'app_mentions:read,chat:write,im:history,channels:history,groups:history'
+        : 'app_mentions:read,chat:write,im:history',
       redirect_uri: redirectUri,
       state,
     });
@@ -223,6 +230,7 @@ export class SlackService {
         $setOnInsert: {
           approvalStatus: SlackWorkspaceApproval.PENDING,
           restrictChannelUsers: false,
+          monitorChannels: false,
           allowDMs: false,
           allowedChannelIds: [],
           allowedUserIds: [],
@@ -262,11 +270,14 @@ export class SlackService {
       workspaces: workspaces.map((workspace) => ({
         teamId: workspace.teamId,
         teamName: workspace.teamName,
+        fraytoCompanyId:
+          this.operations?.getCompanyId(workspace.teamId) ?? null,
         connected: workspace.connected,
         approvalStatus:
           workspace.approvalStatus ?? SlackWorkspaceApproval.PENDING,
         enabled: workspace.enabled,
         restrictChannelUsers: workspace.restrictChannelUsers ?? false,
+        monitorChannels: workspace.monitorChannels ?? false,
         allowDMs: workspace.allowDMs,
         allowedChannelIds: workspace.allowedChannelIds,
         allowedUserIds: workspace.allowedUserIds,
@@ -281,6 +292,7 @@ export class SlackService {
       enabled?: boolean;
       approvalStatus?: SlackWorkspaceApproval;
       restrictChannelUsers?: boolean;
+      monitorChannels?: boolean;
       allowDMs?: boolean;
       allowedChannelIds?: string[];
       allowedUserIds?: string[];
@@ -299,6 +311,20 @@ export class SlackService {
       throw new BadRequestException(
         'Use Slack channel IDs (C/G...) and member IDs (U/W...), not names.',
       );
+    }
+    const monitorChannels =
+      settings.monitorChannels ?? existing.monitorChannels;
+    if (monitorChannels) {
+      const requiredScopes = channels.some((channel) => channel.startsWith('G'))
+        ? ['channels:history', 'groups:history']
+        : ['channels:history'];
+      if (
+        requiredScopes.some((scope) => !(existing.scopes ?? []).includes(scope))
+      ) {
+        throw new BadRequestException(
+          'Reauthorize HSAKAA with Slack channel history permissions before enabling channel monitoring.',
+        );
+      }
     }
     const approvalStatus =
       settings.approvalStatus ??
@@ -413,12 +439,23 @@ export class SlackService {
       return { ok: true };
     const isDM = event.type === 'message' && event.channel_type === 'im';
     const isMention = event.type === 'app_mention';
-    if (!isDM && !isMention) return { ok: true };
     const workspace = await this.workspaces.findOne({ teamId }).lean();
     // No bot credential exists for an unknown / uninstalled team; Slack cannot
     // receive a reply from this installation. Never process the message.
     if (!workspace?.connected || event.user === workspace.botUserId)
       return { ok: true };
+    // All-channel listening is opt-in for explicitly allowlisted channels,
+    // never a global Slack surveillance mode. Slack requires the corresponding
+    // message.channels / message.groups subscription and history scopes.
+    const isChannelEvent =
+      event.type === 'message' &&
+      /^[CG]/.test(event.channel) &&
+      Boolean(workspace.monitorChannels) &&
+      workspace.allowedChannelIds.includes(event.channel) &&
+      (workspace.scopes ?? []).includes(
+        event.channel.startsWith('G') ? 'groups:history' : 'channels:history',
+      );
+    if (!isDM && !isMention && !isChannelEvent) return { ok: true };
     const text = event.text
       .replace(/<@[A-Z0-9]+(?:\|[^>]+)?>/g, '')
       .trim()
@@ -444,7 +481,14 @@ export class SlackService {
     try {
       await this.queries.create({
         teamId,
-        eventId: payload.event_id,
+        // Both message.channels and app_mention may describe the same message.
+        // Stable identity prevents duplicate execution/answers across these events.
+        eventId:
+          workspace.monitorChannels && !isDM
+            ? createHash('sha256')
+                .update(`${teamId}:${event.channel}:${event.ts}:${event.user}`)
+                .digest('hex')
+            : payload.event_id,
         channelId: event.channel,
         userId: event.user,
         eventTs: event.ts,
@@ -481,6 +525,7 @@ export class SlackService {
       | 'allowedUserIds'
       | 'allowedChannelIds'
       | 'restrictChannelUsers'
+      | 'monitorChannels'
     >,
     request: {
       teamId: string;
@@ -507,6 +552,34 @@ export class SlackService {
       (!workspace.restrictChannelUsers ||
         workspace.allowedUserIds.includes(request.userId))
     );
+  }
+
+  async acceptInteraction(payload: unknown) {
+    if (!this.operations || !payload || typeof payload !== 'object') return;
+    const parsed = payload as {
+      type?: string;
+      team?: { id?: string };
+      user?: { id?: string };
+      channel?: { id?: string };
+      actions?: Array<{ action_id?: string; value?: string }>;
+    };
+    // A workspace approved in HSAKAA and an authorized Slack user is necessary
+    // even to enqueue an approval; Frayto independently verifies user rights.
+    if (!parsed.team?.id || !parsed.user?.id || !parsed.channel?.id) return;
+    const workspace = await this.workspaces
+      .findOne({ teamId: parsed.team.id })
+      .lean();
+    if (
+      !workspace ||
+      !this.canAccess(workspace, {
+        teamId: parsed.team.id,
+        userId: parsed.user.id,
+        channelId: parsed.channel.id,
+        isDM: parsed.channel.id.startsWith('D'),
+      })
+    )
+      return;
+    await this.operations.acceptInteraction(parsed);
   }
 
   async getQueries(limit = 50) {
@@ -763,9 +836,44 @@ export class SlackService {
           },
         },
       );
-      const knowledge = await this.selectKnowledge(job.query, job.teamId);
+      // Only workspaces explicitly mapped to a Frayto company enter the
+      // operations planner. Unrelated questions still use existing knowledge AI.
+      const operationResult =
+        !job.answer && this.operations
+          ? await this.operations.prepare({
+              teamId: job.teamId,
+              userId: job.userId,
+              channelId: job.channelId,
+              threadTs: job.threadTs,
+              sourceEventId: job.eventId,
+              message: job.query,
+              history,
+            })
+          : null;
+      // An unmapped workspace must never receive a fabricated confirmation
+      // for an FMS mutation. Explicitly refuse rather than letting general AI
+      // imply that an external server was changed.
+      const fraytoMutationRequest =
+        /\b(delete|remove|reopen|reset|pending|extend|extension|change|update)\b/i.test(
+          job.query,
+        ) &&
+        /\b(invoice|docket|quotation|workflow step|purchase bill)\b/i.test(
+          job.query,
+        );
+      const unmappedFraytoAction =
+        !operationResult &&
+        fraytoMutationRequest &&
+        !this.operations?.getCompanyId(job.teamId)
+          ? 'Frayto operations are not enabled for this Slack workspace. No changes were made. Ask the HSAKAA administrator to configure authorized Frayto access.'
+          : null;
+      const knowledge =
+        operationResult || unmappedFraytoAction
+          ? []
+          : await this.selectKnowledge(job.query, job.teamId);
       const answer =
         job.answer ||
+        operationResult?.answer ||
+        unmappedFraytoAction ||
         (await this.ai.generateResponse({
           scope: 'slack',
           mode: 'Slack',
@@ -778,7 +886,14 @@ export class SlackService {
       if (!answer.trim()) throw new Error('AI returned an empty answer.');
       await this.queries.updateOne(
         { _id: job._id },
-        { $set: { answer: answer.slice(0, 12000) } },
+        {
+          $set: {
+            answer: answer.slice(0, 12000),
+            ...(operationResult?.actionId
+              ? { operationActionId: operationResult.actionId }
+              : {}),
+          },
+        },
       );
       // Reauthorize immediately before posting. An owner may have revoked
       // approval or access while the language model was generating an answer.
@@ -828,6 +943,21 @@ export class SlackService {
               text: answer.slice(0, 39000),
               client_msg_id: clientMessageId,
               unfurl_links: false,
+              ...((operationResult?.actionId || job.operationActionId) &&
+              this.operations
+                ? {
+                    blocks: [
+                      {
+                        type: 'section',
+                        text: { type: 'mrkdwn', text: answer.slice(0, 2800) },
+                      },
+                      ...this.operations.confirmationBlocks(
+                        (operationResult?.actionId ||
+                          job.operationActionId) as string,
+                      ),
+                    ],
+                  }
+                : {}),
             },
           );
       if (!job.replyTs && result.ts) {
@@ -861,11 +991,16 @@ export class SlackService {
           },
         });
       }
-      const status = detected.needsClarification
-        ? SlackQueryStatus.NEEDS_CLARIFICATION
-        : detected.requiresExternalAction
-          ? SlackQueryStatus.PARTIALLY_RESOLVED
-          : SlackQueryStatus.RESOLVED;
+      const status =
+        operationResult?.actionId || job.operationActionId
+          ? SlackQueryStatus.AWAITING_APPROVAL
+          : operationResult?.needsClarification
+            ? SlackQueryStatus.NEEDS_CLARIFICATION
+            : detected.needsClarification
+              ? SlackQueryStatus.NEEDS_CLARIFICATION
+              : detected.requiresExternalAction
+                ? SlackQueryStatus.PARTIALLY_RESOLVED
+                : SlackQueryStatus.RESOLVED;
       await this.queries.updateOne(
         { _id: job._id },
         {
@@ -899,6 +1034,83 @@ export class SlackService {
           },
         },
       );
+    }
+  }
+
+  /** Frayto execution occurs after Slack's interactive ACK, never inside it. */
+  @Interval(3500)
+  async consumeFraytoApprovals() {
+    if (!this.operations) return;
+    const action = await this.operations.claimAction();
+    if (!action) return;
+    const workspace = await this.workspaces
+      .findOne({ teamId: action.teamId, connected: true })
+      .select('+encryptedBotToken');
+    let answer: string;
+    let resolved = false;
+    if (
+      !workspace ||
+      !this.canAccess(workspace, {
+        teamId: action.teamId,
+        userId: action.userId,
+        channelId: action.channelId,
+        isDM: action.channelId.startsWith('D'),
+      })
+    ) {
+      answer =
+        'Workspace or user access was revoked. The operation was not executed.';
+    } else if (
+      this.operations.getCompanyId(action.teamId) !== action.companyId
+    ) {
+      answer =
+        'Frayto workspace mapping changed. The operation was not executed.';
+    } else {
+      const result = await this.operations.executeClaimed(action);
+      answer = result.answer;
+      resolved = result.resolved;
+    }
+    // Frayto execution and reply are separately recorded. Never claim success
+    // on a timeout or when Frayto cannot verify the mutation.
+    await this.operations.finalizeAction(action._id.toString(), {
+      answer,
+      resolved,
+    });
+    await this.queries.updateOne(
+      { teamId: action.teamId, eventId: action.sourceEventId },
+      {
+        $set: {
+          status: resolved
+            ? SlackQueryStatus.RESOLVED
+            : SlackQueryStatus.PARTIALLY_RESOLVED,
+          completedAt: new Date(),
+        },
+      },
+    );
+    if (
+      workspace?.connected &&
+      this.canAccess(workspace, {
+        teamId: action.teamId,
+        userId: action.userId,
+        channelId: action.channelId,
+        isDM: action.channelId.startsWith('D'),
+      })
+    ) {
+      try {
+        await this.slackApi(
+          this.decryptToken(workspace.encryptedBotToken),
+          'chat.postMessage',
+          {
+            channel: action.channelId,
+            thread_ts: action.threadTs,
+            text: answer,
+            unfurl_links: false,
+          },
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Frayto action result not posted to Slack: ${error instanceof Error ? error.message : 'unknown'}`,
+        );
+      }
     }
   }
 

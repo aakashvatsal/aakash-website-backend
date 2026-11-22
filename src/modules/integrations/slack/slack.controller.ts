@@ -33,6 +33,7 @@ class SlackWorkspaceSettingsDto {
   @IsEnum(SlackWorkspaceApproval)
   approvalStatus?: SlackWorkspaceApproval;
   @IsOptional() @IsBoolean() restrictChannelUsers?: boolean;
+  @IsOptional() @IsBoolean() monitorChannels?: boolean;
   @IsOptional() @IsBoolean() allowDMs?: boolean;
   @IsOptional()
   @IsArray()
@@ -85,6 +86,29 @@ export class SlackController {
   ) {
     this.slack.verifySignature(request.rawBody, timestamp, signature);
     return this.slack.acceptEvent(request.body as Record<string, unknown>);
+  }
+
+  /** Slack sends application/x-www-form-urlencoded containing a JSON payload. */
+  @Post('interactions')
+  @Public()
+  async interactions(
+    @Req() request: RawBodyRequest<Request>,
+    @Headers('x-slack-request-timestamp') timestamp?: string,
+    @Headers('x-slack-signature') signature?: string,
+  ) {
+    this.slack.verifySignature(request.rawBody, timestamp, signature);
+    const payload = (request.body as { payload?: unknown } | undefined)
+      ?.payload;
+    if (typeof payload !== 'string' || payload.length > 30000)
+      return { ok: true };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      return { ok: true };
+    }
+    await this.slack.acceptInteraction(parsed);
+    return { ok: true };
   }
 
   @Get('status')

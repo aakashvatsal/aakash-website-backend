@@ -5,6 +5,7 @@ export type SlackWorkspaceDocument = HydratedDocument<SlackWorkspace>;
 export type SlackQueryDocument = HydratedDocument<SlackQuery>;
 export type SlackKnowledgeDocument = HydratedDocument<SlackKnowledge>;
 export type SlackOAuthStateDocument = HydratedDocument<SlackOAuthState>;
+export type SlackOperationDocument = HydratedDocument<SlackOperation>;
 
 export enum SlackWorkspaceApproval {
   PENDING = 'pending',
@@ -29,6 +30,7 @@ export class SlackWorkspace {
   approvalStatus: SlackWorkspaceApproval;
   @Prop({ default: false }) enabled: boolean;
   @Prop({ default: false }) restrictChannelUsers: boolean;
+  @Prop({ default: false }) monitorChannels: boolean;
   @Prop({ default: false }) allowDMs: boolean;
   @Prop({ type: [String], default: [] }) allowedChannelIds: string[];
   @Prop({ type: [String], default: [] }) allowedUserIds: string[];
@@ -53,6 +55,7 @@ export enum SlackQueryStatus {
   RECEIVED = 'received',
   PROCESSING = 'processing',
   NEEDS_CLARIFICATION = 'needs_clarification',
+  AWAITING_APPROVAL = 'awaiting_approval',
   PARTIALLY_RESOLVED = 'partially_resolved',
   RESOLVED = 'resolved',
   FAILED = 'failed',
@@ -91,6 +94,7 @@ export class SlackQuery {
   @Prop({ type: [String], default: [] }) missingInformation: string[];
   @Prop() requestedOutcome?: string;
   @Prop() answer?: string;
+  @Prop() operationActionId?: string;
   @Prop() replyTs?: string;
   @Prop() failure?: string;
   @Prop() completedAt?: Date;
@@ -111,3 +115,40 @@ export class SlackKnowledge {
 }
 export const SlackKnowledgeSchema =
   SchemaFactory.createForClass(SlackKnowledge);
+
+/** A Frayto-authorized, short-lived preview; NEVER stores raw Frayto credentials. */
+export enum SlackOperationStatus {
+  AWAITING_CONFIRMATION = 'awaiting_confirmation',
+  APPROVED = 'approved',
+  EXECUTING = 'executing',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  FAILED = 'failed',
+}
+
+@Schema({ collection: 'hsakaa_slack_operations', timestamps: true })
+export class SlackOperation {
+  @Prop({ required: true }) teamId: string;
+  @Prop({ required: true }) companyId: string;
+  @Prop({ required: true }) channelId: string;
+  @Prop({ required: true }) threadTs: string;
+  @Prop({ required: true }) userId: string;
+  @Prop({ required: true }) sourceEventId: string;
+  @Prop({ required: true }) operation:
+    | 'delete_purchase_invoice'
+    | 'reopen_docket_steps'
+    | 'extend_quotation_validity';
+  @Prop({ required: true }) resolutionId: string;
+  @Prop({ required: true }) summary: string;
+  @Prop({ type: String, enum: SlackOperationStatus, required: true })
+  status: SlackOperationStatus;
+  @Prop({ required: true }) idempotencyKey: string;
+  @Prop({ required: true }) expiresAt: Date;
+  @Prop() result?: string;
+  @Prop() replyTs?: string;
+  @Prop() completedAt?: Date;
+}
+export const SlackOperationSchema =
+  SchemaFactory.createForClass(SlackOperation);
+SlackOperationSchema.index({ teamId: 1, sourceEventId: 1 }, { unique: true });
+SlackOperationSchema.index({ status: 1, expiresAt: 1 });

@@ -319,3 +319,50 @@ describe('Slack multi-workspace distribution and access control', () => {
     );
   });
 });
+
+describe('allowlisted channel monitoring (optional)', () => {
+  it('ignores ordinary channel posts unless explicit channel monitoring is enabled', async () => {
+    const { service, queries } = setup();
+    await service.acceptEvent({
+      type: 'event_callback',
+      team_id: allowedTeam,
+      event_id: 'EvChannel1',
+      event: {
+        type: 'message',
+        channel_type: 'channel',
+        channel: allowedChannel,
+        user: allowedUser,
+        ts: '1700000000.300001',
+        text: 'Please reopen the pending operations step',
+      },
+    });
+    expect(queries.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts monitored messages in an approved channel with history scope', async () => {
+    const { service, workspace, queries } = setup();
+    Object.assign(workspace, {
+      monitorChannels: true,
+      scopes: ['channels:history'],
+    });
+    await service.acceptEvent({
+      type: 'event_callback',
+      team_id: allowedTeam,
+      event_id: 'EvChannel2',
+      event: {
+        type: 'message',
+        channel_type: 'channel',
+        channel: allowedChannel,
+        user: allowedUser,
+        ts: '1700000000.300002',
+        text: 'Please reopen step Cargo Received in docket DK-25',
+      },
+    });
+    expect(queries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessDenied: false,
+        query: 'Please reopen step Cargo Received in docket DK-25',
+      }),
+    );
+  });
+});

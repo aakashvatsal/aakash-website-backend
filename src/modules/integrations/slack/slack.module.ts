@@ -5,7 +5,10 @@ import { ChatModule } from '../../chat/chat.module';
 import { SlackController } from './slack.controller';
 import { SlackService } from './slack.service';
 import { SlackIntentService } from './slack-intent.service';
+import { SlackFraytoOperationsService } from './slack-frayto-operations.service';
 import {
+  SlackOperation,
+  SlackOperationSchema,
   SlackKnowledge,
   SlackKnowledgeSchema,
   SlackOAuthState,
@@ -26,10 +29,16 @@ import { HsakaaOwnerSessionGuard } from '../../../hsakaa/guards/hsakaa-owner-ses
       { name: SlackOAuthState.name, schema: SlackOAuthStateSchema },
       { name: SlackQuery.name, schema: SlackQuerySchema },
       { name: SlackKnowledge.name, schema: SlackKnowledgeSchema },
+      { name: SlackOperation.name, schema: SlackOperationSchema },
     ]),
   ],
   controllers: [SlackController],
-  providers: [SlackService, SlackIntentService, HsakaaOwnerSessionGuard],
+  providers: [
+    SlackService,
+    SlackIntentService,
+    SlackFraytoOperationsService,
+    HsakaaOwnerSessionGuard,
+  ],
   exports: [SlackService],
 })
 export class SlackModule {}
