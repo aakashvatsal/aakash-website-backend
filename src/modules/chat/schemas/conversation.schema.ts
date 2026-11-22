@@ -7,6 +7,7 @@ export enum ConversationChannel {
   PUBLIC = 'public',
   OWNER = 'owner',
   VERIFIED_PERSON = 'verified_person',
+  SLACK = 'slack',
 }
 
 @Schema({
@@ -79,3 +80,9 @@ ConversationSchema.index({
   isActive: 1,
   lastMessageAt: -1,
 });
+
+// Each Slack thread is its own isolated conversation.
+ConversationSchema.index(
+  { sessionId: 1, channel: 1 },
+  { unique: true, partialFilterExpression: { channel: ConversationChannel.SLACK } },
+);

@@ -10,6 +10,8 @@ import { NowModule } from '../now/now.module';
 
 import { MediaModule } from '../media/media.module';
 
+import { SlackModule } from './slack/slack.module';
+
 import { IntegrationsController } from './integrations.controller';
 
 import { IntegrationsService } from './integrations.service';
@@ -30,6 +32,8 @@ import { WhoopWebhookService } from './whoop/whoop-webhook.service';
 @Module({
   imports: [
     ConfigModule,
+
+    SlackModule,
 
     HealthModule,
 

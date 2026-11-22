@@ -73,6 +73,40 @@ export class ChatService {
     private readonly importedChatMessageModel: Model<ImportedChatMessageDocument>,
   ) {}
 
+  async getOrCreateSlackConversation(params: {
+    teamId: string;
+    channelId: string;
+    threadTs: string;
+    firstMessage: string;
+  }) {
+    const sessionId = `slack:${params.teamId}:${params.channelId}:${params.threadTs}`;
+    return this.conversationModel.findOneAndUpdate(
+      { sessionId, channel: ConversationChannel.SLACK },
+      {
+        $setOnInsert: {
+          sessionId,
+          channel: ConversationChannel.SLACK,
+          mode: 'Slack',
+          title: this.createConversationTitle(params.firstMessage),
+          isActive: true,
+          messageCount: 0,
+          lastMessageAt: new Date(),
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    ).exec();
+  }
+
+  async getRecentSlackMessages(conversationId: Types.ObjectId, limit = 12) {
+    const messages = await this.messageModel
+      .find({ conversationId, role: { $in: [MessageRole.USER, MessageRole.ASSISTANT] } })
+      .sort({ createdAt: -1 }).limit(Math.min(20, Math.max(1, limit))).lean();
+    return messages.reverse().map((message) => ({
+      role: message.role === MessageRole.USER ? ('user' as const) : ('assistant' as const),
+      content: message.content,
+    }));
+  }
+
   async getOrCreatePublicConversation(params: PublicConversationParams) {
     if (params.conversationId) {
       if (!Types.ObjectId.isValid(params.conversationId)) {

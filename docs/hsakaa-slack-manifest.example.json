@@ -1,0 +1,28 @@
+{
+  "display_information": {
+    "name": "HSAKAA",
+    "description": "Permission-aware AI question and resolution assistant",
+    "background_color": "#121212"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "HSAKAA",
+      "always_online": false
+    }
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://api.aakashvatsal.com/api/v1/integrations/slack/callback"],
+    "scopes": {
+      "bot": ["app_mentions:read", "chat:write", "im:history"]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "https://api.aakashvatsal.com/api/v1/integrations/slack/events",
+      "bot_events": ["app_mention", "message.im"]
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
