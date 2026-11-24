@@ -51,7 +51,15 @@ function setup(mapping = JSON.stringify({ [teamId]: companyId })) {
       },
     }),
   };
-  const workspaces = { findOne: jest.fn() };
+  const workspaces = {
+    findOne: jest
+      .fn()
+      .mockReturnValue({
+        lean: jest
+          .fn()
+          .mockResolvedValue({ allowedChannelIds: [ctx.channelId] }),
+      }),
+  };
   return {
     service: new SlackFraytoOperationsService(
       actions as never,
@@ -62,16 +70,27 @@ function setup(mapping = JSON.stringify({ [teamId]: companyId })) {
     actions,
     ai,
     config,
+    workspaces,
   };
 }
 
 describe('Slack Frayto operation guardrails', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  it('never invokes AI or Frayto for unmapped Slack workspaces', async () => {
-    const { service, ai } = setup('{}');
-    expect(await service.prepare(ctx)).toBeNull();
-    expect(ai.generateStructuredResponse).not.toHaveBeenCalled();
+  it('supports direct deletion without a bridge mapping', async () => {
+    const { service } = setup('{}');
+    const spy = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({
+        ok: true,
+        status: 204,
+        text: async () => '',
+      } as Response);
+    expect((await service.prepare(ctx))?.resolved).toBe(true);
+    expect(String(spy.mock.calls[0][0])).toBe(
+      'https://api2.traydo.com/dockets/delete-purchase-invoice?docketId=DK-40&number=PI-40',
+    );
+    expect(spy.mock.calls[0][1]?.method).toBe('DELETE');
   });
 
   it('asks for missing invoice number without calling a mutation API', async () => {
@@ -97,46 +116,65 @@ describe('Slack Frayto operation guardrails', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it('previews a verified Frayto invoice before requiring interactive confirmation', async () => {
+  it.each([
+    'How to delete invoice PI-40 for docket DK-40?',
+    'Do not delete invoice PI-40 for docket DK-40',
+    'Show invoice PI-40 for docket DK-40',
+    'Delete sales invoice PI-40 for docket DK-40',
+  ])('blocks non-deletion intent: %s', async (message) => {
     const { service, actions } = setup();
-    jest.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          status: 'ready',
-          resolutionId: '507f1f77bcf86cd799439022',
-          summary: 'Docket DK-40, Invoice PI-40',
-          expiresAt: new Date(Date.now() + 120000).toISOString(),
-        }),
-    } as Response);
-    const result = await service.prepare(ctx);
-    expect(result?.answer).toContain('No changes have been made');
-    expect(result?.actionId).toBe('507f1f77bcf86cd799439099');
-    expect(actions.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: SlackOperationStatus.AWAITING_CONFIRMATION,
-        userId,
-        teamId,
-      }),
-    );
-    expect(service.confirmationBlocks(result!.actionId!)[0]).toEqual(
-      expect.objectContaining({ type: 'actions' }),
-    );
+    const spy = jest.spyOn(global, 'fetch');
+    expect(await service.prepare({ ...ctx, message })).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+    expect(actions.create).not.toHaveBeenCalled();
   });
 
-  it('does not create an approval if Frayto denies the record or user', async () => {
+  it('blocks invented IDs', async () => {
+    const { service } = setup();
+    const spy = jest.spyOn(global, 'fetch');
+    expect(
+      (
+        await service.prepare({
+          ...ctx,
+          message: 'Delete invoice PI-41 for docket DK-40',
+        })
+      )?.needsClarification,
+    ).toBe(true);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('blocks unauthorized users', async () => {
+    const { service, workspaces } = setup();
+    workspaces.findOne.mockReturnValue({
+      lean: jest.fn().mockResolvedValue(null),
+    });
+    const spy = jest.spyOn(global, 'fetch');
+    expect((await service.prepare(ctx))?.answer).toContain('not authorized');
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('does not claim success for an ambiguous HTTP 200', async () => {
+    const { service } = setup();
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => '{}',
+      } as Response);
+    expect((await service.prepare(ctx))?.resolved).toBe(false);
+  });
+
+  it('does not replay attempted deletion', async () => {
     const { service, actions } = setup();
-    jest.spyOn(global, 'fetch').mockResolvedValue({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          status: 'forbidden',
-          message: 'FMS permission denied.',
-        }),
-    } as Response);
-    const result = await service.prepare(ctx);
-    expect(result?.answer).toBe('FMS permission denied.');
-    expect(actions.create).not.toHaveBeenCalled();
+    actions.findOne.mockResolvedValue({
+      operation: 'delete_purchase_invoice',
+      resolutionId: 'purchase-invoice:DK-40:PI-40',
+      status: SlackOperationStatus.EXECUTING,
+    });
+    const spy = jest.spyOn(global, 'fetch');
+    expect((await service.prepare(ctx))?.resolved).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('binds the confirmation to the original Slack identity and pending action', async () => {

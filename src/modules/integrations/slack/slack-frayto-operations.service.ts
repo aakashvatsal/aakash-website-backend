@@ -111,6 +111,9 @@ const OPERATIONS_SCHEMA = {
 const QUOTATION_VALIDITY_URL =
   'https://api2.traydo.com/quotation/update-quotation-validity';
 
+const PURCHASE_INVOICE_DELETE_URL =
+  'https://api2.traydo.com/dockets/delete-purchase-invoice';
+
 const OPERATION_LABELS: Record<FraytoOperationType, string> = {
   delete_purchase_invoice: 'Delete purchase invoice',
   reopen_docket_steps: 'Set docket steps to pending',
@@ -149,17 +152,21 @@ export class SlackFraytoOperationsService {
     }
   }
 
-  /** Reuse existing Slack admin settings for quotation-write authorization.
+  /** Reuse existing Slack admin settings for financial mutation authorization.
    *  Channel permissions alone never authorize a financial mutation.
    */
-  private async isQuotationEditor(context: SlackOperationContext): Promise<boolean> {
-    const workspace = await this.workspaces.findOne({
-      teamId: context.teamId,
-      connected: true,
-      enabled: true,
-      approvalStatus: SlackWorkspaceApproval.APPROVED,
-      allowedUserIds: context.userId,
-    }).lean();
+  private async isMutationEditor(
+    context: SlackOperationContext,
+  ): Promise<boolean> {
+    const workspace = await this.workspaces
+      .findOne({
+        teamId: context.teamId,
+        connected: true,
+        enabled: true,
+        approvalStatus: SlackWorkspaceApproval.APPROVED,
+        allowedUserIds: context.userId,
+      })
+      .lean();
     if (!workspace) return false;
     return context.channelId.startsWith('D')
       ? workspace.allowDMs === true
@@ -181,7 +188,7 @@ export class SlackFraytoOperationsService {
     newValidity: string,
   ): Promise<PreparationResult> {
     const operation: FraytoOperationType = 'extend_quotation_validity';
-    if (!(await this.isQuotationEditor(context))) {
+    if (!(await this.isMutationEditor(context))) {
       return {
         operation,
         resolved: false,
@@ -260,11 +267,7 @@ export class SlackFraytoOperationsService {
       let payload: Record<string, unknown> = {};
       try {
         const decoded: unknown = JSON.parse(raw);
-        if (
-          decoded &&
-          typeof decoded === 'object' &&
-          !Array.isArray(decoded)
-        )
+        if (decoded && typeof decoded === 'object' && !Array.isArray(decoded))
           payload = decoded as Record<string, unknown>;
       } catch {
         // A 2xx HTML response is NOT proof of a changed quotation.
@@ -274,9 +277,9 @@ export class SlackFraytoOperationsService {
         data && typeof data === 'object' && !Array.isArray(data)
           ? (data as Record<string, unknown>)
           : {};
-      const carrier =
-        (details.newCarrierDetails as Record<string, unknown> | undefined)
-          ?.carrier;
+      const carrier = (
+        details.newCarrierDetails as Record<string, unknown> | undefined
+      )?.carrier;
       const updated =
         details.validity ??
         details.newValidity ??
@@ -289,12 +292,16 @@ export class SlackFraytoOperationsService {
       const explicitlyFailed =
         payload.success === false ||
         payload.status === false ||
-        /not found|failed|error|invalid|not updated|denied|forbidden/i.test(reportedMessage) ||
+        /not found|failed|error|invalid|not updated|denied|forbidden/i.test(
+          reportedMessage,
+        ) ||
         (typeof payload.statusCode === 'number' && payload.statusCode >= 400);
       const explicitlySucceeded =
         payload.success === true ||
         payload.status === 'success' ||
-        /validity.*updat|updat.*validity|validity.*extend|extend.*validity/i.test(reportedMessage);
+        /validity.*updat|updat.*validity|validity.*extend|extend.*validity/i.test(
+          reportedMessage,
+        );
       if (!response.ok || explicitlyFailed) {
         answer = `Frayto rejected quotation ${quotationId} validity update (HTTP ${response.status}). ${reportedMessage.slice(0, 250) || 'Please check the quotation and permissions.'} No successful update was confirmed.`;
       } else if (updated !== undefined && updated !== newValidity) {
@@ -327,6 +334,128 @@ export class SlackFraytoOperationsService {
     return { answer, resolved, operation };
   }
 
+  private async deletePurchaseInvoice(
+    context: SlackOperationContext,
+    docketId: string,
+    number: string,
+  ): Promise<PreparationResult> {
+    const operation: FraytoOperationType = 'delete_purchase_invoice';
+    if (!(await this.isMutationEditor(context))) {
+      return {
+        operation,
+        resolved: false,
+        answer:
+          'You are not authorized to delete purchase invoices from HSAKAA. No changes were made.',
+      };
+    }
+    // Only identifiers in the current request may authorize a destructive action.
+    const tokens: string[] = context.message.match(/[a-zA-Z0-9_\/-]+/g) || [];
+    if (
+      docketId === number ||
+      ![docketId, number].every(
+        (value) =>
+          /^[a-zA-Z0-9_\/-]{1,80}$/.test(value) &&
+          /\d/.test(value) &&
+          tokens.includes(value),
+      )
+    ) {
+      return {
+        operation,
+        needsClarification: true,
+        answer:
+          'Please provide the exact docket ID and purchase invoice number together in your delete request. No changes were made.',
+      };
+    }
+    try {
+      await this.actions.create({
+        teamId: context.teamId,
+        companyId: 'direct-purchase-invoice-api',
+        channelId: context.channelId,
+        threadTs: context.threadTs,
+        userId: context.userId,
+        sourceEventId: context.sourceEventId,
+        operation,
+        resolutionId: `purchase-invoice:${docketId}:${number}`,
+        summary: `Purchase invoice ${number} in docket ${docketId}: deletion outcome not verified.`,
+        status: SlackOperationStatus.EXECUTING,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        idempotencyKey: randomUUID(),
+      });
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        (error as { code?: unknown }).code === 11000
+      ) {
+        return {
+          operation,
+          resolved: false,
+          answer:
+            'This Slack request was already submitted. Check Frayto before retrying.',
+        };
+      }
+      throw error;
+    }
+    const url = new URL(PURCHASE_INVOICE_DELETE_URL);
+    url.searchParams.set('docketId', docketId);
+    url.searchParams.set('number', number);
+    let resolved = false;
+    let answer: string;
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        redirect: 'error',
+        signal: AbortSignal.timeout(12000),
+      });
+      let payload: Record<string, unknown> = {};
+      try {
+        const decoded: unknown = JSON.parse(
+          (await response.text()).slice(0, 20000),
+        );
+        if (decoded && typeof decoded === 'object' && !Array.isArray(decoded))
+          payload = decoded as Record<string, unknown>;
+      } catch {
+        /* A non-JSON response is not confirmation. */
+      }
+      const message =
+        typeof payload.message === 'string' ? payload.message : '';
+      const failed =
+        payload.success === false ||
+        payload.status === false ||
+        /^(error|failed|failure)$/i.test(String(payload.status)) ||
+        /not found|failed|error|invalid|not deleted|cannot|could not|denied|forbidden|unsuccessful/i.test(
+          message,
+        ) ||
+        (typeof payload.statusCode === 'number' && payload.statusCode >= 400);
+      resolved =
+        response.ok &&
+        !failed &&
+        (response.status === 204 ||
+          payload.success === true ||
+          payload.status === 'success' ||
+          /(?:successfully deleted|deleted successfully)/i.test(message));
+      answer = resolved
+        ? `Frayto confirmed deletion of purchase invoice *${number}* from docket *${docketId}*.`
+        : `Frayto did not confirm deletion of purchase invoice ${number} from docket ${docketId} (HTTP ${response.status}). Check Frayto before retrying.`;
+    } catch {
+      answer = `Deletion outcome for purchase invoice ${number} in docket ${docketId} is unknown. Check Frayto before retrying; the request may have reached Frayto.`;
+    }
+    await this.actions.updateOne(
+      { teamId: context.teamId, sourceEventId: context.sourceEventId },
+      {
+        $set: {
+          summary: answer,
+          result: answer,
+          status: resolved
+            ? SlackOperationStatus.COMPLETED
+            : SlackOperationStatus.FAILED,
+          completedAt: new Date(),
+        },
+      },
+    );
+    return { operation, answer, resolved };
+  }
+
   private missing(plan: FraytoPlan): string[] {
     const args = plan.arguments;
     switch (plan.operation) {
@@ -357,7 +486,7 @@ export class SlackFraytoOperationsService {
   ): Promise<PreparationResult | null> {
     const companyId = this.getCompanyId(context.teamId);
     // Quotation updates need no separate workspace/company environment mapping.
-    // Invoice and docket actions still require their existing Frayto mapping.
+    // Direct invoice deletion also uses the existing Slack allowlist; docket reopening uses the bridge.
     const requestText = [
       context.message,
       ...context.history.filter((m) => m.role === 'user').map((m) => m.content),
@@ -365,7 +494,15 @@ export class SlackFraytoOperationsService {
     const quotationCandidate =
       /\b(quotation|quote|validity)\b/i.test(requestText) &&
       /\b(extend|extension|update|change|validity)\b/i.test(requestText);
-    if (!companyId && !quotationCandidate) return null;
+    // Require a current, affirmative deletion request; history alone cannot replay it.
+    const invoiceCandidate =
+      /\b(delete|remove)\b/i.test(context.message) &&
+      /\b(invoice|invoices)\b/i.test(context.message);
+    const invoiceBlocked =
+      /\b(not|never|don['’]t|do not|without|how|why|whether|if|example|hypothetical|sales|customer|multiple|all|bulk)\b/i.test(
+        context.message,
+      ) || /\b(?:can|could)\s+(?:i|we)\b/i.test(context.message);
+    if (!companyId && !quotationCandidate && !invoiceCandidate) return null;
     const prior = await this.actions.findOne({
       teamId: context.teamId,
       sourceEventId: context.sourceEventId,
@@ -377,8 +514,10 @@ export class SlackFraytoOperationsService {
             ? 'This operation was already submitted and the outcome has not been verified. Check Frayto before retrying.'
             : prior.summary,
         resolved:
-          prior.operation === 'extend_quotation_validity' &&
-          prior.resolutionId.startsWith('quotation:')
+          (prior.operation === 'extend_quotation_validity' &&
+            prior.resolutionId.startsWith('quotation:')) ||
+          (prior.operation === 'delete_purchase_invoice' &&
+            prior.resolutionId.startsWith('purchase-invoice:'))
             ? prior.status === SlackOperationStatus.COMPLETED
             : undefined,
         actionId:
@@ -396,6 +535,7 @@ export class SlackFraytoOperationsService {
         instructions: [
           'Identify Frayto FMS operations ONLY when explicitly requested.',
           'Allowed operations: delete purchase invoice, reopen specific docket workflow steps from done to pending, extend OR update/change quotation validity.',
+          'Delete invoice and delete purchase invoice mean delete_purchase_invoice. Extract docket ID into docketNo and invoice number into invoiceNo, preserving exact spelling. Only classify a current affirmative request to delete one purchase invoice; never classify questions about deletion, negation, examples, historical requests, sales invoices, or bulk deletion as this operation. If several possible identifiers exist, leave the ambiguous field empty. Do not use history for invoice deletion identifiers.',
           'Both extend quotation validity and update quotation validity map to extend_quotation_validity.',
           'For other questions output operation=none. Never invent identifiers, dates or step names.',
           'Use thread history to fill details supplied in earlier turns, including previous clarification replies.',
@@ -431,6 +571,11 @@ export class SlackFraytoOperationsService {
       };
     }
     if (plan.operation === 'none') return null;
+    if (
+      plan.operation === 'delete_purchase_invoice' &&
+      (!invoiceCandidate || invoiceBlocked)
+    )
+      return null;
     if (!plan.arguments || !Array.isArray(plan.arguments.stepNames)) {
       return {
         answer:
@@ -456,9 +601,17 @@ export class SlackFraytoOperationsService {
         plan.arguments.validUntil.trim(),
       );
     }
+    if (plan.operation === 'delete_purchase_invoice') {
+      return this.deletePurchaseInvoice(
+        context,
+        plan.arguments.docketNo.trim(),
+        plan.arguments.invoiceNo.trim(),
+      );
+    }
     if (!companyId) {
       return {
-        answer: 'Frayto operations are not enabled for this workspace. No changes were made.',
+        answer:
+          'Frayto operations are not enabled for this workspace. No changes were made.',
         operation: plan.operation,
         resolved: false,
       };
