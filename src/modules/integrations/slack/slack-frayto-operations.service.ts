@@ -112,7 +112,7 @@ const QUOTATION_VALIDITY_URL =
   'https://api2.traydo.com/quotation/update-quotation-validity';
 
 const PURCHASE_INVOICE_DELETE_URL =
-  'https://api2.traydo.com/dockets/delete-purchase-invoice';
+  'https://api2.traydo.com/docket/delete-purchase-invoice';
 
 const OPERATION_LABELS: Record<FraytoOperationType, string> = {
   delete_purchase_invoice: 'Delete purchase invoice',
